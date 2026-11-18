@@ -1,0 +1,166 @@
+<UserControl x:Class="dFinance.LedgerTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontSize="13">
+  <UserControl.Resources>
+    <!-- 列態要用「形狀 + 顏色」双重表達：灰底=孤兒、灰字=不記、紅粗體=沒有消費日、藍=負額 -->
+    <Style x:Key="LedgerRow" TargetType="DataGridRow">
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding Orphaned}" Value="True"><Setter Property="Background" Value="#EFEFEF"/></DataTrigger>
+        <DataTrigger Binding="{Binding Status}" Value="ignored"><Setter Property="Foreground" Value="#8A8A8A"/></DataTrigger>
+        <DataTrigger Binding="{Binding Status}" Value="duplicate"><Setter Property="Foreground" Value="#8A8A8A"/></DataTrigger>
+      </Style.Triggers>
+    </Style>
+    <Style x:Key="AmountCell" TargetType="TextBlock">
+      <Setter Property="TextAlignment" Value="Right"/>
+      <Setter Property="FontFamily" Value="Consolas"/>
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding IsNegative}" Value="True"><Setter Property="Foreground" Value="#0B5FA5"/></DataTrigger>
+      </Style.Triggers>
+    </Style>
+    <Style x:Key="DateCell" TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="Consolas"/>
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding NeedsDate}" Value="True">
+          <Setter Property="Foreground" Value="#B00020"/><Setter Property="FontWeight" Value="Bold"/>
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+  </UserControl.Resources>
+
+  <DockPanel>
+
+    <!-- 篩選列 -->
+    <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,4">
+      <Button x:Name="AddButton" DockPanel.Dock="Right" Content="＋ 記一筆" Width="80" Margin="6,0,0,0"
+              FontWeight="Bold" Click="Add_Click" ToolTip="現金/錢包一定沒有 PDF，用這個補一筆"/>
+      <Button x:Name="OpenAccountButton" DockPanel.Dock="Right" Content="開帳戶分頁" Width="90" Margin="6,0,0,0"
+              Click="OpenAccount_Click" ToolTip="把這列的帳戶開成一個獨立分頁，方便兩邊對比"/>
+      <StackPanel Orientation="Horizontal">
+        <TextBlock Text="日期" VerticalAlignment="Center" Margin="0,0,4,0"/>
+        <ComboBox x:Name="PresetBox" Width="72" VerticalAlignment="Center" SelectionChanged="Preset_Changed"/>
+        <DatePicker x:Name="FromBox" Width="112" Margin="6,0,0,0" VerticalAlignment="Center" SelectedDateChanged="Range_Changed"/>
+        <TextBlock Text="~" Margin="4,0" VerticalAlignment="Center"/>
+        <DatePicker x:Name="ToBox" Width="112" VerticalAlignment="Center" SelectedDateChanged="Range_Changed"/>
+
+        <TextBlock x:Name="AccountLabel" Text="帳戶" VerticalAlignment="Center" Margin="12,0,4,0"/>
+        <ComboBox x:Name="AccountBox" Width="190" VerticalAlignment="Center" SelectionChanged="Filter_Changed"
+                  DisplayMemberPath="Label" SelectedValuePath="Id"/>
+        <TextBlock Text="分類" VerticalAlignment="Center" Margin="12,0,4,0"/>
+        <ComboBox x:Name="CategoryBox" Width="150" VerticalAlignment="Center" SelectionChanged="Filter_Changed"
+                  DisplayMemberPath="Label" SelectedValuePath="Id"/>
+        <TextBlock Text="狀態" VerticalAlignment="Center" Margin="12,0,4,0"/>
+        <ComboBox x:Name="StatusBox" Width="104" VerticalAlignment="Center" SelectionChanged="Filter_Changed"
+                  DisplayMemberPath="Label" SelectedValuePath="Mode"/>
+        <TextBox x:Name="SearchBox" Width="150" Margin="12,0,0,0" VerticalAlignment="Center" KeyUp="Search_KeyUp"
+                 ToolTip="商家關鍵字，按 Enter 搜尋"/>
+        <Button Content="重設" Width="52" Margin="6,0,0,0" Click="Reset_Click"/>
+      </StackPanel>
+    </DockPanel>
+
+    <!-- 動作列（作用在選取的列） -->
+    <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,4">
+      <TextBlock x:Name="CountText" DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="#555"/>
+      <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="#888" Margin="0,0,10,0"
+                 Text="金額唯讀：要調帳用「＋ 記一筆」的調整　　"/>
+      <StackPanel Orientation="Horizontal">
+        <Button Content="核銷" Width="52" Click="Status_Click" Tag="cleared"/>
+        <Button Content="忽略" Width="52" Margin="4,0,0,0" Click="Status_Click" Tag="ignored"/>
+        <Button Content="重複" Width="52" Margin="4,0,0,0" Click="Status_Click" Tag="duplicate"
+                ToolTip="標成重複後報表就不算它（資料留着，不是刪掉）"/>
+        <Button Content="刪除" Width="52" Margin="4,0,0,0" Click="Delete_Click"
+                ToolTip="軟刪除（deleted_at），用上面的狀態篩選「已刪除」找得回來"/>
+        <Button Content="還原" Width="52" Margin="4,0,0,0" Click="Restore_Click"/>
+        <Button Content="＋ 分類" Width="60" Margin="10,0,0,0" Click="AddCategory_Click"/>
+        <Button Content="帳戶…" Width="60" Margin="10,0,0,0" Click="Accounts_Click"
+                ToolTip="新增/編輯帳戶、期初餘額、信用額度與自動扣繳、餘額盤點（現金/錢包沒有 PDF，只能從這裡建）"/>
+      </StackPanel>
+    </DockPanel>
+
+    <!-- 概況：一律当场用 SQL 算，不建 rollup 表 -->
+    <Border DockPanel.Dock="Top" BorderBrush="#DDD" BorderThickness="0,0,0,1" Padding="0,4" Margin="0,0,0,4">
+      <StackPanel>
+        <TextBlock x:Name="AccountHeaderText" FontWeight="Bold" Visibility="Collapsed"/>
+        <TextBlock x:Name="KpiText" FontSize="14" TextWrapping="Wrap"/>
+        <!-- 總表：每個帳戶有多少錢。口徑全在 LedgerStore.NetWorth()，這裡只負責擺 -->
+        <Expander x:Name="NetWorthBox" Header="淨值明細（每個帳戶有多少錢）" FontSize="12" Margin="0,4,0,0"
+                  IsExpanded="False">
+          <DataGrid x:Name="NetWorthGrid" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                    HeadersVisibility="Column" GridLinesVisibility="Horizontal" MaxHeight="220" FontSize="12"
+                    Margin="0,4,0,0">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="帳戶" Binding="{Binding Name}" Width="2*"/>
+              <DataGridTextColumn Header="類型" Binding="{Binding TypeLabel}" Width="60"/>
+              <DataGridTextColumn Header="幣別" Binding="{Binding Currency}" Width="46"/>
+              <DataGridTextColumn Header="餘額" Binding="{Binding BalanceText}" Width="100"/>
+              <DataGridTextColumn Header="折算後（TWD）" Binding="{Binding ConvertedText}" Width="110"/>
+              <DataGridTextColumn Header="計入淨值" Binding="{Binding CountedText}" Width="*"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </Expander>
+      </StackPanel>
+    </Border>
+
+    <!-- 警示列：點了就把它變成篩選 -->
+    <Border DockPanel.Dock="Bottom" BorderBrush="#DDD" BorderThickness="0,1,0,0" Padding="0,4" Margin="0,4,0,0">
+      <WrapPanel>
+        <Button x:Name="OrphanButton" Margin="0,0,8,0" Click="Orphan_Click"
+                ToolTip="新版 parser 不再出現的列（可能只是漏解析，所以不准刪）"/>
+        <Button x:Name="DuplicateButton" Margin="0,0,8,0" Click="Duplicate_Click"
+                ToolTip="跨檔案同額同日的信用卡列：只標記，不改任何資料"/>
+        <Button x:Name="BalanceButton" Margin="0,0,8,0" Click="Balance_Click"
+                ToolTip="存款單餘額快照 vs 交易累加對不上 = parser 漏列"/>
+        <TextBlock x:Name="StatusText" VerticalAlignment="Center" Foreground="#555" FontSize="11"/>
+      </WrapPanel>
+    </Border>
+
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="6"/>
+        <ColumnDefinition Width="330"/>
+      </Grid.ColumnDefinitions>
+
+      <DataGrid x:Name="LedgerGrid" Grid.Column="0" AutoGenerateColumns="False" CanUserAddRows="False"
+                HeadersVisibility="Column" GridLinesVisibility="Horizontal" SelectionUnit="FullRow"
+                RowStyle="{StaticResource LedgerRow}" SelectionChanged="Grid_SelectionChanged"
+                CellEditEnding="Grid_CellEditEnding" MouseDoubleClick="Grid_MouseDoubleClick" FontSize="13">
+        <DataGrid.Columns>
+          <DataGridTextColumn Binding="{Binding Dot}" Width="22" IsReadOnly="True"
+                              ElementStyle="{StaticResource DateCell}"/>
+          <DataGridTextColumn x:Name="DateCol" Header="消費日" Binding="{Binding Date}" Width="92"
+                              ElementStyle="{StaticResource DateCell}" EditingElementStyle="{StaticResource DateCell}"/>
+          <DataGridTextColumn x:Name="MerchantCol" Header="商家" Binding="{Binding Merchant}" Width="2*"/>
+          <DataGridTemplateColumn x:Name="CategoryCol" Header="分類" Width="150">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate><TextBlock Text="{Binding Category}" VerticalAlignment="Center"/></DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+            <DataGridTemplateColumn.CellEditingTemplate>
+              <DataTemplate>
+                <ComboBox ItemsSource="{Binding Categories}" SelectedValuePath="Id" DisplayMemberPath="Name"
+                          SelectedValue="{Binding CategoryId, Mode=TwoWay}" IsEnabled="{Binding CanPickCategory}"/>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellEditingTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTextColumn Header="金額" Binding="{Binding Amount, StringFormat=N0}" Width="90" IsReadOnly="True"
+                              ElementStyle="{StaticResource AmountCell}"/>
+          <DataGridTextColumn x:Name="AccountCol" Header="帳戶" Binding="{Binding Account}" Width="140" IsReadOnly="True"/>
+          <DataGridTextColumn Header="狀態" Binding="{Binding StatusText}" Width="54" IsReadOnly="True"/>
+          <DataGridTextColumn x:Name="NoteCol" Header="備註" Binding="{Binding Note}" Width="*"/>
+        </DataGrid.Columns>
+      </DataGrid>
+
+      <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" Background="#DDD"/>
+
+      <DockPanel Grid.Column="2" Margin="0">
+        <TextBlock DockPanel.Dock="Top" Text="來源血統" FontWeight="Bold" Margin="0,0,0,4"/>
+        <Button x:Name="OpenPdfButton" DockPanel.Dock="Bottom" Content="開啟留底 PDF" Margin="0,4,0,0"
+                HorizontalAlignment="Left" Width="120" Click="OpenPdf_Click"
+                ToolTip="留底是原樣存的（原本有密碼就還是加密），要重看就要重打密碼"/>
+        <TextBox x:Name="LineageBox" IsReadOnly="True" FontFamily="Consolas" FontSize="12"
+                 VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"
+                 ToolTip="這筆從哪份檔案、哪一頁、原文哪一行來 —— 核對解析對不對全靠它"/>
+      </DockPanel>
+    </Grid>
+  </DockPanel>
+</UserControl>

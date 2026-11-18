@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../dFinance.Parsing/dFinance.Parsing.csproj" />
+    <ProjectReference Include="../dFinance.Data/dFinance.Data.csproj" />
+  </ItemGroup>
+</Project>
