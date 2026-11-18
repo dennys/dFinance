@@ -14,6 +14,9 @@
     <Separator/>
     <MenuItem Header="結束" Click="Exit_Click"/>
   </MenuItem>
+  <MenuItem Header="報表(_R)">
+    <MenuItem Header="分類帳" Click="CategoryReport_Click"/>
+  </MenuItem>
   <MenuItem Header="說明(_H)">
     <MenuItem Header="關於 dFinance" Click="About_Click"/>
   </MenuItem>

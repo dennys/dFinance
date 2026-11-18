@@ -75,6 +75,8 @@
         <Button Content="＋ 分類" Width="60" Margin="10,0,0,0" Click="AddCategory_Click"/>
         <Button Content="帳戶…" Width="60" Margin="10,0,0,0" Click="Accounts_Click"
                 ToolTip="新增/編輯帳戶、期初餘額、信用額度與自動扣繳、餘額盤點（現金/錢包沒有 PDF，只能從這裡建）"/>
+        <Button Content="建議分類…" Width="80" Margin="10,0,0,0" Click="Suggest_Click"
+                ToolTip="依商家關鍵字建議未分類的列，勾選後套用（只動未分類的列）"/>
       </StackPanel>
     </DockPanel>
 
@@ -84,6 +86,19 @@
         <TextBlock x:Name="AccountHeaderText" FontWeight="Bold" Visibility="Collapsed"/>
         <TextBlock x:Name="KpiText" FontSize="14" TextWrapping="Wrap"/>
       </StackPanel>
+    </Border>
+
+    <!-- 分類帳報表：月×分類透視表 -->
+    <Border DockPanel.Dock="Top" BorderBrush="#DDD" BorderThickness="0,0,0,1" Padding="0,4" Margin="0,0,0,4">
+      <ScrollViewer>
+        <DataGrid x:Name="CategoryReportGrid"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  HeadersVisibility="Column"
+                  FontSize="13"
+                  Margin="4"
+                  PreviewMouseLeftButtonUp="CategoryReport_CellClick"/>
+      </ScrollViewer>
     </Border>
 
     <!-- 警示列：點了就把它變成篩選 -->

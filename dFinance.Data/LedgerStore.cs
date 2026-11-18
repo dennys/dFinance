@@ -123,7 +123,7 @@ public sealed class LedgerStore
         var ps = new List<(string, object?)> { ("$limit", f.Limit) };
         if (f.AccountId is { } acct) { where += " AND e.account_id = $acct"; ps.Add(("$acct", acct)); }
         if (f.CategoryId is { } cat) { where += " AND e.category_id = $cat"; ps.Add(("$cat", cat)); }
-        if (f.Uncategorized) where += " AND e.category_id IS NULL";
+        if (f.Uncategorized) where += " AND e.category_id IS NULL AND e.kind NOT IN ('transfer','refund')";
         // 沒有消費日的列不論篩哪個區間都要看得到，否則使用者永遠沒機會補它（排在最後＋紅色 ?）
         if (f.From is { } from) { where += " AND (e.txn_date IS NULL OR e.txn_date >= $from)"; ps.Add(("$from", from)); }
         if (f.To is { } to) { where += " AND (e.txn_date IS NULL OR e.txn_date <= $to)"; ps.Add(("$to", to)); }
@@ -502,6 +502,26 @@ public sealed class LedgerStore
         return newId;
     }
 
+    /// <summary>未分類的商家與筆數（報表口徑，依筆數由多到少），給分類建議用。</summary>
+    public List<(string Merchant, int Count)> UncategorizedMerchants(string? from = null, string? to = null, long? accountId = null)
+    {
+        var list = new List<(string, int)>();
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = $"""
+            SELECT COALESCE(e.merchant, '(未命名)'), COUNT(*)
+            FROM entry e
+            WHERE {Live} AND e.category_id IS NULL AND e.kind NOT IN ('transfer','refund')
+              AND (e.txn_date IS NULL OR $from IS NULL OR e.txn_date >= $from) AND (e.txn_date IS NULL OR $to IS NULL OR e.txn_date <= $to)
+            ORDER BY COUNT(*) DESC, 1;
+            """;
+        cmd.Parameters.AddWithValue("$from", (object?)from ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$to", (object?)to ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$acct", (object?)accountId ?? DBNull.Value);
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add((r.GetString(0), (int)r.GetInt64(1)));
+        return list;
+    }
+
     public sealed record AccountOption(long Id, string Name, string Type, string Currency, bool IsArchived = false);
 
     public List<AccountOption> Accounts(bool includeArchived = false)
@@ -572,6 +592,64 @@ public sealed class LedgerStore
 
     /// <summary>帳戶管理表单用：账户就那十幾個，直接从清单里找，不另拼一份 SQL。</summary>
     public AccountEdit? GetAccount(long id) => AccountsAll().FirstOrDefault(a => a.Id == id);
+
+    /// <summary>
+    /// 查月分類總計：縱軸=分類（可 parent/child 展開），橫軸=月，最後一欄為該分類總計。
+    /// </summary>
+    public sealed record CatMonthTotal(string CategoryPath, string Month, long TotalMinor);
+
+    /// <summary>
+    /// 取得分類 × 月 透視報表（僅 Live 交易，不含 pending/ignored/duplicate）。
+    /// 回傳的 CategoryPath 為「父類／子類」連續斜線，如「餐飲／午餐」。
+    /// </summary>
+    public List<CatMonthTotal> CatMonthTotals(string? from = null, string? to = null, long? accountId = null)
+    {
+        var live = LedgerStore.Live;
+        var fromWhere = (from is not null ? " AND e.txn_date >= $from" : "")
+                        + (to is not null ? " AND e.txn_date <= $to" : "")
+                        + (accountId.HasValue ? " AND e.account_id = $acct" : "");
+        var where = $"({live}){fromWhere}";
+        var ps = new List<(string, object?)> { ("$from", (object?)from), ("$to", (object?)to) };
+        if (accountId.HasValue) { ps.Add(("$acct", accountId.Value)); }
+
+        // 遞迴 CTE 建立分類完整路徑：parent/id/name，最後接子類別名
+        var sql = $"""
+            WITH RECURSIVE cat_path(id, path) AS (
+                SELECT id, CAST(name AS TEXT) FROM category WHERE parent_id IS NULL
+                UNION ALL
+                SELECT c.id, ca.path || '／' || c.name
+                FROM category c JOIN cat_path ca ON c.parent_id = ca.id
+            )
+            SELECT COALESCE(cp.path, c.name, '未分類') AS CategoryPath,
+                   substr(e.txn_date, 1, 7) AS Month,
+                   SUM(e.amount_minor) AS TotalMinor
+            FROM entry e
+            LEFT JOIN category c ON c.id = e.category_id
+            LEFT JOIN cat_path cp ON cp.id = c.id
+            WHERE {where}
+            GROUP BY COALESCE(c.id, 0), Month
+            ORDER BY c.sort_order IS NULL, c.sort_order, Month
+            """;
+
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = sql;
+        foreach (var (n, v) in ps) cmd.Parameters.AddWithValue(n, v ?? DBNull.Value);
+        var list = new List<CatMonthTotal>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            var path = r.GetString(0);
+            var month = r.GetString(1);
+            var total = r.GetInt64(2);
+            list.Add(new CatMonthTotal(path, month, total));
+        }
+        return list;
+    }
+
+    /// <summary>
+    /// 單筆分類的明細交易（可用於 drill down 點擊）。
+    /// </summary>
+    public sealed record CatEntry(long Id, string Date, string Merchant, long AmountMinor, string CategoryName);
 
     /// <summary>交易推出來的餘額（已歸檔的也算，盘點跟對帳要看得到）。</summary>
     public long DerivedBalance(long accountId)
@@ -687,8 +765,29 @@ public sealed class LedgerStore
 
     /// <summary>使用者動過的列要寫 <c>edited_at</c>：重匯時匯入器只准更新 source_raw，不然人工分類會被蓋掉。</summary>
     public void SetCategory(long id, long? categoryId)
-        => Write("UPDATE entry SET category_id=$c, edited_at=$at, updated_at=$at WHERE id=$id;",
+        => Write("UPDATE entry SET category_id=$c, status=CASE WHEN $c IS NOT NULL AND status='imported' THEN 'cleared' ELSE status END, edited_at=$at, updated_at=$at WHERE id=$id;",
                  ("$c", (object?)categoryId ?? DBNull.Value), ("$at", Db.Now()), ("$id", id));
+
+    /// <summary>已有分類但仍是待補（imported）的列改成核銷（cleared）；啟動時跑一次，冪等。</summary>
+    public int PromoteCategorizedImports()
+    {
+        Db.Exec(_db, "UPDATE entry SET status='cleared' WHERE status='imported' AND category_id IS NOT NULL AND deleted_at IS NULL;");
+        return Db.Scalar(_db, "SELECT changes();") is long n ? (int)n : 0;
+    }
+
+    /// <summary>依商家批次補分類，只動尚未分類的列。</summary>
+    public int SetCategoryForMerchant(string merchant, long categoryId)
+    {
+        var merchantKey = merchant == "(未命名)" ? null : merchant;
+        Write($"""
+            UPDATE entry SET category_id=$c, status=CASE WHEN status='imported' THEN 'cleared' ELSE status END, edited_at=$at, updated_at=$at
+            WHERE deleted_at IS NULL AND status IN ('cleared','imported')
+              AND category_id IS NULL AND kind NOT IN ('transfer','refund')
+              AND (merchant IS $m OR ($m IS NULL AND merchant IS NULL));
+            """,
+              ("$c", categoryId), ("$at", Db.Now()), ("$m", (object?)merchantKey ?? DBNull.Value));
+        return Db.Scalar(_db, "SELECT changes();") is long n ? (int)n : 0;
+    }
 
     public void SetMerchant(long id, string? merchant)
         => Write("UPDATE entry SET merchant=$m, edited_at=$at, updated_at=$at WHERE id=$id;",

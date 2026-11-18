@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using dFinance.Data;
 using Microsoft.Data.Sqlite;
@@ -17,7 +18,10 @@ public partial class LedgerTab : UserControl
 {
     readonly LedgerStore? _store;
     readonly long? _accountId;
+    readonly bool _homeMode;
     long _loadedVersion = -1;
+    bool _showingReport;
+    long _reportVersion = -1;
     bool _loadingFilter;                          // 灌篩選選項時別跟著重查
 
     record AccountPick(long? Id, string Label);
@@ -27,12 +31,16 @@ public partial class LedgerTab : UserControl
     /// <summary>使用者要把某個帳戶再開一個分頁（由 MainWindow 接手）。</summary>
     public event Action<long, string>? OpenAccountRequested;
 
+    /// <summary>報表格子 drill down：分類路徑與日期範圍（合計欄為 null，表示不限日期）。</summary>
+    public event Action<string, string?, string?>? DrillDownRequested;
+
     public LedgerTab() => InitializeComponent();                       // 設計期
 
-    public LedgerTab(SqliteConnection db, long? accountId) : this()
+    public LedgerTab(SqliteConnection db, long? accountId, bool ledgerMode = false) : this()
     {
         _store = new LedgerStore(db);
         _accountId = accountId;
+        _homeMode = accountId is null && !ledgerMode;
         BuildFilterOptions();
 
         if (_accountId is not null)
@@ -41,11 +49,12 @@ public partial class LedgerTab : UserControl
             AccountHeaderText.Visibility = Visibility.Visible;
             AccountCol.Visibility = Visibility.Collapsed;      // 都同一個帳戶，欄位留著給主頁（全部帳戶）用
         }
-        else
+        else if (_homeMode)
         {
             FilterBar.Visibility = ActionBar.Visibility = LedgerPanel.Visibility = Visibility.Collapsed;
             HomePanel.Visibility = Visibility.Visible;
         }
+        else HomePanel.Visibility = Visibility.Collapsed;
 
         Loaded += (_, _) => Reload();
         IsVisibleChanged += (_, _) => RefreshIfStale();
@@ -54,7 +63,9 @@ public partial class LedgerTab : UserControl
     /// <summary>分頁切回來時用：沒人寫過資料就不碰資料庫。</summary>
     public void RefreshIfStale()
     {
-        if (_store is not null && _loadedVersion != LedgerStore.DataVersion) Reload();
+        if (_store is null) return;
+        if (_loadedVersion != LedgerStore.DataVersion) Reload();
+        if (_showingReport && _reportVersion != LedgerStore.DataVersion) ShowCategoryReport();
     }
 
     /// <summary>給 --uismoke 看的：真的載入到幾列（0 就是篩選或接庫有問題）。</summary>
@@ -154,6 +165,30 @@ public partial class LedgerTab : UserControl
         AccountBox.SelectedIndex = 0;
     }
 
+    void Suggest_Click(object sender, RoutedEventArgs e)
+    {
+        if (_store is not { } s) return;
+        var f = CurrentFilter();
+        var dlg = new SuggestDialog(s, f.From, f.To, f.AccountId) { Owner = Window.GetWindow(this) };
+        if (dlg.ShowDialog() == true && dlg.Applied > 0) RefreshNow();
+    }
+
+    /// <summary>分類帳 drill down：套用分類與日期範圍（全部帳戶）後重查。</summary>
+    public void ApplyDrillDown(string categoryPath, string? from, string? to)
+    {
+        _loadingFilter = true;
+        try
+        {
+            PresetBox.SelectedItem = "自訂";
+            FromBox.SelectedDate = from is null ? null : DateTime.ParseExact(from, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            ToBox.SelectedDate = to is null ? null : DateTime.ParseExact(to, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            CategoryBox.SelectedItem = (CategoryBox.ItemsSource as IEnumerable<CategoryPick>)?
+                .FirstOrDefault(c => c.Label == categoryPath);
+        }
+        finally { _loadingFilter = false; }
+        Reload();
+    }
+
     static DateOnly LastDay(DateOnly d) => new(d.Year, d.Month, DateTime.DaysInMonth(d.Year, d.Month));
     static (DateOnly, DateOnly) LastMonth(DateOnly today)
     {
@@ -187,8 +222,8 @@ public partial class LedgerTab : UserControl
     {
         if (_store is not { } s) { KpiText.Text = "資料庫開不起來，帳本暫時不能用。"; return; }
 
-        var f = _accountId is null ? CurrentMonthFilter() : CurrentFilter();
-        List<LedgerStore.Row> rows = _accountId is null ? [] : s.List(f);   // 首頁不顯示帳本清單，不白查 2000 列
+        var f = _homeMode ? CurrentMonthFilter() : CurrentFilter();
+        List<LedgerStore.Row> rows = _homeMode ? [] : s.List(f);   // 首頁不顯示帳本清單，不白查 2000 列
         LedgerGrid.ItemsSource = rows;
         ShowSummary(f, rows.Count, s);
         _loadedVersion = LedgerStore.DataVersion;
@@ -203,7 +238,7 @@ public partial class LedgerTab : UserControl
         var mismatch = s.BalanceMismatches();
 
         CountText.Text = $"{rowCount} 列" + (rowCount >= f.Limit ? "（已截斷，請縮小範圍）" : "");
-        if (_accountId is null) ShowHome(nw, s);
+        if (_homeMode) ShowHome(nw, s);
         ShowKpi(k, nw, s.CardUnpaidMinor());
         ShowAlerts(orphans, dups, mismatch);
         if (_accountId is { } id && nw.Accounts.FirstOrDefault(a => a.Id == id) is { } mine)
@@ -239,7 +274,67 @@ public partial class LedgerTab : UserControl
         NetWorthPlot.Refresh();
     }
 
-    /// <summary>點淨值明細的一列 → 開那個帳戶的分頁（等同把列選起來再按「開帳戶分頁」）。</summary>
+    /// <summary>分類帳報表：分類（列）× 月（欄）透視表，最後一欄為該分類合計；僅顯示報表本身。</summary>
+    public void ShowCategoryReport()
+    {
+        if (_store is not { } s) return;
+        HomePanel.Visibility = Visibility.Collapsed;
+        _showingReport = true;
+        _reportVersion = LedgerStore.DataVersion;
+
+        var totals = s.CatMonthTotals();
+        var months = totals.Select(t => t.Month).Distinct().OrderBy(m => m, StringComparer.Ordinal).ToList();
+        var rows = totals.GroupBy(t => t.CategoryPath).Select(g =>
+        {
+            var row = new Dictionary<string, string> { ["CategoryPath"] = g.Key };
+            foreach (var m in months)
+                row[m] = Money.FromMinor(g.Where(t => t.Month == m).Sum(t => t.TotalMinor)).ToString("N0");
+            row["Total"] = Money.FromMinor(g.Sum(t => t.TotalMinor)).ToString("N0");
+            return row;
+        }).ToList();
+
+        CategoryReportGrid.Columns.Clear();
+        CategoryReportGrid.Columns.Add(ReportColumn("分類路徑", "CategoryPath", new DataGridLength(3, DataGridLengthUnitType.Star)));
+        foreach (var m in months) CategoryReportGrid.Columns.Add(ReportColumn(m, m, DataGridLength.Auto));
+        CategoryReportGrid.Columns.Add(ReportColumn("合計", "Total", DataGridLength.Auto));
+        CategoryReportGrid.ItemsSource = rows;
+    }
+
+    static DataGridTextColumn ReportColumn(string header, string key, DataGridLength width) => new()
+    {
+        Header = header,
+        Binding = new System.Windows.Data.Binding($"[{key}]"),
+        Width = width,
+        IsReadOnly = true,
+        ElementStyle = key == "CategoryPath" ? null : NumberCellStyle,
+    };
+
+    static readonly Style NumberCellStyle = new(typeof(TextBlock))
+    {
+        Setters = { new Setter(TextBlock.TextAlignmentProperty, TextAlignment.Right) },
+    };
+
+    void CategoryReport_CellClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is not DependencyObject src) return;
+        var cell = FindAncestor<DataGridCell>(src);
+        if (cell is null || cell.Column?.Header is not string header || header == "分類路徑") return;
+        if (cell.DataContext is not Dictionary<string, string> row) return;
+
+        var category = row["CategoryPath"];
+        if (header == "合計") { DrillDownRequested?.Invoke(category, null, null); return; }
+
+        var first = DateOnly.ParseExact(header, "yyyy-MM", System.Globalization.CultureInfo.InvariantCulture);
+        DrillDownRequested?.Invoke(category, first.ToString("yyyy-MM-dd"), LastDay(first).ToString("yyyy-MM-dd"));
+    }
+
+    static T? FindAncestor<T>(DependencyObject d) where T : DependencyObject
+    {
+        for (var cur = d; cur is not null; cur = System.Windows.Media.VisualTreeHelper.GetParent(cur))
+            if (cur is T t) return t;
+        return null;
+    }
+
     void HomeNetWorth_Click(object sender, MouseButtonEventArgs e)
     {
         if (e.OriginalSource is DependencyObject src

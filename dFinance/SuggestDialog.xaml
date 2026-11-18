@@ -1,0 +1,35 @@
+<Window x:Class="dFinance.SuggestDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="560" Height="480" WindowStartupLocation="CenterOwner" FontSize="13">
+  <DockPanel Margin="10">
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+      <Button x:Name="ApplyButton" Width="80" Padding="0,3" IsDefault="True" Click="Apply_Click"/>
+      <Button x:Name="CancelButton" Width="80" Padding="0,3" Margin="8,0,0,0" IsCancel="True"/>
+    </StackPanel>
+    <TextBlock x:Name="HintText" DockPanel.Dock="Top" Foreground="#555" TextWrapping="Wrap" Margin="0,0,0,6"/>
+    <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False" CanUserAddRows="False"
+              HeadersVisibility="Column" GridLinesVisibility="Horizontal" FontSize="13">
+      <DataGrid.Columns>
+        <DataGridCheckBoxColumn x:Name="ApplyCol" Binding="{Binding Apply}" Width="50"/>
+        <DataGridTextColumn x:Name="MerchantCol" Binding="{Binding Merchant}" IsReadOnly="True" Width="2*"/>
+        <DataGridTextColumn x:Name="CountCol" Binding="{Binding Count}" IsReadOnly="True" Width="50">
+          <DataGridTextColumn.ElementStyle>
+            <Style TargetType="TextBlock"><Setter Property="TextAlignment" Value="Right"/></Style>
+          </DataGridTextColumn.ElementStyle>
+        </DataGridTextColumn>
+        <DataGridTemplateColumn x:Name="CategoryCol" Width="160" SortMemberPath="Category">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate><TextBlock Text="{Binding Category}" VerticalAlignment="Center"/></DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+          <DataGridTemplateColumn.CellEditingTemplate>
+            <DataTemplate>
+              <ComboBox ItemsSource="{Binding DataContext.CategoryNames, RelativeSource={RelativeSource AncestorType=Window}}"
+                        SelectedItem="{Binding Category, Mode=TwoWay}"/>
+            </DataTemplate>
+          </DataGridTemplateColumn.CellEditingTemplate>
+        </DataGridTemplateColumn>
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</Window>

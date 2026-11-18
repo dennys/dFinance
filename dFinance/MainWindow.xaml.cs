@@ -14,6 +14,8 @@ namespace dFinance
     {
         private SqliteConnection? _db;
         private readonly Dictionary<long, TabItem> _accountTabs = [];
+        private readonly List<TabItem> _drillDownTabs = [];
+        private TabItem? _categoryTab;
 
         public MainWindow()
         {
@@ -54,7 +56,11 @@ namespace dFinance
                 // 先收掉舊分頁再關舊連線：收的過程如果還被叫去重查，起碼庫還是開著的。
                 foreach (var item in _accountTabs.Values) Tabs.Items.Remove(item);
                 _accountTabs.Clear();
+                foreach (var item in _drillDownTabs) Tabs.Items.Remove(item);
+                _drillDownTabs.Clear();
+                new LedgerStore(db).PromoteCategorizedImports();
                 HomeTab.Content = NewLedger(null, "首頁");
+                BuildCategoryTab();
                 Tabs.SelectedItem = HomeTab;
                 previous?.Dispose();
 
@@ -81,11 +87,40 @@ namespace dFinance
         /// 帳戶分頁就是同一個 LedgerTab 傅入 accountId，不另寫一套版面。
         /// 分頁开著不關就不重查：换分頁時只比 LedgerStore.DataVersion，髒了才重載。
         /// </summary>
-        LedgerTab NewLedger(long? accountId, string title)
+        LedgerTab NewLedger(long? accountId, string title, bool ledgerMode = false)
         {
-            var tab = new LedgerTab(_db!, accountId);
+            var tab = new LedgerTab(_db!, accountId, ledgerMode);
             tab.OpenAccountRequested += OpenAccountTab;
+            tab.DrillDownRequested += OpenDrillDownTab;
             return tab;
+        }
+
+        void OpenDrillDownTab(string categoryPath, string? from, string? to)
+        {
+            if (_db is null) return;
+            var name = categoryPath.Split('／')[^1];
+            var header = new StackPanel { Orientation = Orientation.Horizontal };
+            header.Children.Add(new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center });
+            var item = new TabItem { Header = header, Content = NewLedger(null, name, ledgerMode: true), ToolTip = categoryPath };
+            var close = new Button
+            {
+                Content = "✕", Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(3, 0, 3, 0),
+                BorderThickness = new Thickness(0), Background = System.Windows.Media.Brushes.Transparent,
+                ToolTip = "關閉這個分頁",
+            };
+            close.Click += (_, _) => CloseDrillDownTab(item);
+            header.Children.Add(close);
+            _drillDownTabs.Add(item);
+            Tabs.Items.Insert(Tabs.Items.Count - 1, item);
+            Tabs.SelectedItem = item;
+            ((LedgerTab)item.Content).ApplyDrillDown(categoryPath, from, to);
+        }
+
+        void CloseDrillDownTab(TabItem item)
+        {
+            if (!_drillDownTabs.Remove(item)) return;
+            Tabs.Items.Remove(item);
+            Tabs.SelectedItem = HomeTab;
         }
 
         void OpenAccountTab(long accountId, string name)
@@ -122,6 +157,8 @@ namespace dFinance
         {
             foreach (var (id, item) in _accountTabs)
                 if (ReferenceEquals(item, Tabs.SelectedItem)) { CloseAccountTab(id); return; }
+            foreach (var item in _drillDownTabs.ToList())
+                if (ReferenceEquals(item, Tabs.SelectedItem)) { CloseDrillDownTab(item); return; }
         }
 
         void Tabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -228,6 +265,24 @@ namespace dFinance
                 $"資料庫：{_db?.DataSource ?? "（沒有開啟）"}\n資料夾：{Db.DataDirectory}\n\n" +
                 "本機記帳，PDF 留底，資料不連網。",
                 "關於 dFinance", MessageBoxButton.OK, MessageBoxImage.Information);
+
+        void BuildCategoryTab()
+        {
+            if (_categoryTab is not null) Tabs.Items.Remove(_categoryTab);
+            _categoryTab = null;
+            if (_db is not { } db) return;
+
+            var ledgerTab = new LedgerTab(db, null);
+            ledgerTab.ShowCategoryReport();
+            ledgerTab.DrillDownRequested += OpenDrillDownTab;
+            _categoryTab = new TabItem { Header = "分類帳", Content = ledgerTab };
+            Tabs.Items.Insert(Tabs.Items.IndexOf(HomeTab) + 1, _categoryTab);      // 常駐，緊接在首頁之後
+        }
+
+        void CategoryReport_Click(object sender, RoutedEventArgs e)
+        {
+            if (_categoryTab is not null) Tabs.SelectedItem = _categoryTab;
+        }
 
         void RebuildRecentMenu()
         {
