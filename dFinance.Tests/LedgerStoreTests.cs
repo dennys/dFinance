@@ -151,6 +151,41 @@ public sealed class LedgerStoreTests : IDisposable
     }
 
     [Fact]
+    public void 每月總資產用月底餘額累加()
+    {
+        var bank = Account("活存", "bank", openingMinor: 100_000);
+        Entry("expense", bank, 30_000, "2026-10-05");
+        Entry("income", bank, 50_000, "2026-11-05");
+
+        var points = _store.MonthlyNetWorth(new DateOnly(2026, 12, 31));
+        Assert.Equal(new DateOnly(2026, 10, 1), points[0].Month);
+        Assert.Equal(70_000, points[0].NetMinor);       // 10 月：100,000 − 30,000
+        Assert.Equal(120_000, points[1].NetMinor);      // 11 月：+50,000
+        Assert.Equal(120_000, points[2].NetMinor);      // 12 月沒有新交易，餘額不變
+    }
+
+    [Fact]
+    public void 未來帳單含未到期的列與未繳卡費()
+    {
+        var bank = Account("活存", "bank");
+        Entry("expense", bank, 11_110, "2999-01-15", merchant: "電費");
+        Entry("expense", bank, 22_220, "2999-01-16", status: "ignored");   // 使用者說不記 → 不列
+        Entry("expense", bank, 3_333, "2000-01-01");                      // 過去的 → 不列
+
+        var card = Account("卡", "credit_card");
+        var cardId = Db.InsertId(_db, "INSERT INTO card(account_id, mask) VALUES($a, '1234');", ("$a", card));
+        Db.Exec(_db, "INSERT INTO credit_card_bill(card_id, period_end, total_due_minor, due_date) VALUES($c, '2999-01-31', 5000, '2999-02-10');", ("$c", cardId));
+        Db.Exec(_db, "INSERT INTO credit_card_bill(card_id, period_end, total_due_minor, due_date, paid_at, paid_minor) VALUES($c, '2999-02-28', 7000, '2999-03-10', $t, 7000);", ("$c", cardId), ("$t", Db.Now()));
+
+        var list = _store.Upcoming();
+        Assert.Equal(2, list.Count);
+        Assert.Equal(111.10m, list[0].Amount);                          // 先到期的排前面
+        Assert.StartsWith("電費", list[0].Label);
+        Assert.StartsWith("信用卡帳單", list[1].Label);
+        Assert.Equal(50m, list[1].Amount);
+    }
+
+    [Fact]
     public void 餘額快照對不上時會點名帳戶()
     {
         var bank = Account("活存", "bank", openingMinor: 10_000);

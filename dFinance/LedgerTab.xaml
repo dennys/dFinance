@@ -1,6 +1,7 @@
 <UserControl x:Class="dFinance.LedgerTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sp="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
              FontSize="13">
   <UserControl.Resources>
     <!-- 列態要用「形狀 + 顏色」双重表達：灰底=孤兒、灰字=不記、紅粗體=沒有消費日、藍=負額 -->
@@ -31,7 +32,7 @@
   <DockPanel>
 
     <!-- 篩選列 -->
-    <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,4">
+    <DockPanel x:Name="FilterBar" DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,4">
       <Button x:Name="AddButton" DockPanel.Dock="Right" Content="＋ 記一筆" Width="80" Margin="6,0,0,0"
               FontWeight="Bold" Click="Add_Click" ToolTip="現金/錢包一定沒有 PDF，用這個補一筆"/>
       <Button x:Name="OpenAccountButton" DockPanel.Dock="Right" Content="開帳戶分頁" Width="90" Margin="6,0,0,0"
@@ -59,7 +60,7 @@
     </DockPanel>
 
     <!-- 動作列（作用在選取的列） -->
-    <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,4">
+    <DockPanel x:Name="ActionBar" DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,4">
       <TextBlock x:Name="CountText" DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="#555"/>
       <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="#888" Margin="0,0,10,0"
                  Text="金額唯讀：要調帳用「＋ 記一筆」的調整　　"/>
@@ -82,22 +83,6 @@
       <StackPanel>
         <TextBlock x:Name="AccountHeaderText" FontWeight="Bold" Visibility="Collapsed"/>
         <TextBlock x:Name="KpiText" FontSize="14" TextWrapping="Wrap"/>
-        <!-- 總表：每個帳戶有多少錢。口徑全在 LedgerStore.NetWorth()，這裡只負責擺 -->
-        <Expander x:Name="NetWorthBox" Header="淨值明細（每個帳戶有多少錢）" FontSize="12" Margin="0,4,0,0"
-                  IsExpanded="False">
-          <DataGrid x:Name="NetWorthGrid" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                    HeadersVisibility="Column" GridLinesVisibility="Horizontal" MaxHeight="220" FontSize="12"
-                    Margin="0,4,0,0">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="帳戶" Binding="{Binding Name}" Width="2*"/>
-              <DataGridTextColumn Header="類型" Binding="{Binding TypeLabel}" Width="60"/>
-              <DataGridTextColumn Header="幣別" Binding="{Binding Currency}" Width="46"/>
-              <DataGridTextColumn Header="餘額" Binding="{Binding BalanceText}" Width="100"/>
-              <DataGridTextColumn Header="折算後（TWD）" Binding="{Binding ConvertedText}" Width="110"/>
-              <DataGridTextColumn Header="計入淨值" Binding="{Binding CountedText}" Width="*"/>
-            </DataGrid.Columns>
-          </DataGrid>
-        </Expander>
       </StackPanel>
     </Border>
 
@@ -114,7 +99,7 @@
       </WrapPanel>
     </Border>
 
-    <Grid>
+    <Grid x:Name="LedgerPanel">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*"/>
         <ColumnDefinition Width="6"/>
@@ -161,6 +146,76 @@
                  VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"
                  ToolTip="這筆從哪份檔案、哪一頁、原文哪一行來 —— 核對解析對不對全靠它"/>
       </DockPanel>
+    </Grid>
+
+    <!-- 首頁：左邊淨值明細（點一列就開該帳戶分頁），右上每月總資產，右下未來帳單 -->
+    <Grid x:Name="HomePanel" Visibility="Collapsed" Margin="0,4,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="3*"/>
+        <ColumnDefinition Width="6"/>
+        <ColumnDefinition Width="2*"/>
+      </Grid.ColumnDefinitions>
+
+      <DockPanel Grid.Column="0">
+        <TextBlock DockPanel.Dock="Top" Text="淨值明細" FontWeight="Bold" Margin="0,0,0,4"/>
+        <DataGrid x:Name="HomeNetWorthGrid" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" FontSize="12"
+                  MouseLeftButtonUp="HomeNetWorth_Click" ToolTip="點一列就開那個帳戶的分頁">
+          <DataGrid.GroupStyle>
+            <GroupStyle>
+              <GroupStyle.HeaderTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Name}" FontWeight="Bold" Background="#F2F2F2" Padding="4,2"/>
+                </DataTemplate>
+              </GroupStyle.HeaderTemplate>
+            </GroupStyle>
+          </DataGrid.GroupStyle>
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="帳戶" Binding="{Binding Name}" Width="2*"/>
+            <DataGridTextColumn Header="類型" Binding="{Binding TypeLabel}" Width="60"/>
+            <DataGridTextColumn Header="幣別" Binding="{Binding Currency}" Width="46"/>
+            <DataGridTextColumn Header="餘額" Binding="{Binding BalanceText}" Width="100"/>
+            <DataGridTextColumn Header="折算後（TWD）" Binding="{Binding ConvertedText}" Width="110"/>
+            <DataGridTextColumn Header="計入淨值" Binding="{Binding CountedText}" Width="*"/>
+          </DataGrid.Columns>
+        </DataGrid>
+      </DockPanel>
+
+      <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" Background="#DDD"/>
+
+      <Grid Grid.Column="2">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="6"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0">
+          <TextBlock DockPanel.Dock="Top" Text="每月總資產" FontWeight="Bold" Margin="0,0,0,4"/>
+          <sp:WpfPlot x:Name="NetWorthPlot"/>
+        </DockPanel>
+
+        <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch" Background="#DDD"/>
+
+        <DockPanel Grid.Row="2">
+          <TextBlock DockPanel.Dock="Top" Text="未來帳單（未到期）" FontWeight="Bold" Margin="0,0,0,4"/>
+          <DataGrid x:Name="UpcomingGrid" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                    HeadersVisibility="Column" GridLinesVisibility="Horizontal" FontSize="12">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="86"/>
+              <DataGridTextColumn Header="項目" Binding="{Binding Label}" Width="*"/>
+              <DataGridTextColumn Header="金額" Binding="{Binding Amount, StringFormat=N0}" Width="86">
+                <DataGridTextColumn.ElementStyle>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="TextAlignment" Value="Right"/>
+                    <Setter Property="FontFamily" Value="Consolas"/>
+                  </Style>
+                </DataGridTextColumn.ElementStyle>
+              </DataGridTextColumn>
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+      </Grid>
     </Grid>
   </DockPanel>
 </UserControl>

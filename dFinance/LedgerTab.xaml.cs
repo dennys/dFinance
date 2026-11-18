@@ -9,7 +9,7 @@ using Microsoft.Data.Sqlite;
 namespace dFinance;
 
 /// <summary>
-/// 帳本清單。同一個控制項兼兩個用途：主頁（accountId = null，全部帳戶）與帳戶分頁（傳入 accountId）。
+/// 首頁（accountId = null，dashboard）與帳戶分頁（傳入 accountId）共用這支控制項。
 /// 開多個帳戶分頁對比時不會重讀：資料留在各自的 instance 裡，切回來只比 <see cref="LedgerStore.DataVersion"/>，
 /// 髒了才重查。
 /// </summary>
@@ -39,6 +39,12 @@ public partial class LedgerTab : UserControl
         {
             AccountBox.Visibility = AccountLabel.Visibility = OpenAccountButton.Visibility = Visibility.Collapsed;
             AccountHeaderText.Visibility = Visibility.Visible;
+            AccountCol.Visibility = Visibility.Collapsed;      // 都同一個帳戶，欄位留著給主頁（全部帳戶）用
+        }
+        else
+        {
+            FilterBar.Visibility = ActionBar.Visibility = LedgerPanel.Visibility = Visibility.Collapsed;
+            HomePanel.Visibility = Visibility.Visible;
         }
 
         Loaded += (_, _) => Reload();
@@ -53,6 +59,9 @@ public partial class LedgerTab : UserControl
 
     /// <summary>給 --uismoke 看的：真的載入到幾列（0 就是篩選或接庫有問題）。</summary>
     public int RowCount => LedgerGrid.Items.Count;
+
+    /// <summary>給 --uismoke 看的：首頁淨值表載入幾個帳戶（首頁沒有帳本清單，RowCount 永遠是 0）。</summary>
+    public int HomeAccountCount => HomeNetWorthGrid.Items.Count;
 
     /// <summary>匯入完或外部改過資料時叫這個（當前分頁馬上更新，沒顯示的分頁等切過去再說）。</summary>
     public void RefreshNow()
@@ -165,14 +174,21 @@ public partial class LedgerTab : UserControl
         Search = string.IsNullOrWhiteSpace(SearchBox.Text) ? null : SearchBox.Text.Trim(),
     };
 
+    /// <summary>首頁沒有日期篩選列，概況固定看本月。</summary>
+    static LedgerStore.Filter CurrentMonthFilter()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return new() { From = new DateOnly(today.Year, today.Month, 1).ToString("yyyy-MM-dd"), To = LastDay(today).ToString("yyyy-MM-dd") };
+    }
+
     // ---------------------------------------------------------------- 裝載
 
     void Reload()
     {
         if (_store is not { } s) { KpiText.Text = "資料庫開不起來，帳本暫時不能用。"; return; }
 
-        var f = CurrentFilter();
-        var rows = s.List(f);
+        var f = _accountId is null ? CurrentMonthFilter() : CurrentFilter();
+        List<LedgerStore.Row> rows = _accountId is null ? [] : s.List(f);   // 首頁不顯示帳本清單，不白查 2000 列
         LedgerGrid.ItemsSource = rows;
         ShowSummary(f, rows.Count, s);
         _loadedVersion = LedgerStore.DataVersion;
@@ -187,12 +203,48 @@ public partial class LedgerTab : UserControl
         var mismatch = s.BalanceMismatches();
 
         CountText.Text = $"{rowCount} 列" + (rowCount >= f.Limit ? "（已截斷，請縮小範圍）" : "");
-        NetWorthGrid.ItemsSource = nw.Accounts;                                  // 淨值明細（總表）
+        if (_accountId is null) ShowHome(nw, s);
         ShowKpi(k, nw, s.CardUnpaidMinor());
         ShowAlerts(orphans, dups, mismatch);
         if (_accountId is { } id && nw.Accounts.FirstOrDefault(a => a.Id == id) is { } mine)
             AccountHeaderText.Text = $"{mine.Name}（{mine.Type} {mine.Currency}）餘額 {mine.BalanceMinor / 100m:N0}" +
                                      (mine.CountedInNet ? "" : "　— 非台幣帳戶，未計入淨值");
+    }
+
+    /// <summary>首頁：淨值明細分組（銀行→信用卡→其它）＋每月總資產折線＋未來帳單。</summary>
+    void ShowHome(LedgerStore.NetWorthReport nw, LedgerStore s)
+    {
+        var accounts = nw.Accounts.OrderBy(a => a.GroupOrder).ThenBy(a => a.Name).ToList();
+        var view = new System.Windows.Data.ListCollectionView(accounts);
+        view.GroupDescriptions.Add(new System.Windows.Data.PropertyGroupDescription(nameof(LedgerStore.AccountBalance.Group)));
+        HomeNetWorthGrid.ItemsSource = view;
+        UpcomingGrid.ItemsSource = s.Upcoming();
+
+        var plot = NetWorthPlot.Plot;
+        plot.Clear();
+        var points = s.MonthlyNetWorth();
+        var line = plot.Add.Scatter(
+            points.Select(p => p.Month.ToDateTime(TimeOnly.MinValue).ToOADate()).ToArray(),
+            points.Select(p => (double)p.NetMinor / Money.LedgerScale).ToArray());
+        line.LineWidth = 2;
+        line.MarkerSize = 3;
+        plot.Axes.DateTimeTicksBottom();
+        plot.Axes.Left.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic
+        {
+            LabelFormatter = v => v.ToString("N0"),
+        };
+        plot.Axes.AutoScale();
+        plot.Title("每月總資產（TWD）");
+        plot.Font.Automatic();                 // 標題是中文，預設字型沒有 glyph 會變亂碼
+        NetWorthPlot.Refresh();
+    }
+
+    /// <summary>點淨值明細的一列 → 開那個帳戶的分頁（等同把列選起來再按「開帳戶分頁」）。</summary>
+    void HomeNetWorth_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject src
+            && ItemsControl.ContainerFromElement(HomeNetWorthGrid, src) is DataGridRow { Item: LedgerStore.AccountBalance a })
+            OpenAccountRequested?.Invoke(a.Id, a.Name);
     }
 
     void ShowKpi(LedgerStore.Kpi k, LedgerStore.NetWorthReport nw, long unpaidMinor)

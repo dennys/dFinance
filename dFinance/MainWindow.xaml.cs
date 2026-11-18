@@ -18,6 +18,7 @@ namespace dFinance
         public MainWindow()
         {
             InitializeComponent();
+            RebuildRecentMenu();
             OpenDatabase();
             PreviewKeyDown += (_, e) =>
             {
@@ -28,18 +29,49 @@ namespace dFinance
         /// <summary>啟動就開庫、跑遷移、備份一份（留最近 5 份），並把主頁接上庫。</summary>
         void OpenDatabase()
         {
+            OpenDatabasePath(Db.DatabasePath);
+            if (_db is null) return;
+            try { Db.Backup(_db); }
+            catch (Exception ex) { MessageBox.Show($"備份失敗（{ex.Message}），帳本照常開啟。", "備份"); }
+        }
+
+        /// <summary>換一個資料庫檔（開檔/新建/另存都走這裡）。舊的一律等新庫開成功才關，開失敗就維持原狀。</summary>
+        void OpenDatabasePath(string path)
+        {
+            if (SamePath(path, _db?.DataSource) && _db is not null) return;      // 已經開著同一個檔
+            if (File.Exists(path) && !IsDFinanceDatabase(path))
+            {
+                MessageBox.Show("這個檔不是 dFinance 資料庫。", "開啟資料庫");
+                return;
+            }
+
             try
             {
-                _db = Db.Open();
-                Db.Backup(_db);
-                HomeTab.Content = NewLedger(null, "帳本");
-                DbPathText.Text = $"資料庫：{Db.DatabasePath}    留底 PDF：{Db.DocumentsDirectory}";
+                var db = Db.Open(path);
+                var previous = _db;
+                _db = db;
+
+                // 先收掉舊分頁再關舊連線：收的過程如果還被叫去重查，起碼庫還是開著的。
+                foreach (var item in _accountTabs.Values) Tabs.Items.Remove(item);
+                _accountTabs.Clear();
+                HomeTab.Content = NewLedger(null, "首頁");
+                Tabs.SelectedItem = HomeTab;
+                previous?.Dispose();
+
+                DbPathText.Text = $"資料庫：{Path.GetFullPath(path)}    留底 PDF：{Db.DocumentsDirectory}";
+                Title = $"dFinance — {Path.GetFileName(path)}";
+                RecentFiles.Add(path);
+                RebuildRecentMenu();
             }
             catch (Exception ex)
             {
-                HomeTab.Content = new TextBlock { Text = "資料庫開不起來：\n" + ex.Message, Margin = new Thickness(8) };
-                DbPathText.Text = "資料庫開不起來，匯入按鈕暂時不能用。";
-                ImportLog.Text = "開庫失敗：" + ex.Message;
+                if (_db is null)
+                {
+                    HomeTab.Content = new TextBlock { Text = "資料庫開不起來：\n" + ex.Message, Margin = new Thickness(8) };
+                    DbPathText.Text = "資料庫開不起來，匯入按鈕暂時不能用。";
+                    ImportLog.Text = "開庫失敗：" + ex.Message;
+                }
+                else MessageBox.Show($"開不起來：{ex.Message}", "開啟資料庫");
             }
         }
 
@@ -119,7 +151,129 @@ namespace dFinance
             var home = HomeTab.Content as LedgerTab;
             var extra = _accountTabs.Count > 0 && _accountTabs.Values.First().Content is LedgerTab acct
                 ? $"，帳戶分頁 {acct.RowCount} 列" : "，沒有資料可開帳戶分頁";
-            return $"主頁 {home?.RowCount ?? -1} 列{extra}";
+            return $"首頁 {home?.HomeAccountCount ?? -1} 個帳戶{extra}";
+        }
+
+        // ------------------------------------------------------------ 功能表
+
+        void NewDb_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new SaveFileDialog
+            {
+                Title = "新資料庫",
+                Filter = "dFinance 資料庫|*.db",
+                FileName = "dfinance.db",
+                InitialDirectory = CurrentDbFolder(),
+            };
+            if (dlg.ShowDialog() != true) return;
+            if (SamePath(dlg.FileName, _db?.DataSource))
+            {
+                MessageBox.Show("這是目前開著的資料庫，不用新建。", "新資料庫");
+                return;
+            }
+
+            try
+            {
+                File.Delete(dlg.FileName);                   // SaveFileDialog 已經問過「要覆蓋嗎」
+                File.Delete(dlg.FileName + "-wal");          // 舊檔的 WAL 留著會把舊資料補回來
+                File.Delete(dlg.FileName + "-shm");
+                OpenDatabasePath(dlg.FileName);
+            }
+            catch (Exception ex) { MessageBox.Show(ex.Message, "新資料庫"); }
+        }
+
+        void OpenDb_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new OpenFileDialog
+            {
+                Title = "開啟資料庫",
+                Filter = "dFinance 資料庫|*.db|所有檔案|*.*",
+                InitialDirectory = CurrentDbFolder(),
+            };
+            if (dlg.ShowDialog() == true) OpenDatabasePath(dlg.FileName);
+        }
+
+        void SaveDbAs_Click(object sender, RoutedEventArgs e)
+        {
+            if (_db is not { } db) return;
+            var dlg = new SaveFileDialog
+            {
+                Title = "另存資料庫",
+                Filter = "dFinance 資料庫|*.db",
+                FileName = Path.GetFileName(db.DataSource),
+                InitialDirectory = CurrentDbFolder(),
+            };
+            if (dlg.ShowDialog() != true || SamePath(dlg.FileName, db.DataSource)) return;
+
+            try
+            {
+                using var dest = new SqliteConnection($"Data Source={dlg.FileName}");
+                db.BackupDatabase(dest);                     // 用備份 API，WAL 裡還沒落盤的也一起過去
+                OpenDatabasePath(dlg.FileName);
+            }
+            catch (Exception ex) { MessageBox.Show(ex.Message, "另存資料庫"); }
+        }
+
+        void ClearRecent_Click(object sender, RoutedEventArgs e)
+        {
+            RecentFiles.Clear();
+            RebuildRecentMenu();
+        }
+
+        void Exit_Click(object sender, RoutedEventArgs e) => Close();
+
+        void About_Click(object sender, RoutedEventArgs e)
+            => MessageBox.Show(
+                $"dFinance {typeof(MainWindow).Assembly.GetName().Version}\n\n" +
+                $"資料庫：{_db?.DataSource ?? "（沒有開啟）"}\n資料夾：{Db.DataDirectory}\n\n" +
+                "本機記帳，PDF 留底，資料不連網。",
+                "關於 dFinance", MessageBoxButton.OK, MessageBoxImage.Information);
+
+        void RebuildRecentMenu()
+        {
+            RecentMenu.Items.Clear();
+            var paths = RecentFiles.Load().Where(File.Exists).ToList();
+            if (paths.Count == 0)
+            {
+                RecentMenu.Items.Add(new MenuItem { Header = "（沒有）", IsEnabled = false });
+                return;
+            }
+            foreach (var path in paths)
+            {
+                var item = new MenuItem { Header = path };
+                item.Click += (_, _) => OpenDatabasePath(path);
+                RecentMenu.Items.Add(item);
+            }
+        }
+
+        string CurrentDbFolder()
+        {
+            try
+            {
+                if (_db?.DataSource is { Length: > 0 } src && src != ":memory:")
+                    return Path.GetDirectoryName(Path.GetFullPath(src)) ?? Db.DataDirectory;
+            }
+            catch { /* 路徑壞掉就用預設資料夾 */ }
+            return Db.DataDirectory;
+        }
+
+        static bool SamePath(string a, string? b)
+        {
+            if (string.IsNullOrEmpty(b) || b == ":memory:") return false;
+            try { return string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase); }
+            catch { return false; }
+        }
+
+        /// <summary>開檔前的守門：先唯讀確認裡面有 entry 表，才不會把別的 SQLite 檔塞進 dFinance 的資料表。</summary>
+        static bool IsDFinanceDatabase(string path)
+        {
+            try
+            {
+                using var c = new SqliteConnection($"Data Source={path};Mode=ReadOnly");
+                c.Open();
+                return Db.Scalar(c, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='entry';") is long n && n > 0;
+            }
+            catch { return false; }
         }
 
         private async void Pick_Click(object sender, RoutedEventArgs e)

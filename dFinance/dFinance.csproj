@@ -9,6 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ScottPlot.WPF" Version="5.1.59" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\dFinance.Parsing\dFinance.Parsing.csproj" />
     <ProjectReference Include="..\dFinance.Data\dFinance.Data.csproj" />
   </ItemGroup>

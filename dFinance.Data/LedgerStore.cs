@@ -229,6 +229,9 @@ public sealed class LedgerStore
             ? $"{(CountedInNet ? "✓" : "未折算")}　⚠ 含 {ForeignEntries} 筆幣別不符的列（已按帳戶幣別算）"
             : CountedInNet ? (Currency == "TWD" ? "✓" : $"✓（{Currency} × {Rate:0.####}）")
                            : $"未折算（{Currency} 沒有匯率）";
+        /// <summary>首頁淨值表的分組：銀行 → 信用卡 → 其它。</summary>
+        public int GroupOrder => Type switch { "bank" => 0, "credit_card" => 1, _ => 2 };
+        public string Group => Type switch { "bank" => "銀行", "credit_card" => "信用卡", _ => "其它" };
     }
     public sealed record NetWorthReport(long AssetsMinor, long LiabilitiesMinor, long NetMinor,
                                         int UnconvertedAccounts, IReadOnlyList<AccountBalance> Accounts);
@@ -324,6 +327,102 @@ public sealed class LedgerStore
             }
         }
         return new NetWorthReport(assets, liabilities, assets + liabilities, unconverted, list);
+    }
+
+    public sealed record MonthPoint(DateOnly Month, long NetMinor);
+
+    /// <summary>
+    /// 每月月底的總資產（台幣），首頁折線圖用。口徑跟 <see cref="NetWorth"/> 一樣：
+    /// 只算未歸檔帳戶、沒匯率的外幣不計。shortcut: 全部用「現在」的匯率，不存歷史匯率（要準得先有 rates 歷史）。
+    /// </summary>
+    public List<MonthPoint> MonthlyNetWorth(DateOnly? through = null)
+    {
+        var endMonth = through ?? DateOnly.FromDateTime(DateTime.Today);
+        endMonth = new DateOnly(endMonth.Year, endMonth.Month, 1);
+
+        var rates = Rates();
+        var accounts = new Dictionary<long, (long BalanceMinor, decimal Rate)>();
+        using (var cmd = _db.CreateCommand())
+        {
+            cmd.CommandText = "SELECT id, currency, opening_balance_minor FROM account WHERE is_archived = 0;";
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                var currency = r.GetString(1);
+                decimal? rate = currency.Equals("TWD", StringComparison.OrdinalIgnoreCase) ? 1m
+                              : rates.TryGetValue(currency, out var rv) ? rv : null;
+                if (rate is not null) accounts[r.GetInt64(0)] = (r.GetInt64(2), rate.Value);
+            }
+        }
+        if (accounts.Count == 0) return [new MonthPoint(endMonth, 0)];
+
+        // 逐月的餘額變動。轉帳從轉出帳戶扣、加到轉入帳戶（淨值不變，但兩個帳戶的餘額要對）。
+        var moves = new List<(string Month, long AccountId, long Delta)>();
+        using (var cmd = _db.CreateCommand())
+        {
+            cmd.CommandText = """
+                SELECT account_id, to_account_id, kind, amount_minor, substr(txn_date, 1, 7)
+                FROM entry
+                WHERE deleted_at IS NULL AND status IN ('cleared','imported') AND txn_date IS NOT NULL;
+                """;
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                var month = r.GetString(4);
+                var kind = r.GetString(2);
+                var amount = r.GetInt64(3);
+                if (accounts.ContainsKey(r.GetInt64(0)))
+                    moves.Add((month, r.GetInt64(0), kind is "income" or "adjustment" ? amount : -amount));
+                if (kind == "transfer" && !r.IsDBNull(1) && accounts.ContainsKey(r.GetInt64(1)))
+                    moves.Add((month, r.GetInt64(1), amount));
+            }
+        }
+
+        var first = moves.Count == 0 ? endMonth
+                  : DateOnly.ParseExact(moves.Select(m => m.Month).Min()!, "yyyy-MM", System.Globalization.CultureInfo.InvariantCulture);
+        if (first > endMonth) first = endMonth;
+
+        var byMonth = moves.GroupBy(m => m.Month).ToDictionary(g => g.Key, g => g.ToList());
+        var points = new List<MonthPoint>();
+        for (var month = first; month <= endMonth; month = month.AddMonths(1))
+        {
+            if (byMonth.TryGetValue(month.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture), out var list))
+                foreach (var m in list)
+                {
+                    var (bal, rate) = accounts[m.AccountId];
+                    accounts[m.AccountId] = (bal + m.Delta, rate);
+                }
+            points.Add(new MonthPoint(month, accounts.Values.Sum(a => Money.Convert(a.BalanceMinor, a.Rate))));
+        }
+        return points;
+    }
+
+    /// <summary>首頁右下角的未來帳單：還沒到的 entry ＋ 未繳且未到期的信用卡帳單。</summary>
+    public sealed record UpcomingItem(string Date, string Label, decimal Amount);
+
+    public List<UpcomingItem> Upcoming()
+    {
+        var list = new List<UpcomingItem>();
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = """
+            SELECT due, label, amount_minor FROM (
+                SELECT e.txn_date AS due,
+                       COALESCE(e.merchant, '(未命名)') || '（' || a.name || '）' AS label,
+                       e.amount_minor AS amount_minor
+                FROM entry e JOIN account a ON a.id = e.account_id
+                WHERE e.deleted_at IS NULL AND e.status IN ('cleared','imported','pending')
+                  AND e.txn_date > $today
+                UNION ALL
+                SELECT b.due_date, '信用卡帳單 ' || a.name, b.total_due_minor
+                FROM credit_card_bill b JOIN card k ON k.id = b.card_id JOIN account a ON a.id = k.account_id
+                WHERE b.paid_at IS NULL AND b.due_date >= $today AND b.total_due_minor IS NOT NULL
+                  AND a.is_archived = 0
+            ) ORDER BY due LIMIT 50;
+            """;
+        cmd.Parameters.AddWithValue("$today", Db.Today());
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add(new UpcomingItem(r.GetString(0), r.GetString(1), Money.FromMinor(r.GetInt64(2))));
+        return list;
     }
 
     /// <summary>卡未繳：帳單口徑，查 <c>credit_card_bill</c>，不從 entry 推（尚未發生的款項不進帳本表）。</summary>
