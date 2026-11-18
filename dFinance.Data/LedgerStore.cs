@@ -122,7 +122,11 @@ public sealed class LedgerStore
 
         var ps = new List<(string, object?)> { ("$limit", f.Limit) };
         if (f.AccountId is { } acct) { where += " AND e.account_id = $acct"; ps.Add(("$acct", acct)); }
-        if (f.CategoryId is { } cat) { where += " AND e.category_id = $cat"; ps.Add(("$cat", cat)); }
+        if (f.CategoryId is { } cat)
+        {
+            where += " AND e.category_id IN (WITH RECURSIVE sub(id) AS (SELECT $cat UNION SELECT c.id FROM category c JOIN sub s ON c.parent_id = s.id) SELECT id FROM sub)";
+            ps.Add(("$cat", cat));
+        }
         if (f.Uncategorized) where += " AND e.category_id IS NULL AND e.kind NOT IN ('transfer','refund')";
         // 沒有消費日的列不論篩哪個區間都要看得到，否則使用者永遠沒機會補它（排在最後＋紅色 ?）
         if (f.From is { } from) { where += " AND (e.txn_date IS NULL OR e.txn_date >= $from)"; ps.Add(("$from", from)); }
@@ -130,14 +134,17 @@ public sealed class LedgerStore
         if (!string.IsNullOrWhiteSpace(f.Search)) { where += " AND e.merchant LIKE $q"; ps.Add(("$q", $"%{f.Search.Trim()}%")); }
 
         var sql = $"""
+            WITH RECURSIVE cat_path(id, path) AS (
+                SELECT id, CAST(name AS TEXT) FROM category WHERE parent_id IS NULL
+                UNION ALL
+                SELECT c.id, cat_path.path || '／' || c.name FROM category c JOIN cat_path ON c.parent_id = cat_path.id)
             SELECT e.id, e.txn_date, e.merchant, e.note, e.category_id,
-                   COALESCE(p.name || '／', '') || c.name, e.amount_minor, e.kind, e.currency, e.orig_currency,
+                   cp.path, e.amount_minor, e.kind, e.currency, e.orig_currency,
                    a.id, a.name, a.type, e.status, e.edited_at, e.orphaned_at,
                    e.source_raw, d.file_name, e.source_page, d.issuer, d.parser, d.archived_path
             FROM entry e
             JOIN account a ON a.id = e.account_id
-            LEFT JOIN category c ON c.id = e.category_id
-            LEFT JOIN category p ON p.id = c.parent_id
+            LEFT JOIN cat_path cp ON cp.id = e.category_id
             LEFT JOIN document d ON d.id = e.source_document_id
             WHERE {where}
             ORDER BY (e.txn_date IS NULL), e.txn_date DESC, e.id DESC
@@ -479,9 +486,13 @@ public sealed class LedgerStore
         using (var cmd = _db.CreateCommand())
         {
             cmd.CommandText = """
-                SELECT c.id, COALESCE(p.name || '／', '') || c.name
-                FROM category c LEFT JOIN category p ON p.id = c.parent_id
-                WHERE c.kind = $k ORDER BY c.sort_order, c.name;
+                WITH RECURSIVE cp(id, path) AS (
+                    SELECT id, CAST(name AS TEXT) FROM category WHERE parent_id IS NULL
+                    UNION ALL
+                    SELECT c.id, cp.path || '／' || c.name FROM category c JOIN cp ON c.parent_id = cp.id)
+                SELECT c.id, cp.path
+                FROM category c JOIN cp ON cp.id = c.id
+                WHERE c.kind = $k ORDER BY c.sort_order, cp.path;
                 """;
             cmd.Parameters.AddWithValue("$k", kind);
             using var r = cmd.ExecuteReader();
@@ -491,15 +502,83 @@ public sealed class LedgerStore
         return items;
     }
 
-    /// <summary>「新增分類」：同名就沿用既有的，不准憑空多一個一樣的。</summary>
-    public long AddCategory(string name, string kind)
+    /// <summary>可當父分類的下拉選項（任意深度，顯示完整路徑），依方向。</summary>
+    public List<Option> TopCategories(string kind)
+    {
+        var items = new List<Option>();
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = """
+            WITH RECURSIVE cp(id, path) AS (
+                SELECT id, CAST(name AS TEXT) FROM category WHERE parent_id IS NULL
+                UNION ALL
+                SELECT c.id, cp.path || '／' || c.name FROM category c JOIN cp ON c.parent_id = cp.id)
+            SELECT c.id, cp.path FROM category c JOIN cp ON cp.id = c.id
+            WHERE c.kind = $k ORDER BY c.sort_order, cp.path;
+            """;
+        cmd.Parameters.AddWithValue("$k", kind);
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) items.Add(new Option(r.GetInt64(0), r.GetString(1)));
+        return items;
+    }
+
+    /// <summary>「新增分類」：同名（同父、同方向）就沿用既有的，不准憑空多一個一樣的。父分類必須是同方向的頂層分類（兩層上限）。</summary>
+    public long AddCategory(string name, string kind, long? parentId = null)
     {
         name = name.Trim();
-        var existing = Db.Scalar(_db, "SELECT id FROM category WHERE name=$n AND kind=$k;", ("$n", name), ("$k", kind));
+        if (parentId is { } pid && Db.Scalar(_db, "SELECT id FROM category WHERE id = $i AND kind = $k;", ("$i", pid), ("$k", kind)) is null)
+            throw new ArgumentException("父分類必須是同方向的既有分類。");
+        var parent = (object?)parentId ?? DBNull.Value;
+        var existing = Db.Scalar(_db, "SELECT id FROM category WHERE name=$n AND kind=$k AND COALESCE(parent_id, 0) = COALESCE($p, 0);", ("$n", name), ("$k", kind), ("$p", parent));
         if (existing is long id) return id;
-        var newId = Db.InsertId(_db, "INSERT INTO category(name, kind, is_system) VALUES($n, $k, 0);", ("$n", name), ("$k", kind));
+        var newId = Db.InsertId(_db, "INSERT INTO category(name, kind, parent_id, is_system) VALUES($n, $k, $p, 0);", ("$n", name), ("$k", kind), ("$p", parent));
         _categoryCache = [];
         return newId;
+    }
+
+    public sealed record CategoryRow(long Id, string Name, string Kind, string Path, int Uses, bool IsSystem)
+    {
+        /// <summary>樹狀顯示：每深一層縮排兩個全形空白，子分類前加「└」。</summary>
+        public string Indented
+        {
+            get
+            {
+                var depth = Path.Count(c => c == '／');
+                return depth == 0 ? Name : new string('　', depth * 2) + "└ " + Name;
+            }
+        }
+    }
+
+    /// <summary>分類管理用：列出所有分類（含使用筆數），依方向與排序。</summary>
+    public List<CategoryRow> AllCategories()
+    {
+        var list = new List<CategoryRow>();
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = $"""
+            WITH RECURSIVE cp(id, path) AS (
+                SELECT id, CAST(name AS TEXT) FROM category WHERE parent_id IS NULL
+                UNION ALL
+                SELECT c.id, cp.path || '／' || c.name FROM category c JOIN cp ON c.parent_id = cp.id)
+            SELECT c.id, c.name, c.kind, cp.path,
+                   (SELECT COUNT(*) FROM entry e WHERE e.category_id = c.id AND e.deleted_at IS NULL), c.is_system
+            FROM category c JOIN cp ON cp.id = c.id
+            ORDER BY c.kind, cp.path;
+            """;
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add(new CategoryRow(r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetInt32(4), r.GetInt32(5) == 1));
+        return list;
+    }
+
+    /// <summary>改分類名稱（同方向不准重名）。已有交易的分類照樣改，交易跟著走。</summary>
+    public void RenameCategory(long id, string name)
+    {
+        name = name.Trim();
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("分類要取名字。");
+        var kind = Db.Scalar(_db, "SELECT kind FROM category WHERE id=$i;", ("$i", id)) as string
+                   ?? throw new ArgumentException("找不到這個分類。");
+        if (Db.Scalar(_db, "SELECT id FROM category WHERE name=$n AND kind=$k AND id <> $i;", ("$n", name), ("$k", kind), ("$i", id)) is long)
+            throw new ArgumentException($"已經有叫「{name}」的{(kind == "income" ? "收入" : "支出")}分類了。");
+        Write("UPDATE category SET name=$n WHERE id=$i;", ("$n", name), ("$i", id));
+        _categoryCache = [];
     }
 
     /// <summary>未分類的商家與筆數（報表口徑，依筆數由多到少），給分類建議用。</summary>
@@ -596,7 +675,7 @@ public sealed class LedgerStore
     /// <summary>
     /// 查月分類總計：縱軸=分類（可 parent/child 展開），橫軸=月，最後一欄為該分類總計。
     /// </summary>
-    public sealed record CatMonthTotal(string CategoryPath, string Month, long TotalMinor);
+    public sealed record CatMonthTotal(string CategoryPath, string Month, long TotalMinor, bool IsRollup = false);
 
     /// <summary>
     /// 取得分類 × 月 透視報表（僅 Live 交易，不含 pending/ignored/duplicate）。
@@ -612,23 +691,42 @@ public sealed class LedgerStore
         var ps = new List<(string, object?)> { ("$from", (object?)from), ("$to", (object?)to) };
         if (accountId.HasValue) { ps.Add(("$acct", accountId.Value)); }
 
-        // 遞迴 CTE 建立分類完整路徑：parent/id/name，最後接子類別名
+        // 遞迴 CTE 建立分類完整路徑：parent/id/name，最後接子類別名。
+        // 有子分類的父類另加一列「合計」（IsRollup）：自己的交易＋所有子類，給人看整體。
         var sql = $"""
             WITH RECURSIVE cat_path(id, path) AS (
                 SELECT id, CAST(name AS TEXT) FROM category WHERE parent_id IS NULL
                 UNION ALL
                 SELECT c.id, ca.path || '／' || c.name
                 FROM category c JOIN cat_path ca ON c.parent_id = ca.id
+            ),
+            anc(leaf, anc_id) AS (
+                SELECT id, id FROM category
+                UNION ALL
+                SELECT a.leaf, c.parent_id FROM anc a JOIN category c ON c.id = a.anc_id WHERE c.parent_id IS NOT NULL
             )
+            SELECT * FROM (
             SELECT COALESCE(cp.path, c.name, '未分類') AS CategoryPath,
                    substr(e.txn_date, 1, 7) AS Month,
-                   SUM(e.amount_minor) AS TotalMinor
+                   SUM(e.amount_minor) AS TotalMinor,
+                   0 AS IsRollup,
+                   COALESCE(cp.path, '') AS SortKey,
+                   c.sort_order AS LeafSort
             FROM entry e
             LEFT JOIN category c ON c.id = e.category_id
             LEFT JOIN cat_path cp ON cp.id = c.id
             WHERE {where}
             GROUP BY COALESCE(c.id, 0), Month
-            ORDER BY c.sort_order IS NULL, c.sort_order, Month
+            UNION ALL
+            SELECT cp.path, substr(e.txn_date, 1, 7) AS Month, SUM(e.amount_minor), 1,
+                   cp.path, -1
+            FROM entry e
+            JOIN anc a ON a.leaf = e.category_id
+            JOIN cat_path cp ON cp.id = a.anc_id
+            WHERE {where} AND a.anc_id IN (SELECT parent_id FROM category WHERE parent_id IS NOT NULL)
+            GROUP BY a.anc_id, Month
+            )
+            ORDER BY SortKey, IsRollup DESC, LeafSort, Month
             """;
 
         using var cmd = _db.CreateCommand();
@@ -641,7 +739,7 @@ public sealed class LedgerStore
             var path = r.GetString(0);
             var month = r.GetString(1);
             var total = r.GetInt64(2);
-            list.Add(new CatMonthTotal(path, month, total));
+            list.Add(new CatMonthTotal(path, month, total, r.GetInt64(3) == 1));
         }
         return list;
     }

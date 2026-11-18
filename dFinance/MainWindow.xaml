@@ -17,6 +17,10 @@
   <MenuItem Header="報表(_R)">
     <MenuItem Header="分類帳" Click="CategoryReport_Click"/>
   </MenuItem>
+  <MenuItem Header="工具(_T)">
+    <MenuItem Header="分類管理…" Click="CategoryManager_Click"/>
+    <MenuItem Header="幣別（尚未開放）" IsEnabled="False"/>
+  </MenuItem>
   <MenuItem Header="說明(_H)">
     <MenuItem Header="關於 dFinance" Click="About_Click"/>
   </MenuItem>

@@ -259,6 +259,13 @@ namespace dFinance
 
         void Exit_Click(object sender, RoutedEventArgs e) => Close();
 
+        void CategoryManager_Click(object sender, RoutedEventArgs e)
+        {
+            if (_db is null) return;
+            new CategoryManagerDialog(new LedgerStore(_db)) { Owner = this }.ShowDialog();
+            BuildCategoryTab();
+        }
+
         void About_Click(object sender, RoutedEventArgs e)
             => MessageBox.Show(
                 $"dFinance {typeof(MainWindow).Assembly.GetName().Version}\n\n" +

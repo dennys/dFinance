@@ -284,9 +284,13 @@ public partial class LedgerTab : UserControl
 
         var totals = s.CatMonthTotals();
         var months = totals.Select(t => t.Month).Distinct().OrderBy(m => m, StringComparer.Ordinal).ToList();
-        var rows = totals.GroupBy(t => t.CategoryPath).Select(g =>
+        var rows = totals.GroupBy(t => (t.CategoryPath, t.IsRollup)).Select(g =>
         {
-            var row = new Dictionary<string, string> { ["CategoryPath"] = g.Key };
+            var row = new Dictionary<string, string>
+            {
+                ["CategoryPath"] = g.Key.CategoryPath,
+                ["Label"] = g.Key.IsRollup ? $"{g.Key.CategoryPath}（含子類）" : g.Key.CategoryPath,
+            };
             foreach (var m in months)
                 row[m] = Money.FromMinor(g.Where(t => t.Month == m).Sum(t => t.TotalMinor)).ToString("N0");
             row["Total"] = Money.FromMinor(g.Sum(t => t.TotalMinor)).ToString("N0");
@@ -294,7 +298,7 @@ public partial class LedgerTab : UserControl
         }).ToList();
 
         CategoryReportGrid.Columns.Clear();
-        CategoryReportGrid.Columns.Add(ReportColumn("分類路徑", "CategoryPath", new DataGridLength(3, DataGridLengthUnitType.Star)));
+        CategoryReportGrid.Columns.Add(ReportColumn("分類路徑", "Label", new DataGridLength(3, DataGridLengthUnitType.Star)));
         foreach (var m in months) CategoryReportGrid.Columns.Add(ReportColumn(m, m, DataGridLength.Auto));
         CategoryReportGrid.Columns.Add(ReportColumn("合計", "Total", DataGridLength.Auto));
         CategoryReportGrid.ItemsSource = rows;
@@ -306,7 +310,7 @@ public partial class LedgerTab : UserControl
         Binding = new System.Windows.Data.Binding($"[{key}]"),
         Width = width,
         IsReadOnly = true,
-        ElementStyle = key == "CategoryPath" ? null : NumberCellStyle,
+        ElementStyle = key == "Label" ? null : NumberCellStyle,
     };
 
     static readonly Style NumberCellStyle = new(typeof(TextBlock))
