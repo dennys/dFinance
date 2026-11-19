@@ -394,9 +394,10 @@ namespace dFinance
             ImportButton.IsEnabled = ImportFolderButton.IsEnabled = false;
             try
             {
+                var progress = new Progress<string>(m => ImportLog.Text = m);
                 var lines = await Task.Run(() => files.Select(f =>
                 {
-                    try { return new StatementImporter(db).ImportPdf(f, passwords).Summary; }
+                    try { return new StatementImporter(db).ImportPdf(f, passwords, progress).Summary; }
                     catch (Exception ex) { return $"{Path.GetFileName(f)}：失敗 — {ex.Message}"; }
                 }));
                 ImportLog.Text = string.Join("\n", lines);
@@ -424,8 +425,10 @@ namespace dFinance
             try
             {
                 var password = PasswordBox.Password;
-                var statement = await Task.Run(() => StatementParser.Parse(path, password));
+                var progress = new Progress<string>(m => ImportLog.Text = m);   // OCR 一頁十幾秒，不回報進度看起來像卡住
+                var statement = await Task.Run(() => StatementParser.Parse(path, password, Db.DataDirectory, progress));
                 ShowResult(statement);
+                if (ImportLog.Text.StartsWith("OCR")) ImportLog.Text = "";
             }
             catch (Exception ex)
             {

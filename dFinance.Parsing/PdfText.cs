@@ -103,14 +103,17 @@ public static class PdfText
             int k = row.Words.FindIndex(w => w.Text.Contains(label));
             if (k < 0) continue;
 
-            for (int j = k + 1; j < row.Words.Count; j++)
-                if (matches(row.Words[j])) return row.Words[j];
+            // 同一列可能有文字層與 OCR 兩種來源：優先取文字層的（OCR 對數字不是 100% 準，錢不能賭在上面）。
+            var right = row.Words.Skip(k + 1).Where(matches).ToList();
+            var hit = right.FirstOrDefault(w => !w.FromOcr) ?? right.FirstOrDefault();
+            if (hit is not null) return hit;
 
             var labelWord = row.Words[k];
             var below = data.Rows.Where(r => r.Page == row.Page && row.Top - r.Top > 1 && row.Top - r.Top <= maxGap)
                                  .SelectMany(r => r.Words)
                                  .Where(w => w.Left < labelWord.Right && w.Right > labelWord.Left - 5 && matches(w))
-                                 .OrderBy(w => Math.Abs(w.Left - labelWord.Left))
+                                 .OrderBy(w => w.FromOcr)
+                                 .ThenBy(w => Math.Abs(w.Left - labelWord.Left))
                                  .FirstOrDefault();
             if (below is not null) return below;
         }

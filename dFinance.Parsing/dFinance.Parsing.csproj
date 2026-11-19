@@ -8,6 +8,11 @@
 
   <ItemGroup>
     <PackageReference Include="PdfPig" Version="0.1.16" />
+    <!-- 圖片式帳單（中信/匯豐）的 OCR：RapidOcrNet 跑 PP-OCR ONNX（CPU、離線），
+         PDFtoImage 只用来把整頁栅格化餵 OCR。SkiaSharp 要跟著 ScottPlot 的 3.119.x，
+         所以 PDFtoImage 钉在 5.2.0（5.3 起會抬到 4.150.x）。 -->
+    <PackageReference Include="PDFtoImage" Version="5.2.0" />
+    <PackageReference Include="RapidOcrNet" Version="4.2.0" />
   </ItemGroup>
 
 </Project>

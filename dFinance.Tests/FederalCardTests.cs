@@ -78,7 +78,7 @@ public class FederalCardTests
     [Fact]
     public void Image_only_pdf_is_reported_not_silently_empty()
     {
-        foreach (var pdf in new[] { "CTBC_card_Estatement_11510.pdf", "2022ESC0105.PDF" })
+        foreach (var pdf in new[] { "2022ESC0105.PDF" })   // 中信卡現在用 OCR 讀得過了（見 CtbcCardTests）
         {
             var s = Samples.Parse(pdf);
             if (s is null) continue;

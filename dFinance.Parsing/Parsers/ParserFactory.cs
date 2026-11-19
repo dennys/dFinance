@@ -20,6 +20,9 @@ public static class ParserFactory
         new SinopacCardParser(),
         new SinopacDepositParser(),
         new CathayCardParser(),
+        new HsbcCardParser(),      // 要 OCR，放最後（沒模型就不認這份）
+        new CtbcCardParser(),
+        new CtbcDepositParser(),
     ];
 
     public static IStatementParser? Create(PageData data) => Parsers.FirstOrDefault(p => p.CanParse(data));

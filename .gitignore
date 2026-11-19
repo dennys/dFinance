@@ -300,3 +300,7 @@ backups/
 devcheck/*_out.txt
 zip-code.ps1
 send_report.ps1
+
+# OCR 模型要自己抓（放 data\ocr_models\，或者 repo 根的 models\）：不進版控
+models/
+*.onnx

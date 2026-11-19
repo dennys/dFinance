@@ -36,7 +36,7 @@ public sealed class StatementImporter
     }
 
     /// <summary>匯入一份 PDF：先擋重複檔案，再試密碼解析，最後落庫。</summary>
-    public ImportResult ImportPdf(string pdfPath, IReadOnlyList<string> passwords)
+    public ImportResult ImportPdf(string pdfPath, IReadOnlyList<string> passwords, IProgress<string>? progress = null)
     {
         var bytes = File.ReadAllBytes(pdfPath);
         var sha = Sha256(bytes);
@@ -44,7 +44,8 @@ public sealed class StatementImporter
         if (seen is not null)
             return new ImportResult(Path.GetFileName(pdfPath), "", StatementKind.Unknown, 0, 0, 0, 0, 0, true, $"同一份檔案已匯入過（{seen}）");
 
-        var statement = ParseWithPasswords(pdfPath, passwords);
+        progress?.Report($"辨識中：{Path.GetFileName(pdfPath)}");
+        var statement = ParseWithPasswords(pdfPath, passwords, progress);
         return Import(statement, pdfPath, sha, bytes);
     }
 
@@ -190,12 +191,12 @@ public sealed class StatementImporter
         _ => StatementKind.Unknown,
     };
 
-    static ParsedStatement ParseWithPasswords(string pdfPath, IReadOnlyList<string> passwords)
+    static ParsedStatement ParseWithPasswords(string pdfPath, IReadOnlyList<string> passwords, IProgress<string>? progress = null)
     {
         var tried = new List<string>();
         foreach (var pw in passwords.Distinct())
         {
-            try { return StatementParser.Parse(pdfPath, pw); }
+            try { return StatementParser.Parse(pdfPath, pw, Db.DataDirectory, progress); }
             catch (Exception e) when (e.GetType().Name.Contains("Password", StringComparison.OrdinalIgnoreCase)
                                    || e.GetType().Name.Contains("Encrypted", StringComparison.OrdinalIgnoreCase))
             { tried.Add(pw.Length == 0 ? "(無密碼)" : pw); }

@@ -2,7 +2,7 @@
 
 本地端記帳軟體：讀銀行/帳單 PDF → 拆成記帳資料 → 存進本地 SQLite，並留底原始單據。
 
-`.NET 8` / WPF / PdfPig / Microsoft.Data.Sqlite。沒有雲端服務，不需要連線，**portable**（整個 `data\` 資料夾拷走就是移機）。
+`.NET 8` / WPF / PdfPig / Microsoft.Data.Sqlite / RapidOcrNet+PDFtoImage（圖片式帳單的 OCR，見下面「OCR」）。沒有雲端服務，不需要連線，**portable**（整個 `data\` 資料夾拷走就是移機）。
 
 ## 現況
 
@@ -48,14 +48,43 @@ dotnet test                # 83 個測試
 | 永豐 | 信用卡帳單 | ✅ | 明細只有 MM/DD，年份靠繳款截止日推 |
 | 永豐 | 電子綜合對帳單 | ✅ | 只解析存款明細那段；帳戶概要、別家銀行信用卡應繳列未建模 |
 | 國泰世華 | 信用卡帳單 | 🟡 部分 | 手上樣本是已全額繳清的月份，只有繳款一筆可驗；需要一份有消費明細的 |
-| 中國信託 | 存款／信用卡 | ⛔ 需要 OCR | 文字層是圖片與 Type3 字型，讀不到字 |
-| 匯豐 | 信用卡帳單 | ⛔ 需要 OCR | 文字層 0 個中文字 |
-| 渣打 | 信用卡帳單 | ⛔ 需要 OCR | 文字層是亂碼（字型沒 ToUnicode） |
+| 中國信託 | 信用卡帳單 | ✅ （要 OCR） | 消費列已驗（11507：900+99=999、卡號 1648）；繳清月份那份只有繳款一筆 |
+| 中國信託 | 存款對帳單 | ✅ （要 OCR） | 交易明細在中间那一頁（標題「一般帳戶資產交易明細」），**不能靠頁數找**；上期結餘+Σ交易 會校驗期末餘額 |
+| 匯豐 | 信用卡帳單 | ✅ （要 OCR） | 中文是圖片；金額/日期仍以文字層為準，OCR 只補標籤與商家 |
+| 渣打 | 信用卡帳單 | ⛔ 不做 | 文字層是亂碼（字型沒 ToUnicode），已決定放棄 |
 
 非銀行的繳費單也能拆成一筆記帳用的交易（電費、水費、天然氣、電信、eTag），見 `UtilityBillParser`。
 水費那份本期 0 元（退款抵掉），會警告「記帳上可忽略」。
 
-⛔ 那三份要 OCR，這一版不做 OCR，所以支援不了。
+⛔ 只剩渣打那兩份不做（文字層是亂碼）。中信/匯豐都要 OCR，模型沒放好就只會警告。
+
+## OCR（圖片式帳單）
+
+中信/匯豐這類單子的中文是被畫成一格一格的小圖，文字層讀不到 → 用 OCR。
+
+- 引擎：`RapidOcrNet`（PP-OCRv5 ONNX，CPU、**完全離線**）。流程在 `dFinance.Parsing/Ocr/OcrReader.cs`：
+  整頁柵格化（150 dpi，實測與 300 準度相同）→ OCR → 把讀到的字換算回 PDF 座標，
+  與文字層的列**合併**後才送給 parser（`PageData.WithOcr`）。所以 parser 那边不用分兩種來源。
+- **錢不給 OCR**：金額/日期只取文字層的（OCR 對數字實測 97% 準，錢不能賭在上面）；
+  OCR 只負責標籤（本期應繳總額、繳款截止日…）、表頭與商家。對不上時會警告，由人比對原單。
+- 模型**不進版控也不抓網**（app 不会自己下載）。要自帶 OCR 就把這四個檔放 `data\ocr_models\`：
+
+  | 檔 | 大小 | SHA256 |
+  |---|---|---|
+  | `ch_PP-OCRv5_rec_mobile.onnx` | 16.6 MB | `5825fc7ebf84ae7a412be049820b4d86d77620f204a041697b0494669b1742c5` |
+  | `ppocrv5_dict.txt` | 74 KB | 辨識器的字典型，要與 rec 同語言，配錯會吐亂碼 |
+  | `ch_PP-OCRv5_mobile_det.onnx` | 4.8 MB | 偵測器（RapidOcrNet 的 nupkg 內附，直接拷過去就行） |
+  | `ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx` | 1.0 MB | 方向分類器（同上） |
+
+  前兩個的來源：`https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/…`（會 302 到 CDN，要跟著轉址）。
+  放的位置也可以是環境變數 `DFINANCE_OCR_MODELS`。**沒放就整個 OCR 跳過**（不 crash），
+  解析結果會警告「需要 OCR：把 … 放進 data\ocr_models\」。
+- 快取：OCR 結果存 `data\ocr\{檔案 sha256}-p{頁}-ocr{版}.json`（在 `data\` → 移機一起帶走）。
+  一份四頁的單子第一遍約 40–60 秒（CPU），之後讀快取就是 1 秒。
+  UI 會報進度：「OCR 辨識中… 第 x/y 頁」，批次匯入時還會報目前正在跑哪個檔案。
+- 副作用：exe 目錄多了約 27 MB native dll（`onnxruntime.dll` 16 + `libSkiaSharp.dll` 11）與 `pdfium.dll`；
+  `onnxruntime` 需要 VC++ 2019 runtime。SkiaSharp 釘在 3.119.x（跟 ScottPlot 同一支），
+  所以 `PDFtoImage` 用 5.2.0（5.3 起會抬到 4.150.x）。
 
 ## 架構
 
@@ -65,6 +94,7 @@ dFinance.Parsing/
   Parsers/               一個版面一個 class，都實作 IStatementParser
     ParserFactory   依序問誰認得這張單，第一個人贏
     StatementTable               靠表頭文字定位欄位座標的共用工具
+  Ocr/OcrReader.cs       圖片式帳單：柵格化→OCR→換回 PDF 座標（與文字層的列合併），結果快取在 data\ocr\
 dFinance.Data/            資料庫層（只依賴 dFinance.Parsing）
   Db.cs                  開庫（Foreign Keys=True、WAL）、跑遷移、備份、data\ 位置解析
   migrations/*.sql       結構的單一來源（嵌入 dll，啟動自動套用，套過的記在 migration 表）
@@ -80,7 +110,7 @@ dFinance/                WPF：功能表＋TabControl〔首頁｜匯入 PDF〕�
   AccountsDialog.cs      帳戶管理（新增/編輯/歸檔、期初餘額、卡額度與自動扣繳）＋餘額盤點視窗
   CurrencyDialog.cs      工具→幣別…：基準幣、幣別字典（小數位/別名）、匯率表、人工填/抓匯率/proxy、拆幣別不符的列
   MainWindow             功能表（換資料庫/關於）＋分頁管理＋解析工作台（住在「匯入 PDF」分頁）
-devcheck/                開發用：dump 文字層，或 `--import` 批次入庫，或 `- - --rates [proxy]` 抓匯率
+devcheck/                開發用：dump 文字層（`--ocr` 會把 OCR 讀到的字也 dump 出來，前面標 ~），或 `--import` 批次入庫，或 `- - --rates [proxy]` 抓匯率
 ```
 
 新增一家銀行 = 在 `Parsers/` 新增一個 class 並掛進 `ParserFactory`。
@@ -133,7 +163,7 @@ UI 不讀 `.env`：UI 一定要你親手打密碼。
 
 ## 安全
 
-- 除了匯率，不連任何外部服務（OCR/翻譯/LLM 都不在這一版）。匯率也**只有人在「幣別…」裡按按鈕才連**：
+- 除了匯率，不連任何外部服務（OCR 在本地跑、不會自己抓模型；翻譯/LLM 不在這一版）。匯率也**只有人在「幣別…」裡按按鈕才連**：
   Yahoo chart API，一定要帶 User-Agent（不帶直接 429）、公司網要填 proxy（`settings.rate_proxy_url`），
   抓失敗一律不動現有數字。
 - 密碼只在記憶體裡過一遍，不落任何檔案、不寫 log。UI 不讀 `.env`，一定要親手打（逗號分隔可打多組）。
