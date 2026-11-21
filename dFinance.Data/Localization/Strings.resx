@@ -67,6 +67,9 @@
   <data name="Common_Source" xml:space="preserve">
     <value>來源</value>
   </data>
+  <data name="Common_AppError" xml:space="preserve">
+    <value>出了點問題</value>
+  </data>
   <data name="Common_None" xml:space="preserve">
     <value>（沒有）</value>
   </data>
@@ -237,9 +240,6 @@
   </data>
   <data name="Import_Col_Card" xml:space="preserve">
     <value>卡</value>
-  </data>
-  <data name="Import_Col_Kind" xml:space="preserve">
-    <value>類別</value>
   </data>
   <data name="Import_Col_Page" xml:space="preserve">
     <value>頁</value>
@@ -465,6 +465,9 @@
   <data name="Ledger_Kpi_CardUnpaid" xml:space="preserve">
     <value>卡未繳</value>
   </data>
+  <data name="Ledger_Kpi_UnconvertedRows" xml:space="preserve">
+    <value>未折算列</value>
+  </data>
   <data name="Ledger_Kpi_Unconverted" xml:space="preserve">
     <value>未折算</value>
   </data>
@@ -548,8 +551,8 @@
     <value>原文
 {0}</value>
   </data>
-  <data name="Ledger_BadCategoryTitle" xml:space="preserve">
-    <value>分類不能這樣標</value>
+  <data name="Ledger_WriteFailed" xml:space="preserve">
+    <value>寫入失敗</value>
   </data>
   <data name="Ledger_BadDateMsg" xml:space="preserve">
     <value>消費日要用 yyyy/MM/dd（例 2026-11-03），清空就是留空等以後補。</value>
@@ -1003,6 +1006,15 @@
   <data name="Store_TransferNoCategory" xml:space="preserve">
     <value>轉帳不準有分類</value>
   </data>
+  <data name="Store_AccountNotFound" xml:space="preserve">
+    <value>找不到這個帳戶</value>
+  </data>
+  <data name="Store_CurrencyMismatch" xml:space="preserve">
+    <value>{0} 是 {1} 帳戶，這一筆不能記成 {2}（一個帳戶只放一種幣別）</value>
+  </data>
+  <data name="Store_TransferCurrency" xml:space="preserve">
+    <value>轉帳的兩個帳戶幣別不同（{0} → {1}）；要換匯請記兩筆</value>
+  </data>
   <data name="Store_NotConvertedShort" xml:space="preserve">
     <value>未折算</value>
   </data>
@@ -1064,7 +1076,7 @@
     <value>(無密碼)</value>
   </data>
   <data name="Imp_BadPassword" xml:space="preserve">
-    <value>密碼不對或這份 PDF 開不了（試過 {0} 組：{1}）</value>
+    <value>密碼不對或這份 PDF 開不了（試過 {0} 組；密碼內容不顯示）</value>
   </data>
   <data name="Imp_UnknownIssuer" xml:space="preserve">
     <value>(未辨識發行方)</value>

@@ -465,6 +465,10 @@ namespace dFinance
             if (_db is null) return;
             var passwords = UiPasswords();
             ImportButton.IsEnabled = ImportFolderButton.IsEnabled = false;
+            // 匯入期間把其他分頁 disable：背景那條連線與 UI 這一條同時寫會 "database is locked"，
+            // 而 OCR 一份要 40–60 秒，窗口很寬（真撞到了 LedgerTab.Write 會接住並重查，不会挂）。
+            var otherTabs = Tabs.Items.OfType<TabItem>().Where(t => t != ImportTab).ToList();
+            foreach (var t in otherTabs) t.IsEnabled = false;
             try
             {
                 var progress = new Progress<string>(m => ImportLog.Text = m);
@@ -487,7 +491,11 @@ namespace dFinance
                 ImportLog.Text = string.Join("\n", lines);
                 LedgerStore.Touch();                                // 讓開著的帳本/帳戶分頁切過去時重查
             }
-            finally { ImportButton.IsEnabled = ImportFolderButton.IsEnabled = true; }
+            finally
+            {
+                ImportButton.IsEnabled = ImportFolderButton.IsEnabled = true;
+                foreach (var t in otherTabs) t.IsEnabled = true;
+            }
         }
 
         /// <summary>UI 一律要親手打密碼（不讀 .env）；逗號分隔當成多組試。</summary>
@@ -560,7 +568,9 @@ namespace dFinance
         }
 
         // 金額與日期先照原格式排好再進字串：格式不跟著語系走（AGENTS：錢只經 Money，格式吃 CurrentCulture）。
-        static string Num(decimal? v) => v?.ToString("N0") ?? "";
+        // 小數位固定 2（= 儲存的 1/100），不讀 currency.scale：這裡顯示的是單子上的原數（還沒進庫、也沒有帳戶），
+        // 用 N0 會把 US$1,250.50 顯示成 1,251 —— 而這裡是人按「匯入」前最後一眼對帳的地方。
+        static string Num(decimal? v) => v?.ToString("N2", System.Globalization.CultureInfo.InvariantCulture) ?? "";
         static string Fmt(DateOnly? d) => d?.ToString("yyyy/MM/dd") ?? "";
     }
 }

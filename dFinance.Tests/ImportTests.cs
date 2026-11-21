@@ -90,9 +90,33 @@ public sealed class ImportTests : IDisposable
 
         Assert.Equal(3, result.Inserted);
         Assert.Equal(2L, Db.Scalar(_db, "SELECT count(*) FROM account WHERE issuer='兆豐國際商業銀行';"));
-        // 同一筆轉帳在兩個帳戶各留一列，不會疊成同一帳戶的兩筆支出
-        Assert.Equal(1, Count("AND account_id=(SELECT id FROM account WHERE mask='02064003171') AND amount_minor=9900"));
-        Assert.Equal(1, Count("AND account_id=(SELECT id FROM account WHERE mask='02064003171') AND amount_minor=-9900"));
+        // 同一筆轉帳在兩個帳戶各留一列，不会疊成同一帳戶的兩筆支出。
+        // 存款單的正數是「存入」（income）、負數是扣款（expense）；金額存正數（entry 的 CHECK），加減由 kind 決定。
+        Assert.Equal(1, Count("AND account_id=(SELECT id FROM account WHERE mask='02064003171') AND amount_minor=9900 AND kind='income'"));
+        Assert.Equal(1, Count("AND account_id=(SELECT id FROM account WHERE mask='02064003171') AND amount_minor=9900 AND kind='expense'"));
+    }
+
+    [Fact]
+    public void 存款單的正數是存入不是支出負數才是支出()
+    {
+        // 銀行的借貸記法跟卡帳相反：存款對帳單上正的錢是「存进来」。
+        // 以前只看正負號（kind = signed < 0 ? refund : expense），薪資會被記成 expense：
+        // 淨值少 40,000、收支報表多一筆不存在的消費，而提款那一側負負得正还把餘額加上去。
+        var st = new ParsedStatement
+        {
+            Issuer = "兆豐國際商業銀行", Parser = "MegaDepositParser", AccountMask = "02010660350",
+            Transactions =
+            [
+                new ParsedTransaction { Date = new DateOnly(2026, 10, 21), Merchant = "薪資", Amount = 40_000m, Currency = "TWD" },
+                new ParsedTransaction { Date = new DateOnly(2026, 10, 22), Merchant = "提款", Amount = -5_000m, Currency = "TWD" },
+            ],
+        };
+
+        var result = new StatementImporter(_db, _docsDir).Import(st, "mega.pdf");
+        Assert.Equal(2, result.Inserted);
+        Assert.Equal(40_000_00L, Db.Scalar(_db, "SELECT amount_minor FROM entry WHERE kind='income';"));
+        Assert.Equal(5_000_00L, Db.Scalar(_db, "SELECT amount_minor FROM entry WHERE kind='expense';"));
+        Assert.Equal(35_000_00L, new LedgerStore(_db).NetWorth().NetMinor);        // 存 4 萬、提 5 千 → 35,000
     }
 
     [Fact]

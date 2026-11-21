@@ -67,6 +67,9 @@
   <data name="Common_Source" xml:space="preserve">
     <value>来源</value>
   </data>
+  <data name="Common_AppError" xml:space="preserve">
+    <value>出了点问题</value>
+  </data>
   <data name="Common_None" xml:space="preserve">
     <value>（无）</value>
   </data>
@@ -237,9 +240,6 @@
   </data>
   <data name="Import_Col_Card" xml:space="preserve">
     <value>卡</value>
-  </data>
-  <data name="Import_Col_Kind" xml:space="preserve">
-    <value>类别</value>
   </data>
   <data name="Import_Col_Page" xml:space="preserve">
     <value>页</value>
@@ -465,6 +465,9 @@
   <data name="Ledger_Kpi_CardUnpaid" xml:space="preserve">
     <value>卡未缴</value>
   </data>
+  <data name="Ledger_Kpi_UnconvertedRows" xml:space="preserve">
+    <value>未折算笔数</value>
+  </data>
   <data name="Ledger_Kpi_Unconverted" xml:space="preserve">
     <value>未折算</value>
   </data>
@@ -548,8 +551,8 @@
     <value>原文
 {0}</value>
   </data>
-  <data name="Ledger_BadCategoryTitle" xml:space="preserve">
-    <value>分类不能这样标</value>
+  <data name="Ledger_WriteFailed" xml:space="preserve">
+    <value>写入失败</value>
   </data>
   <data name="Ledger_BadDateMsg" xml:space="preserve">
     <value>消费日要用 yyyy/MM/dd（例 2026-11-03），清空就是留空等以后补。</value>
@@ -1003,6 +1006,15 @@
   <data name="Store_TransferNoCategory" xml:space="preserve">
     <value>转账不准有分类</value>
   </data>
+  <data name="Store_AccountNotFound" xml:space="preserve">
+    <value>找不到这个账户</value>
+  </data>
+  <data name="Store_CurrencyMismatch" xml:space="preserve">
+    <value>{0} 是 {1} 账户，这笔不能记成 {2}（一个账户只放一种货币）</value>
+  </data>
+  <data name="Store_TransferCurrency" xml:space="preserve">
+    <value>转账的两个账户币种不同（{0} → {1}）；要换汇请记两笔</value>
+  </data>
   <data name="Store_NotConvertedShort" xml:space="preserve">
     <value>未折算</value>
   </data>
@@ -1064,7 +1076,7 @@
     <value>(无密码)</value>
   </data>
   <data name="Imp_BadPassword" xml:space="preserve">
-    <value>密码不对或这份 PDF 打不开（试过 {0} 组：{1}）</value>
+    <value>密码不对或这份 PDF 打不开（试过 {0} 组；密码内容不显示）</value>
   </data>
   <data name="Imp_UnknownIssuer" xml:space="preserve">
     <value>(未识别发卡方)</value>

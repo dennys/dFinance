@@ -191,7 +191,9 @@ public sealed class CurrencyDialog : Window
                                  ToolTip = Loc.T("Ccy_SplitHint") };
         split.Click += (_, _) =>
         {
-            int moved = _store.SplitForeignCurrencyEntries();
+            int moved;
+            try { moved = _store.SplitForeignCurrencyEntries(); }
+            catch (Exception ex) { Say(ex.Message); return; }        // 搬一半失败也要留得下来看，不能让視窗挂掉
             Reload();
             Say(moved == 0 ? Loc.T("Ccy_SplitNone") : Loc.F("Ccy_SplitDone", moved));
         };

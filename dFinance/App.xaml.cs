@@ -20,6 +20,17 @@ namespace dFinance
             // 不用 {x:Static} 是因為它只在載入時取一次值，換語系不會更新；綁索引子 + INPC 才會動。
             Resources["Loc"] = LocalizationManager.Current;
             base.OnStartup(e);
+
+            // 未處理例外在 WPF 就是整個程式結束：剛改的格子、改一半的寫入跟著丢。
+            // 最常見來源是兩條連線抢寫（批次匯入在背景另一條連線）→ "database is locked"。
+            // --uismoke 不接：那個是要讓例外真的爆出去給腳本看，吞了就是假 OK。
+            if (Array.IndexOf(e.Args, "--uismoke") < 0)
+                DispatcherUnhandledException += (_, args) =>
+                {
+                    MessageBox.Show(args.Exception.Message, Loc.T("Common_AppError"));
+                    args.Handled = true;
+                };
+
             int i = Array.IndexOf(e.Args, "--uismoke");
             if (i < 0) return;
 

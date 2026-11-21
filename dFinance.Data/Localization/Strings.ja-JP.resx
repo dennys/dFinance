@@ -67,6 +67,9 @@
   <data name="Common_Source" xml:space="preserve">
     <value>出典</value>
   </data>
+  <data name="Common_AppError" xml:space="preserve">
+    <value>問題が発生しました</value>
+  </data>
   <data name="Common_None" xml:space="preserve">
     <value>（なし）</value>
   </data>
@@ -237,9 +240,6 @@
   </data>
   <data name="Import_Col_Card" xml:space="preserve">
     <value>カード</value>
-  </data>
-  <data name="Import_Col_Kind" xml:space="preserve">
-    <value>区分</value>
   </data>
   <data name="Import_Col_Page" xml:space="preserve">
     <value>頁</value>
@@ -465,6 +465,9 @@
   <data name="Ledger_Kpi_CardUnpaid" xml:space="preserve">
     <value>カード未払</value>
   </data>
+  <data name="Ledger_Kpi_UnconvertedRows" xml:space="preserve">
+    <value>未換算の件数</value>
+  </data>
   <data name="Ledger_Kpi_Unconverted" xml:space="preserve">
     <value>未換算</value>
   </data>
@@ -548,8 +551,8 @@
     <value>原文
 {0}</value>
   </data>
-  <data name="Ledger_BadCategoryTitle" xml:space="preserve">
-    <value>分類を設定できません</value>
+  <data name="Ledger_WriteFailed" xml:space="preserve">
+    <value>保存できませんでした</value>
   </data>
   <data name="Ledger_BadDateMsg" xml:space="preserve">
     <value>利用日は yyyy/MM/dd（例 2026-11-03）。空にすると後で補えます。</value>
@@ -1003,6 +1006,15 @@
   <data name="Store_TransferNoCategory" xml:space="preserve">
     <value>振替に分類は付けられません</value>
   </data>
+  <data name="Store_AccountNotFound" xml:space="preserve">
+    <value>口座が見つかりません</value>
+  </data>
+  <data name="Store_CurrencyMismatch" xml:space="preserve">
+    <value>{0} は {1} 口座です。この仕訳を {2} にはできません（1口座=1通貨）</value>
+  </data>
+  <data name="Store_TransferCurrency" xml:space="preserve">
+    <value>振替の両口座は同じ通貨である必要があります（{0} → {1}）。為替は2件で記帳してください</value>
+  </data>
   <data name="Store_NotConvertedShort" xml:space="preserve">
     <value>未換算</value>
   </data>
@@ -1064,7 +1076,7 @@
     <value>（パスワードなし）</value>
   </data>
   <data name="Imp_BadPassword" xml:space="preserve">
-    <value>パスワード誤りまたはこの PDF を開けません（{0} 組試行：{1}）</value>
+    <value>パスワード誤りまたはこの PDF を開けません（{0} 組試行：パスワード自体は表示しません）</value>
   </data>
   <data name="Imp_UnknownIssuer" xml:space="preserve">
     <value>（発行元不明）</value>

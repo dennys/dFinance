@@ -7,7 +7,8 @@ namespace dFinance.Parsing;
 public static class StatementParser
 {
     /// <summary>改動任何 parser 的解析規則就 +1。落庫時寫進 document.parser_ver，重匯與「哪些列是舊版解析的」都靠它。</summary>
-    public const int Version = 4;   // v4：Kind 刪掉（它只是 Amount 正負號的複製）、卡帳/存款單的幣別照單上原文交、中信/永豐存款單補上單上餘額
+    public const int Version = 5;   // v5：繳費單的日期改走共用的 PdfText（原本自己一份，不收 U+2010–U+2015 那幾種橫線）
+                                    // v4：Kind 刪掉（它只是 Amount 正負號的複製）、卡帳/存款單的幣別照單上原文交、中信/永豐存款單補上單上餘額
 
     // 公開面只有這一層（要拆出去發 dll 時，這就是 API 審查看板）：
     //   主入口：Parse(...) → ParsedStatement（唯一承諾的外部契約，欄位口徑見 Models.cs 與 ParserContractTests）。

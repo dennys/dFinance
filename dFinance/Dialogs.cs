@@ -110,15 +110,19 @@ public sealed class AddEntryDialog : Window
 
         try
         {
+            // 幣別照帳戶給，不給人選也一定不能默記 TWD：美金帳戶記一筆變成 TWD，
+            // 那筆會被「拆到對的帳戶」搬到另一個帳戶（人記的帳無故從原帳戶消失）。
+            var accountId = Convert.ToInt64(_account.SelectedValue ?? 0);
             _store.InsertManual(new LedgerStore.ManualEntry(
-                AccountId: Convert.ToInt64(_account.SelectedValue ?? 0),
+                AccountId: accountId,
                 Kind: Kind,
                 AmountMinor: Money.ToMinor(amount),
                 TxnDate: date,
                 Merchant: string.IsNullOrWhiteSpace(_merchant.Text) ? null : _merchant.Text.Trim(),
                 CategoryId: _category.SelectedValue as long?,
                 ToAccountId: _toAccount.SelectedValue as long?,
-                Note: string.IsNullOrWhiteSpace(_note.Text) ? null : _note.Text.Trim()));
+                Note: string.IsNullOrWhiteSpace(_note.Text) ? null : _note.Text.Trim(),
+                Currency: _store.GetAccount(accountId)?.Currency ?? _store.BaseCurrency));
             DialogResult = true;
         }
         catch (Exception ex)

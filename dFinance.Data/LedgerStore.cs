@@ -208,33 +208,67 @@ public sealed class LedgerStore
 
     // ---------------------------------------------------------------- 概況
 
-    public sealed record Kpi(long IncomeMinor, long ExpenseMinor, long NetMinor, int Uncategorized, long UncategorizedMinor);
+    /// <param name="UnconvertedRows">這個月有幾筆的幣別完全沒有匯率，所以沒算進上面那些金額（不是 0，是不知道）。</param>
+    public sealed record Kpi(long IncomeMinor, long ExpenseMinor, long NetMinor, int Uncategorized, long UncategorizedMinor,
+                             int UnconvertedRows = 0);
 
-    /// <summary>本月收支。加總把 transfer 排除：繳款列若算成支出會_double count_（見 db-design）。</summary>
+    /// <summary>
+    /// 本月收支。加總把 transfer 排除：繳款列若算成支出會_double count_（見 db-design）。
+    /// <para>錢一律以基準幣表達 —— 跟 <see cref="NetWorth"/>、<see cref="CategoryPivot"/> 同一把尺：
+    /// 先照幣別加總、乘匯率只准經 <see cref="Money.Convert"/>（SQL 裡乘 REAL 會飄）；
+    /// 完全沒有匯率的幣別照淨值的規矩<b>不計入金額</b>、只回報筆數，不准假設 1:1。</para>
+    /// <para>「待分類」的筆數跟清單一樣含沒有消費日的列（否則清單躺著紅色 ? 而概況說 0 筆），
+    /// 但金額只算折得出來的那幾筆。</para>
+    /// </summary>
     public Kpi Totals(string? from, string? to, long? accountId)
     {
         // 金額只加有日期、落在區間內的列；但「待分類」要跟清單看到的一樣（清單刻意保留無日期的列），
         // 否則會出現「待分類 0 筆」而下面躺著幾列紅色 ? 等補日期。
         const string range = "(($from IS NULL OR e.txn_date >= $from) AND ($to IS NULL OR e.txn_date <= $to))";
         var sql = $"""
-            SELECT SUM(CASE WHEN {range} AND e.kind = 'income' THEN e.amount_minor END),
-                   SUM(CASE WHEN {range} AND e.kind = 'expense' THEN e.amount_minor END),
-                   SUM(CASE WHEN {range} AND e.kind IN ('income','adjustment') THEN e.amount_minor ELSE -e.amount_minor END),
+            SELECT e.currency,
+                   SUM(CASE WHEN {range} AND e.kind = 'income' THEN e.amount_minor ELSE 0 END),
+                   SUM(CASE WHEN {range} AND e.kind = 'expense' THEN e.amount_minor ELSE 0 END),
+                   SUM(CASE WHEN {range} AND e.kind = 'adjustment' THEN e.amount_minor ELSE 0 END),
+                   SUM(CASE WHEN {range} AND e.kind = 'refund' THEN e.amount_minor ELSE 0 END),
                    SUM(CASE WHEN e.category_id IS NULL AND e.kind NOT IN ('transfer','refund') THEN 1 ELSE 0 END),
-                   SUM(CASE WHEN e.category_id IS NULL AND e.kind NOT IN ('transfer','refund') THEN e.amount_minor ELSE 0 END)
+                   SUM(CASE WHEN e.category_id IS NULL AND e.kind NOT IN ('transfer','refund') THEN e.amount_minor ELSE 0 END),
+                   SUM(CASE WHEN {range} THEN 1 ELSE 0 END)
             FROM entry e
             WHERE {Live} AND e.kind <> 'transfer'
               AND (e.txn_date IS NULL OR {range})
-              AND ($acct IS NULL OR e.account_id = $acct);
+              AND ($acct IS NULL OR e.account_id = $acct)
+            GROUP BY e.currency;
             """;
         using var cmd = _db.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$from", (object?)from ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$to", (object?)to ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$acct", (object?)accountId ?? DBNull.Value);
-        using var r = cmd.ExecuteReader();
-        r.Read();
-        return new Kpi(Lang(r, 0), Lang(r, 1), Lang(r, 2), (int)Lang(r, 3), Lang(r, 4));
+
+        var baseCcy = BaseCurrency;
+        var rates = RatesTo(baseCcy);
+        long income = 0, expense = 0, adjust = 0, refund = 0, uncatMinor = 0;
+        int uncat = 0, unconverted = 0;
+        using (var r = cmd.ExecuteReader())
+        {
+            while (r.Read())
+            {
+                var ccy = Db.NormalizeCurrencyCode(Str(r, 0));
+                decimal factor = ccy.Equals(baseCcy, StringComparison.Ordinal) ? 1m
+                               : rates.TryGetValue(ccy, out var rate) ? rate : -1m;
+                // 沒匯率：金額不計（宁可不計也不要 1:1），但筆數要報出來，否則人以為這個月真的沒花。
+                if (factor < 0) { unconverted += (int)Lang(r, 7); uncat += (int)Lang(r, 5); continue; }
+                income += Money.Convert(Lang(r, 1), factor);
+                expense += Money.Convert(Lang(r, 2), factor);
+                adjust += Money.Convert(Lang(r, 3), factor);
+                refund += Money.Convert(Lang(r, 4), factor);
+                uncat += (int)Lang(r, 5);
+                uncatMinor += Money.Convert(Lang(r, 6), factor);
+            }
+        }
+        // 退款是負的 refund（負負得正 = 錢進來），跟 CategoryPivot 的總計同一個算法，不靠分類標記。
+        return new Kpi(income, expense, income + adjust - expense - refund, uncat, uncatMinor, unconverted);
     }
 
     public sealed record AccountBalance(long Id, string Name, string Type, string Currency, long BalanceMinor,
@@ -511,23 +545,32 @@ public sealed class LedgerStore
                           r.IsDBNull(5) ? null : r.GetString(5), r.IsDBNull(6) ? null : r.GetString(6)));
         }
 
+        // 要嘛全部搬完，要嘛一個都不動：半途丢例外會留下一堆新建的沒錢帳戶 + 搬了一半的列。
+        using var tx = _db.BeginTransaction();
         var target = new Dictionary<(long, string), long>();
         foreach (var (accountId, currency, entryId, name, type, issuer, mask) in rows)
         {
             if (!target.TryGetValue((accountId, currency), out var to))
             {
                 var ccy = Db.NormalizeCurrencyCode(currency);
-                to = Db.InsertId(_db, """
-                    INSERT INTO account(name, type, currency, issuer, mask, created_at)
-                    VALUES($n, $t, $c, $i, $m, $at);
-                    """, ("$n", $"{name} {ccy}"), ("$t", type), ("$c", ccy), ("$i", (object?)issuer ?? DBNull.Value),
-                    ("$m", (object?)mask ?? DBNull.Value), ("$at", Db.Now()));
+                // 「兆豐 1234 USD」這種帳戶常常已經存在（匯入本來就照一帳戶一幣別建）。
+                // 以前這裡直接插同名 → 撞 account.name 的 UNIQUE，整個按鈕炸掉（一筆都沒搬到）。
+                // 名字是我们要的那個就沿用；被别人占了就加號碼（跟 StatementImporter.CreateAccount 同一套路）。
+                var baseName = $"{name} {ccy}";
+                to = Db.Scalar(_db, "SELECT id FROM account WHERE name=$n AND currency=$c AND is_archived = 0;", ("$n", baseName), ("$c", ccy)) is long existing
+                    ? existing
+                    : Db.InsertId(_db, """
+                        INSERT INTO account(name, type, currency, issuer, mask, created_at)
+                        VALUES($n, $t, $c, $i, $m, $at);
+                        """, ("$n", FreeName(baseName)), ("$t", type), ("$c", ccy),
+                        ("$i", (object?)issuer ?? DBNull.Value), ("$m", (object?)mask ?? DBNull.Value), ("$at", Db.Now()));
                 target[(accountId, currency)] = to;
             }
             Db.Exec(_db, "UPDATE entry SET account_id=$to, updated_at=$at WHERE id=$id;",
                     ("$to", to), ("$at", Db.Now()), ("$id", entryId));
             moved++;
         }
+        tx.Commit();
         if (moved > 0) Touch();
         return moved;
     }
@@ -564,22 +607,35 @@ public sealed class LedgerStore
         var moves = new List<(string Month, long AccountId, long Delta)>();
         using (var cmd = _db.CreateCommand())
         {
+            // 沒有消費日的列也要算：淨值那一側把它当成「早就在帳上」（見 Undated），圖必須同一個口徑，
+            // 否则同一畫面左邊淨值與折線最後一點會差那些列（實測 −5,935 vs −4,290）。
             cmd.CommandText = """
                 SELECT account_id, to_account_id, kind, amount_minor, substr(txn_date, 1, 7)
                 FROM entry
-                WHERE deleted_at IS NULL AND status IN ('cleared','imported') AND txn_date IS NOT NULL;
+                WHERE deleted_at IS NULL AND status IN ('cleared','imported');
                 """;
             using var r = cmd.ExecuteReader();
             while (r.Read())
             {
-                var month = r.GetString(4);
                 var kind = r.GetString(2);
                 var amount = r.GetInt64(3);
                 if (accounts.ContainsKey(r.GetInt64(0)))
-                    moves.Add((month, r.GetInt64(0), kind is "income" or "adjustment" ? amount : -amount));
+                    Add(Str(r, 4), r.GetInt64(0), kind is "income" or "adjustment" ? amount : -amount);
                 if (kind == "transfer" && !r.IsDBNull(1) && accounts.ContainsKey(r.GetInt64(1)))
-                    moves.Add((month, r.GetInt64(1), amount));
+                    Add(Str(r, 4), r.GetInt64(1), amount);
             }
+        }
+
+        // 沒有消費日的列直接進期初：它們在帳上的時間不明，当成第一點之前就在（跟淨值同一個假設）。
+        void Add(string? month, long accountId, long delta)
+        {
+            if (month is null)
+            {
+                var (bal, rate) = accounts[accountId];
+                accounts[accountId] = (bal + delta, rate);
+                return;
+            }
+            moves.Add((month, accountId, delta));
         }
 
         var first = moves.Count == 0 ? endMonth
@@ -603,24 +659,30 @@ public sealed class LedgerStore
 
     /// <summary>首頁右下角的未來帳單：還沒到的 entry ＋ 未繳且未到期的信用卡帳單。</summary>
     /// <param name="BillId">有值 = 這是一張信用卡帳單（不是 entry），界面上才能按「已繳」。</param>
-    public sealed record UpcomingItem(string Date, string Label, decimal Amount, long? BillId = null)
+    /// <param name="AmountText">給人看的那個數：小數位照該筆自己的 <c>currency.scale</c>，非基準幣還把幣別寫在後面
+    /// （這一欄混著台幣與外幣，不標就會被當成同一種錢加）。</param>
+    public sealed record UpcomingItem(string Date, string Label, decimal Amount, long? BillId = null, string AmountText = "")
     { public bool IsBill => BillId is not null; }
 
     public List<UpcomingItem> Upcoming()
     {
         var list = new List<UpcomingItem>();
+        var baseCcy = BaseCurrency;
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            SELECT due, label, amount_minor, bill_id FROM (
+            SELECT due, label, amount_minor, bill_id, ccy, scale FROM (
                 SELECT e.txn_date AS due,
                        COALESCE(e.merchant, $unnamed) || '（' || a.name || '）' AS label,
-                       e.amount_minor AS amount_minor, NULL AS bill_id
+                       e.amount_minor AS amount_minor, NULL AS bill_id, e.currency AS ccy, ifnull(ec.scale, 2) AS scale
                 FROM entry e JOIN account a ON a.id = e.account_id
+                LEFT JOIN currency ec ON ec.code = e.currency
                 WHERE e.deleted_at IS NULL AND e.status IN ('cleared','imported','pending')
                   AND e.txn_date > $today
                 UNION ALL
-                SELECT b.due_date, $cardBill || ' ' || a.name, b.total_due_minor, b.id
+                SELECT b.due_date, $cardBill || ' ' || a.name, b.total_due_minor, b.id,
+                       a.currency, ifnull(ak.scale, 2)
                 FROM credit_card_bill b JOIN card k ON k.id = b.card_id JOIN account a ON a.id = k.account_id
+                LEFT JOIN currency ak ON ak.code = a.currency
                 WHERE b.paid_at IS NULL AND b.due_date >= $today AND b.total_due_minor IS NOT NULL
                   AND a.is_archived = 0
             ) ORDER BY due LIMIT 50;
@@ -629,7 +691,13 @@ public sealed class LedgerStore
         cmd.Parameters.AddWithValue("$unnamed", Loc.T("Store_Unnamed"));
         cmd.Parameters.AddWithValue("$cardBill", Loc.T("Home_CardBillLabel"));   // 「信用卡帳單」是介面字，不能燒在 SQL 裡
         using var r = cmd.ExecuteReader();
-        while (r.Read()) list.Add(new UpcomingItem(r.GetString(0), r.GetString(1), Money.FromMinor(r.GetInt64(2)), NullableLong(r, 3)));
+        while (r.Read())
+        {
+            var ccy = Db.NormalizeCurrencyCode(r.GetString(4));
+            var minor = r.GetInt64(2);
+            list.Add(new UpcomingItem(r.GetString(0), r.GetString(1), Money.FromMinor(minor), NullableLong(r, 3),
+                                      Money.Format(minor, r.GetInt32(5)) + (ccy == baseCcy ? "" : $" {ccy}")));
+        }
         return list;
     }
 
@@ -661,15 +729,16 @@ public sealed class LedgerStore
     /// 同一天有雨者時以盤點為準（人當場數的比單子新）。
     /// 比的是「as_of 那天（含）以前的交易累加」：單子上印的是那天結算的數（兆豐 10 月的單印 115/09 月底餘額），
     /// 把之後的交易也算進來會讓期初快照天天誤報。
+    /// <c>Scale</c> = 那個帳戶的顯示小數位：差額要跟餘額同一個單位講（美金帳戶的 0.71 不能被顯示成 1）。
     /// </summary>
-    public List<(string Account, long DiffMinor, string Source, string AsOf)> BalanceMismatches()
+    public List<(string Account, long DiffMinor, string Source, string AsOf, int Scale)> BalanceMismatches()
     {
-        var list = new List<(string, long, string, string)>();
-        var snapshots = new List<(long Id, string Name, long Balance, string Source, string AsOf)>();
+        var list = new List<(string, long, string, string, int)>();
+        var snapshots = new List<(long Id, string Name, long Balance, string Source, string AsOf, int Scale)>();
         using (var cmd = _db.CreateCommand())
         {
             cmd.CommandText = $"""
-                SELECT ab.account_id, v.name, ab.balance_minor, ab.source, ab.as_of
+                SELECT ab.account_id, v.name, ab.balance_minor, ab.source, ab.as_of, v.scale
                 FROM (
                     SELECT account_id, as_of, currency, balance_minor, source FROM (
                         SELECT account_id, as_of, currency, balance_minor, source,
@@ -681,17 +750,19 @@ public sealed class LedgerStore
                 WHERE ab.currency = v.currency;
                 """;
             using var r = cmd.ExecuteReader();
-            while (r.Read()) snapshots.Add((r.GetInt64(0), r.GetString(1), r.GetInt64(2), r.GetString(3), r.GetString(4)));
+            while (r.Read())
+                snapshots.Add((r.GetInt64(0), r.GetString(1), r.GetInt64(2), r.GetString(3), r.GetString(4),
+                               r.IsDBNull(5) ? 2 : r.GetInt32(5)));
         }
 
         // 只算到 as_of 當天（含）；日期不明的当成早就在帳上，不然會從快照裡漏算。
         // shortcut: 每個快照跑一次查詢（N = 有快照的帳戶數），帳戶數上到幾百才會感覺；
         //           要改就把 as_of 当欄一起塞回一條 GROUP BY 的 SQL。
         var through = $"(CASE WHEN txn_date IS NOT NULL THEN txn_date ELSE ifnull(posting_date,'{Undated}') END) <= $asof";
-        foreach (var (id, name, balance, source, asOf) in snapshots)
+        foreach (var (id, name, balance, source, asOf, scale) in snapshots)
             if (Db.Scalar(_db, $"SELECT bal FROM ({DerivedCore(through)}) WHERE id=$id;",
                           ("$asof", asOf), ("$id", id)) is long derived && derived != balance)
-                list.Add((name, balance - derived, source, asOf));
+                list.Add((name, balance - derived, source, asOf, scale));
         return list;
     }
 
@@ -727,25 +798,6 @@ public sealed class LedgerStore
         if (leavesOnly)
             items = items.Where(c => !items.Any(ch => ch.Name.StartsWith(c.Name + '／', StringComparison.Ordinal))).ToList();
         _categoryCache.Add((kind, leavesOnly, items));
-        return items;
-    }
-
-    /// <summary>可當父分類的下拉選項（任意深度，顯示完整路徑），依方向。</summary>
-    public List<Option> TopCategories(string kind)
-    {
-        var items = new List<Option>();
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = """
-            WITH RECURSIVE cp(id, path) AS (
-                SELECT id, CAST(name AS TEXT) FROM category WHERE parent_id IS NULL
-                UNION ALL
-                SELECT c.id, cp.path || '／' || c.name FROM category c JOIN cp ON c.parent_id = cp.id)
-            SELECT c.id, cp.path FROM category c JOIN cp ON cp.id = c.id
-            WHERE c.kind = $k ORDER BY c.sort_order, cp.path;
-            """;
-        cmd.Parameters.AddWithValue("$k", kind);
-        using var r = cmd.ExecuteReader();
-        while (r.Read()) items.Add(new Option(r.GetInt64(0), r.GetString(1)));
         return items;
     }
 
@@ -830,6 +882,15 @@ public sealed class LedgerStore
         using var r = cmd.ExecuteReader();
         while (r.Read()) list.Add((r.GetString(0), (int)r.GetInt64(1)));
         return list;
+    }
+
+    /// <summary>帳戶名稱是 UNIQUE 的（含已歸檔的），所以要名字前先問一遍；被占了就加號碼。</summary>
+    string FreeName(string baseName)
+    {
+        var name = baseName;
+        for (int n = 2; Db.Scalar(_db, "SELECT id FROM account WHERE name=$n;", ("$n", name)) is not null; n++)
+            name = $"{baseName} {n}";
+        return name;
     }
 
     public sealed record AccountOption(long Id, string Name, string Type, string Currency, bool IsArchived = false);
@@ -1198,6 +1259,15 @@ public sealed class LedgerStore
               ("$s", status), ("$at", Db.Now()), ("$id", id));
     }
 
+    /// <summary>轉帳兩側要同一種幣別：否則「轉 1,000」在兩個帳戶會變成不同數額的錢（要換匯得先記雨筆）。</summary>
+    void EnsureSameCurrency(long accountId, long toAccountId)
+    {
+        if (Db.Scalar(_db, "SELECT currency FROM account WHERE id=$a;", ("$a", accountId)) is string a &&
+            Db.Scalar(_db, "SELECT currency FROM account WHERE id=$t;", ("$t", toAccountId)) is string b &&
+            Db.NormalizeCurrencyCode(a) != Db.NormalizeCurrencyCode(b))
+            throw new ArgumentException(Loc.F("Store_TransferCurrency", a, b));
+    }
+
     /// <summary>軟刪除。真刪會連血統一起不見，而血統是之後查 parser 漏列的唯一依據。</summary>
     public void SoftDelete(long id)
         => Write("UPDATE entry SET deleted_at=$at, updated_at=$at WHERE id=$id;", ("$at", Db.Now()), ("$id", id));
@@ -1220,6 +1290,15 @@ public sealed class LedgerStore
             throw new ArgumentException(Loc.T("Store_TransferTarget"));
         if (e.Kind == "transfer" && e.CategoryId is not null) throw new ArgumentException(Loc.T("Store_TransferNoCategory"));
         EnsureLeaf(e.CategoryId);
+        // 一個帳戶只放一種幣別（db-design）。幣別跟帳戶不符的列會被「拆到對的帳戶」搬走、在淨值總表標 ⚠ ——
+        // 那是舊庫的債，不准從人工輸入這條路再製造一筆（記一筆的視窗以前就默默把美金帳戶的筆寫成 TWD）。
+        if (Db.Scalar(_db, "SELECT name || '@@' || currency FROM account WHERE id=$a;", ("$a", e.AccountId))
+            is not string acctRow) throw new ArgumentException(Loc.T("Store_AccountNotFound"));
+        var split = acctRow.IndexOf("@@", StringComparison.Ordinal);
+        var (acctName, acctCcy) = (acctRow[..split], Db.NormalizeCurrencyCode(acctRow[(split + 2)..]));
+        if (Db.NormalizeCurrencyCode(e.Currency) != acctCcy)
+            throw new ArgumentException(Loc.F("Store_CurrencyMismatch", acctName, acctCcy, Db.NormalizeCurrencyCode(e.Currency)));
+        if (e.Kind == "transfer") EnsureSameCurrency(e.AccountId, e.ToAccountId!.Value);
 
         var newId = Db.InsertId(_db, """
             INSERT INTO entry(kind, account_id, to_account_id, category_id, currency, amount_minor,
@@ -1228,7 +1307,7 @@ public sealed class LedgerStore
             """,
             ("$kind", e.Kind), ("$acct", e.AccountId),
             ("$to", (object?)e.ToAccountId ?? DBNull.Value),
-            ("$cat", (object?)e.CategoryId ?? DBNull.Value), ("$cur", e.Currency),
+            ("$cat", (object?)e.CategoryId ?? DBNull.Value), ("$cur", Db.NormalizeCurrencyCode(e.Currency)),
             ("$amt", e.AmountMinor), ("$date", e.TxnDate),
             ("$merchant", (object?)e.Merchant ?? DBNull.Value),
             ("$note", (object?)e.Note ?? DBNull.Value), ("$at", Db.Now()));

@@ -69,14 +69,13 @@
           <DataGridTextColumn Header="{Binding [Import_Col_SpendDate], Source={StaticResource Loc}}" Binding="{Binding Date, StringFormat=yyyy/MM/dd}" Width="88"/>
           <DataGridTextColumn Header="{Binding [Import_Col_PostingDate], Source={StaticResource Loc}}" Binding="{Binding PostingDate, StringFormat=yyyy/MM/dd}" Width="88"/>
           <DataGridTextColumn Header="{Binding [Common_Merchant], Source={StaticResource Loc}}" Binding="{Binding Merchant}" Width="*"/>
-          <DataGridTextColumn Header="{Binding [Common_Amount], Source={StaticResource Loc}}" Binding="{Binding Amount, StringFormat=N0}" Width="80">
+          <DataGridTextColumn Header="{Binding [Common_Amount], Source={StaticResource Loc}}" Binding="{Binding Amount, StringFormat=N2}" Width="88">
             <DataGridTextColumn.ElementStyle>
               <Style TargetType="TextBlock"><Setter Property="TextAlignment" Value="Right"/></Style>
             </DataGridTextColumn.ElementStyle>
           </DataGridTextColumn>
           <DataGridTextColumn Header="{Binding [Common_Currency], Source={StaticResource Loc}}" Binding="{Binding Currency}" Width="50"/>
           <DataGridTextColumn Header="{Binding [Import_Col_Card], Source={StaticResource Loc}}" Binding="{Binding Card}" Width="55"/>
-          <DataGridTextColumn Header="{Binding [Import_Col_Kind], Source={StaticResource Loc}}" Binding="{Binding Kind}" Width="60"/>
           <DataGridTextColumn Header="{Binding [Import_Col_Page], Source={StaticResource Loc}}" Binding="{Binding Page}" Width="40"/>
         </DataGrid.Columns>
       </DataGrid>

@@ -69,7 +69,7 @@ public sealed class CategoryManagerDialog : Window
     {
         var kind = _newKind.SelectedIndex == 1 ? "income" : "expense";
         var items = new List<LedgerStore.Option> { new(0, Loc.T("Category_TopLevel")) };
-        items.AddRange(_store.TopCategories(kind));
+        items.AddRange(_store.Categories(kind));        // 不带 leavesOnly：要能選父類（含完整路徑）
         _newParent.ItemsSource = items;
         _newParent.SelectedIndex = 0;
     }

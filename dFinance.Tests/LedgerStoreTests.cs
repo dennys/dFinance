@@ -425,4 +425,66 @@ public sealed class LedgerStoreTests : IDisposable
         Assert.True(LedgerStore.DataVersion > before);                  // 分頁靠這個決定要不要重查
         Assert.Empty(_store.List(new LedgerStore.Filter()));
     }
+
+    // ---------------------------------------------------------------- 概況的幣別口徑
+
+    [Fact]
+    public void 概況要把外幣折成基準幣再加不是直接加數字()
+    {
+        var twd = Account("台幣活存", "bank");
+        var usd = Account("美金活存", "bank", "USD");
+        _store.SetRate("USD", 30m);
+        Entry("income", twd, 1_000_000, "2026-11-01");                     // TWD 10,000
+        Entry("income", usd, 10_000, "2026-11-02", currency: "USD");       // USD 100
+        Entry("expense", usd, 5_000, "2026-11-03", currency: "USD");       // USD 50
+
+        var k = _store.Totals("2026-11-01", "2026-11-30", null);
+        Assert.Equal(1_300_000, k.IncomeMinor);                             // 10,000 + 100 USD × 30 = TWD 13,000
+        Assert.Equal(150_000, k.ExpenseMinor);                              // 50 USD × 30 = TWD 1,500
+        Assert.Equal(0, k.UnconvertedRows);
+    }
+
+    [Fact]
+    public void 完全沒匯率的幣別不計入概況金額但要報有幾筆()
+    {
+        var jpy = Account("日圓活存", "bank", "JPY");
+        Entry("expense", jpy, 125_000_00, "2026-11-05", currency: "JPY");      // JPY 1,250,000（單上常見的大數）
+
+        var k = _store.Totals("2026-11-01", "2026-11-30", null);
+        Assert.Equal(0, k.ExpenseMinor);                                  // 不准假設 1:1（125 萬日圓會變成 125 萬台幣）
+        Assert.Equal(1, k.UnconvertedRows);                               // 但要讓人看見這個月的數不完整
+    }
+
+    [Fact]
+    public void 沒有消費日的列也要進折線最後一點跟淨值同一口徑()
+    {
+        var bank = Account("活存", "bank", openingMinor: 10_000);
+        Entry("expense", bank, 1_000, null);                             // 解析不到日期 → 淨值把它当成早就在帳上
+        Assert.Equal(9_000, _store.NetWorth().NetMinor);
+
+        var points = _store.MonthlyNetWorth(new DateOnly(2026, 12, 31));
+        Assert.Equal(9_000, points[^1].NetMinor);                        // 左邊淨值 9,000、折線最後一點也要 9,000
+    }
+
+    // ---------------------------------------------------------------- 人工輸入的幣別
+
+    [Fact]
+    public void 手動記的列幣別跟帳戶不同會被擋下來()
+    {
+        var twd = Account("台幣活存", "bank");
+        var ex = Assert.Throws<ArgumentException>(() => _store.InsertManual(
+            new LedgerStore.ManualEntry(twd, "expense", 3_100, "2026-11-01", null, null, null, null, "USD")));
+        Assert.Contains("USD", ex.Message);
+        // 帳戶是台幣、列是美金，淨值就會把 3,100 當台幣加進去（以前那個視窗就是默默寫成 TWD）
+        Assert.Equal(0, _store.Totals("2026-11-01", "2026-11-30", null).ExpenseMinor);
+    }
+
+    [Fact]
+    public void 轉帳的兩個帳戶幣別不同會被擋下來()
+    {
+        var twd = Account("台幣活存", "bank");
+        var usd = Account("美金活存", "bank", "USD");
+        Assert.Throws<ArgumentException>(() => _store.InsertManual(
+            new LedgerStore.ManualEntry(twd, "transfer", 1_000, "2026-11-01", null, null, usd, null, "TWD")));
+    }
 }

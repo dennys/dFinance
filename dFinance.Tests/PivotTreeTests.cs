@@ -46,6 +46,19 @@ public static class PivotTreeTests
     }
 
     [Fact]
+    public static void 整年加起來是零但每月有數的還是要進表()
+    {
+        // 1 月刷 1,000、2 月全額退款（退款是負的支出）：整棵相加是 0，但兩個月都有數。
+        // 拿 Total 判斷會讓整棵從報表消失，而最下面的總計列（另算的）還是會顯示那兩個月。
+        var blocks = Build(Cell(2, "2026-01", 1_000), Cell(2, "2026-02", -1_000));
+        var 外食 = blocks[0].Children.Single().Children.Single(c => c.Id == 2);
+        Assert.Equal(1_000, 外食.Cell("2026-01"));
+        Assert.Equal(-1_000, 外食.Cell("2026-02"));
+        Assert.Equal(0, 外食.Total);
+        Assert.Equal(0, blocks[0].Total);
+    }
+
+    [Fact]
     public static void 整棵沒資料的頂層不進表_未分類挂在支出塊下()
     {
         var blocks = Build(Cell(0, "2026-01", 700));

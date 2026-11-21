@@ -123,7 +123,11 @@ public sealed class ForeignCurrencyTests : IDisposable
     public void 幣別與帳戶不同的舊列可以一键搬到對的帳戶()
     {
         var id = _store.CreateAccount(Edit("王道活存", "bank", "TWD"));
-        _store.InsertManual(new LedgerStore.ManualEntry(id, "income", 311_550_00, "2026-11-01", null, null, null, null, "USD"));
+        // 舊庫的形狀（一帳戶一幣別上線前混进去的）；InsertManual 現在會擋這種列，所以照 SQL 塞。
+        Db.Exec(_db, """
+            INSERT INTO entry(kind, account_id, currency, amount_minor, txn_date, merchant, status, source, created_at)
+            VALUES('income', $a, 'USD', 311_550_00, '2026-11-01', 'Ｆ匯入', 'imported', 'import', datetime('now'));
+            """, ("$a", id));
 
         Assert.Equal(1, _store.SplitForeignCurrencyEntries());
 
@@ -137,6 +141,38 @@ public sealed class ForeignCurrencyTests : IDisposable
 
     int Count(string where, params (string, object?)[] ps)
         => Convert.ToInt32(Db.Scalar(_db, $"SELECT count(*) FROM entry WHERE deleted_at IS NULL {where};", ps));
+
+    void LegacyForeign(long accountId, string currency, long minor)
+        => Db.Exec(_db, """
+            INSERT INTO entry(kind, account_id, currency, amount_minor, txn_date, merchant, status, source, created_at)
+            VALUES('income', $a, $c, $amt, '2026-11-01', 'Ｆ匯入', 'imported', 'import', datetime('now'));
+            """, ("$a", accountId), ("$c", currency), ("$amt", minor));
+
+    [Fact]
+    public void 拆到對的帳戶時目标已經存在就沿用它不會整個炸掉()
+    {
+        // 「王道活存 USD」常常早就存在（匯入本來就照一帳戶一幣別建帳）。
+        // 以前這裡直接插同名 → 撞 account.name 的 UNIQUE，整個按鈕一筆都沒搬到。
+        var twd = _store.CreateAccount(Edit("王道活存", "bank", "TWD"));
+        var usd = _store.CreateAccount(Edit("王道活存 USD", "bank", "USD"));
+        LegacyForeign(twd, "USD", 311_550_00);
+
+        Assert.Equal(1, _store.SplitForeignCurrencyEntries());
+        Assert.Equal(1, Count("AND account_id=$a", ("$a", usd)));
+        Assert.Equal(2L, Db.Scalar(_db, "SELECT count(*) FROM account;"));        // 不会多出半個空帳戶
+    }
+
+    [Fact]
+    public void 拆帳戶時名字被别的幣別占用會另取一個不會混进去()
+    {
+        var twd = _store.CreateAccount(Edit("王道活存", "bank", "TWD"));
+        _store.CreateAccount(Edit("王道活存 USD", "bank", "CNY"));      // 名字剛好被人民幣帳戶用掉了
+        LegacyForeign(twd, "USD", 311_550_00);
+
+        Assert.Equal(1, _store.SplitForeignCurrencyEntries());
+        var home = _store.Accounts().Single(a => a.Currency == "USD");
+        Assert.Equal(1, Count("AND account_id=$a", ("$a", home.Id)));
+    }
 
     // ---------------------------------------------------------------- 幣別對映與顯示
 

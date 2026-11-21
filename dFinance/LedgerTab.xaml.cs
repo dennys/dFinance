@@ -190,9 +190,11 @@ public partial class LedgerTab : UserControl
             PresetBox.SelectedIndex = 0;
 
             var accounts = new List<AccountPick> { new(null, Loc.T("Ledger_AllAccounts")) };
-            // 已歸檔的也列出來（不列就再也筛不到它），但标清楚，别让人以为是个还在用的帳戶
+            // 已歸檔的也列出來（不列就再也筛不到它），但標清楚，別讓人以為是個還在用的帳戶。
+            // 要不要標幣別看「對基準幣而言是不是外幣」（寫死 TWD 的話，基準幣换成美金時台幣帳戶会被標、美金帳戶不会）。
+            var baseCcy = s.BaseCurrency;
             accounts.AddRange(s.Accounts(includeArchived: true).Select(a => new AccountPick(
-                a.Id, (a.Currency == "TWD" ? a.Name : $"{a.Name}（{a.Currency}）") + (a.IsArchived ? Loc.T("Ledger_ArchivedSuffix") : ""))));
+                a.Id, (a.Currency == baseCcy ? a.Name : $"{a.Name}（{a.Currency}）") + (a.IsArchived ? Loc.T("Ledger_ArchivedSuffix") : ""))));
             AccountBox.ItemsSource = accounts;
             AccountBox.SelectedItem = accounts.FirstOrDefault(a => a.Id == _accountId) ?? accounts[0];
 
@@ -369,7 +371,8 @@ public partial class LedgerTab : UserControl
         plot.Axes.DateTimeTicksBottom();
         plot.Axes.Left.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic
         {
-            LabelFormatter = v => v.ToString("N0"),
+            // 小數位跟基準幣（寫死 N0 的話，基準幣改成美金就把小數吃掉）。
+            LabelFormatter = v => Money.Format((long)Math.Round(v * Money.LedgerScale), s.BaseCurrencyScale),
         };
         plot.Axes.AutoScale();
         plot.Title(Loc.F("Home_PlotTitle", nw.BaseCurrency));
@@ -567,6 +570,7 @@ public partial class LedgerTab : UserControl
 
     void ShowKpi(LedgerStore.Kpi k, LedgerStore.NetWorthReport nw, long unpaidMinor)
     {
+        var scale = _store!.BaseCurrencyScale;
         KpiText.Inlines.Clear();
         Add(Loc.T("Ledger_Kpi_Income"), N(k.IncomeMinor), null);
         Add(Loc.T("Ledger_Kpi_Expense"), N(k.ExpenseMinor), null);
@@ -575,8 +579,11 @@ public partial class LedgerTab : UserControl
         Add(Loc.T("Ledger_Kpi_NetWorth"), N(nw.NetMinor), Loc.F("Ledger_AssetsLiabilities", N(nw.AssetsMinor), N(nw.LiabilitiesMinor)));
         Add(Loc.T("Ledger_Kpi_CardUnpaid"), N(unpaidMinor), null);
         if (nw.UnconvertedAccounts > 0) Add(Loc.T("Ledger_Kpi_Unconverted"), Loc.F("Ledger_AccountCount", nw.UnconvertedAccounts), Loc.T("Ledger_UnconvertedNote"));
+        // 概況的收支也是基準幣口徑：沒有匯率的幣別不會算進上面的數（宁可不計也不要 1:1），要讲明白有幾筆。
+        if (k.UnconvertedRows > 0) Add(Loc.T("Ledger_Kpi_UnconvertedRows"), Loc.F("Ledger_Count", k.UnconvertedRows), Loc.T("Ledger_UnconvertedNote"));
 
-        static string N(long minor) => Money.Format(minor, 0);
+        // 小數位跟基準幣的 currency.scale（寫死 0 的話，基準幣改成美金就會把小數吃掉）。
+        string N(long minor) => Money.Format(minor, scale);
 
         void Add(string label, string value, string? note)
         {
@@ -587,14 +594,14 @@ public partial class LedgerTab : UserControl
         }
     }
 
-    void ShowAlerts(int orphans, int dups, List<(string Account, long DiffMinor, string Source, string AsOf)> mismatch)
+    void ShowAlerts(int orphans, int dups, List<(string Account, long DiffMinor, string Source, string AsOf, int Scale)> mismatch)
     {
         OrphanButton.Content = Loc.F("Ledger_OrphanButton", orphans);
         OrphanButton.Visibility = orphans > 0 ? Visibility.Visible : Visibility.Collapsed;
         DuplicateButton.Content = Loc.F("Ledger_DupButton", dups);
         DuplicateButton.Visibility = dups > 0 ? Visibility.Visible : Visibility.Collapsed;
         BalanceButton.Content = Loc.F("Ledger_MismatchButton", mismatch.Count) +
-                                (mismatch.Count > 0 ? Loc.F("Ledger_MismatchButtonSuffix", string.Join("、", mismatch.Select(m => $"{m.Account} {Loc.F("Ledger_DiffShort", Money.Format(m.DiffMinor, 0))}"))) : "");
+                                (mismatch.Count > 0 ? Loc.F("Ledger_MismatchButtonSuffix", string.Join("、", mismatch.Select(m => $"{m.Account} {Loc.F("Ledger_DiffShort", Money.Format(m.DiffMinor, m.Scale))}"))) : "");
         BalanceButton.ToolTip = Loc.T("Ledger_MismatchTip");
         BalanceButton.Visibility = mismatch.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -606,7 +613,7 @@ public partial class LedgerTab : UserControl
     void MarkPaid_Click(object sender, RoutedEventArgs e)
     {
         if (_store is not { } s || (sender as FrameworkElement)?.DataContext is not LedgerStore.UpcomingItem { BillId: { } billId }) return;
-        s.MarkBillPaid(billId);
+        Write(() => s.MarkBillPaid(billId));
         Reload();                                   // 重查：卡未繳 KPI 與未來帳單都要跟著變
     }
 
@@ -617,7 +624,7 @@ public partial class LedgerTab : UserControl
         MessageBox.Show(list.Count == 0 ? Loc.T("Ledger_MismatchAllOk")
                         : string.Join("\n", list.Select(m => Loc.F("Ledger_MismatchLine", m.Account,
                                         Loc.T(m.Source == "manual" ? "Common_Manual" : "Common_BankSlip"),
-                                        m.AsOf, Money.Format(m.DiffMinor, 0)))
+                                        m.AsOf, Money.Format(m.DiffMinor, m.Scale)))
                                      .Append(Loc.T("Ledger_MismatchFooter"))),
                         Loc.T("Ledger_MismatchTitle"),
                         MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -626,12 +633,28 @@ public partial class LedgerTab : UserControl
 
     // ---------------------------------------------------------------- 格子
 
+    /// <summary>
+    /// 帳本上的寫入一律包起來：批次匯入故意在背景另開一條連線（<see cref="LedgerStore"/> 那條不是執行緒安全的），
+    /// 兩邊抢寫會丢 "database is locked"；不接就是整個程式挂掉、人剛改的格子跟著丢。
+    /// 失敗一律重查，畫面回到資料庫實際的樣子（不會留一個看起來改好了的格子）。
+    /// </summary>
+    void Write(Action write)
+    {
+        try { write(); }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, Loc.T("Ledger_WriteFailed"));
+            Reload();
+        }
+    }
+
     void Grid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (LedgerGrid.SelectedItem is not LedgerStore.Row r) { LineageBox.Text = ""; return; }
         LineageBox.Text =
             Loc.F("Ledger_Lineage_Merchant", r.Merchant) + "\n" +
-            Loc.F("Ledger_Lineage_Amount", r.Amount.ToString("N0"), r.Currency) + (r.OrigCurrency is null ? "" : Loc.F("Ledger_Lineage_Orig", r.OrigCurrency)) + "\n" +
+            // 血統要看見存進去的每個位（儲存是 1/100）：照顯示小數位會把台幣的美分、美金的零頭四捨五入掉。
+            Loc.F("Ledger_Lineage_Amount", Money.Format(r.AmountMinor, 2), r.Currency) + (r.OrigCurrency is null ? "" : Loc.F("Ledger_Lineage_Orig", r.OrigCurrency)) + "\n" +
             Loc.F("Ledger_Lineage_Account", r.Account, r.AccountType) + "\n" +
             Loc.F("Ledger_Lineage_Kind", r.Kind, r.StatusText) + (r.Orphaned ? Loc.T("Ledger_Lineage_Orphan") : "") + (r.Edited ? Loc.T("Ledger_Lineage_Edited") : "") + "\n" +
             Loc.F("Ledger_Lineage_Source", r.SourceFile ?? Loc.T("Ledger_Lineage_Manual")) + (r.SourcePage is { } p ? Loc.F("Ledger_Lineage_Page", p) : "") + "\n" +
@@ -654,29 +677,23 @@ public partial class LedgerTab : UserControl
                 MessageBox.Show(Loc.T("Ledger_BadDateMsg"), Loc.T("Ledger_BadDateTitle"));
                 return;
             }
-            r.Date = dbDate;
-            s.SetDate(r.Id, dbDate);
+            Write(() => { r.Date = dbDate; s.SetDate(r.Id, dbDate); });
         }
         else if (e.Column == MerchantCol)
         {
-            r.Merchant = (e.EditingElement as TextBox)?.Text?.Trim();
-            s.SetMerchant(r.Id, r.Merchant);
+            var edited = (e.EditingElement as TextBox)?.Text?.Trim();
+            Write(() => { r.Merchant = edited; s.SetMerchant(r.Id, edited); });
         }
         else if (e.Column == NoteCol)
         {
-            r.Note = (e.EditingElement as TextBox)?.Text?.Trim();
-            s.SetNote(r.Id, r.Note);
+            var edited = (e.EditingElement as TextBox)?.Text?.Trim();
+            Write(() => { r.Note = edited; s.SetNote(r.Id, edited); });
         }
         else if (e.Column == CategoryCol)
         {
-            try { s.SetCategory(r.Id, r.CategoryId); }
-            catch (Exception ex)
-            {
-                // 下拉已經只列最底層，會走到這裡通常是別人剛把這個分類拆了子類（快取舊了）。
-                // shortcut: 只提示不還原下拉內容， Reload 就恢復；要一鍵改選子類等有人按到再說。
-                MessageBox.Show(ex.Message, Loc.T("Ledger_BadCategoryTitle"));
-                return;
-            }
+            // 下拉已經只列最底層，會被擋下來通常是別人剛把這個分類拆了子類（這台的快取舊了）。
+            // shortcut: 只提示不還原下拉內容，Reload 就恢復；要一鍵改選子類等有人按到再說。
+            Write(() => s.SetCategory(r.Id, r.CategoryId));
             // 綁定只寫了 CategoryId；格子裡的文字綁的是 Category，不一起換就會看起來像沒儲存。
             r.Category = r.Categories.FirstOrDefault(o => o.Id == r.CategoryId)?.Name;
         }
@@ -702,21 +719,21 @@ public partial class LedgerTab : UserControl
     void Status_Click(object sender, RoutedEventArgs e)
     {
         if (_store is not { } s || sender is not Button { Tag: string status }) return;
-        foreach (var r in Selected()) s.SetStatus(r.Id, status);
+        Write(() => { foreach (var r in Selected()) s.SetStatus(r.Id, status); });
         Reload();
     }
 
     void Delete_Click(object sender, RoutedEventArgs e)
     {
         if (_store is not { } s) return;
-        foreach (var r in Selected()) s.SoftDelete(r.Id);
+        Write(() => { foreach (var r in Selected()) s.SoftDelete(r.Id); });
         Reload();
     }
 
     void Restore_Click(object sender, RoutedEventArgs e)
     {
         if (_store is not { } s) return;
-        foreach (var r in Selected()) s.Restore(r.Id);
+        Write(() => { foreach (var r in Selected()) s.Restore(r.Id); });
         Reload();
     }
 
@@ -732,7 +749,7 @@ public partial class LedgerTab : UserControl
         if (_store is not { } s) return;
         var dialog = new CategoryDialog { Owner = Window.GetWindow(this) };
         if (dialog.ShowDialog() != true) return;
-        s.AddCategory(dialog.Name, dialog.Kind);
+        Write(() => s.AddCategory(dialog.Name, dialog.Kind));
         RefreshNow();
     }
 

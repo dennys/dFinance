@@ -107,28 +107,37 @@ public sealed class StatementImporter
         int transfers = 0;
         foreach (var t in s.Transactions)
         {
-            var minor = Money.ToMinor(t.Amount);
-            if (minor == 0) { skippedZero++; continue; }                       // 水費退款抵掉那种 0 元列，不進帳
+            var signed = Money.ToMinor(t.Amount);            // 單上的符號（負＝退款/提款/抵帳）
+            if (signed == 0) { skippedZero++; continue; }                       // 水費退款抵掉那种 0 元列，不進帳
 
             var currency = EnsureCurrency(t.Currency, warnings);
             var account = AccountFor(s, t.Account, currency, accountId, kind, lineAccounts, warnings, ref autoCreated);
             var txnDate = t.Date == default ? null : Iso(t.Date);
             if (txnDate is null) warnings.Add(Loc.F("Imp_NoDate", t.Merchant, t.Amount));
 
-            var lineKind = minor < 0 ? "refund" : "expense";
+            // kind 由單據種類定，不是只看正負號：存款對帳單的正數是「存入」（銀行的借貸記法跟卡帳相反），
+            // 只照正負號記就會把薪資記成 expense、提款記成 refund —— 餘額與淨值整個反（見 CHANGELOG + 0009 遷移）。
+            // 存進 DB 的 income/expense/transfer 一律正值（entry 的 CHECK），加減由 kind 決定。
+            var lineKind = kind == StatementKind.Deposit
+                ? (signed > 0 ? "income" : "expense")
+                : (signed < 0 ? "refund" : "expense");
+            var minor = lineKind == "expense" && signed < 0 ? -signed : signed;
             // 繳款列不是消費也不是退款：那是從另一個帳戶打錢進來把卡帳抵掉，所以要記成轉帳
             // （扣款帳戶 → 卡帳帳戶；卡帳的 derived 是負的，轉入才會往 0 走）。
             // 扣款帳戶認不出來就宁願留 refund：性質錯比憑空讓某個帳戶少一筆錢好。
             long? toAccount = null;
-            if (t.IsPayment && kind == StatementKind.Card && payer is long from)
+            bool isTransfer = t.IsPayment && kind == StatementKind.Card && payer is long;
+            if (isTransfer)
             {
                 lineKind = "transfer";
                 toAccount = account;                       // 收錢的那側才是這份單子的帳戶
-                account = from;
+                account = payer!.Value;
                 minor = Math.Abs(minor);                   // transfer 的 CHECK 要正數
                 transfers++;
             }
-            var baseHash = BaseHash(s, t, minor, currency);
+            // 哈希一律照「單上的符號」算，不准照存進 DB 的那個：0009 遷移改過 kind 與正負號，
+            // 哈希跟著 DB 走會讓舊列全部認不出來 → 重匯变成存兩份。
+            var baseHash = BaseHash(s, t, isTransfer ? Math.Abs(signed) : signed, currency);
             // 跳檔案比的資格只看有沒有可靠身份（不是看單據類型）：缴費單現在會抽戶號，抽不到就退回檔案內比。
             bool crossFile = kind != StatementKind.Unknown &&
                              !(string.IsNullOrWhiteSpace(t.Account) && string.IsNullOrWhiteSpace(s.AccountMask));
@@ -198,7 +207,9 @@ public sealed class StatementImporter
             inserted++;
         }
 
-        if (s.Transactions.Any(t => t.Amount < 0 && !t.IsPayment))
+        // 存款單的負額就是提款/支出（已經照 kind=expense 記好了），不需要提醒；
+        // 卡帳與繳費單的負額才會落到 refund，那種要人確認是不是該記成轉帳。
+        if (kind != StatementKind.Deposit && s.Transactions.Any(t => t.Amount < 0 && !t.IsPayment))
             warnings.Add(Loc.T("Imp_NegativeRows"));
         if (transfers > 0)
             warnings.Add(Loc.F("Imp_PaymentTransfer", transfers, AccountName(payer!.Value), AccountName(accountId)));
@@ -256,7 +267,9 @@ public sealed class StatementImporter
                                    || e.GetType().Name.Contains("Encrypted", StringComparison.OrdinalIgnoreCase))
             { tried.Add(pw.Length == 0 ? Loc.T("Imp_NoPassword") : pw); }
         }
-        throw new InvalidOperationException(Loc.F("Imp_BadPassword", tried.Count, string.Join(", ", tried)));
+        // 密碼的內容不准進訊息：這句話會被寫到「匯入 PDF」分頁的 log 欄（也可能被截图貼出去），
+        // 而承諾是「密碼只在記憶體裡過一遍」。
+        throw new InvalidOperationException(Loc.F("Imp_BadPassword", tried.Count));
     }
 
     (long accountId, long? cardId) ResolveTargets(ParsedStatement s, StatementKind kind, List<string> warnings, ref int autoCreated)

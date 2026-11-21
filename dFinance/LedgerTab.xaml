@@ -244,7 +244,7 @@
             <DataGrid.Columns>
               <DataGridTextColumn Header="{Binding [Common_Date], Source={StaticResource Loc}}" Binding="{Binding Date}" Width="86"/>
               <DataGridTextColumn Header="{Binding [Home_Item], Source={StaticResource Loc}}" Binding="{Binding Label}" Width="*"/>
-              <DataGridTextColumn Header="{Binding [Common_Amount], Source={StaticResource Loc}}" Binding="{Binding Amount, StringFormat=N0}" Width="86">
+              <DataGridTextColumn Header="{Binding [Common_Amount], Source={StaticResource Loc}}" Binding="{Binding AmountText}" Width="110">
                 <DataGridTextColumn.ElementStyle>
                   <Style TargetType="TextBlock">
                     <Setter Property="TextAlignment" Value="Right"/>

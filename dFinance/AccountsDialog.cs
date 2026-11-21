@@ -36,6 +36,7 @@ public sealed class AccountsDialog : Window
     long _id;                                       // 0 = 還在新建
     bool _dirty;                                    // 關掉時讓主頁知道要重查
     bool _filling;                                  // 灌表單途中別讓 SelectionChanged 插進來改可見度
+    bool _rateDirty;                                // 匯率欄真的被動過才寫匯率（見 Save）
 
     public AccountsDialog(LedgerStore store)
     {
@@ -46,7 +47,8 @@ public sealed class AccountsDialog : Window
         _type.ItemsSource = LedgerStore.AccountTypes.Select(t => t.Label).ToList();
         _type.SelectedIndex = 1;                                        // 預設銀行
         _currency.ItemsSource = store.Currencies();
-        _currency.SelectedItem = "TWD";
+        _currency.SelectedItem = store.BaseCurrency;          // 新建預設要是基準幣，不是寫死的 TWD
+        _rate.TextChanged += (_, _) => _rateDirty = true;
         _type.SelectionChanged += (_, _) => SyncFields();
         _currency.SelectionChanged += (_, _) => SyncFields();
         _autopay.ItemsSource = store.Accounts().Where(a => a.Type is "bank" or "wallet").ToList();
@@ -140,6 +142,7 @@ public sealed class AccountsDialog : Window
         _limit.Text = ""; _rate.Text = ""; _autopay.SelectedItem = null;
         _type.SelectedIndex = 1; _currency.SelectedItem = _store.BaseCurrency;
         _filling = false;
+        _rateDirty = false;
         _list.SelectedItem = null;
         SyncFields();
         _info.Text = Loc.T("Account_NewHint");
@@ -162,6 +165,7 @@ public sealed class AccountsDialog : Window
         _type.SelectedIndex = Array.FindIndex(LedgerStore.AccountTypes, t => t.Value == a.Type);
         _rate.Text = _store.Rates().TryGetValue(a.Currency, out var r) ? r.ToString("0.####") : "";
         _filling = false;
+        _rateDirty = false;                                  // 上面那句是灌值，不算人改過
         SyncFields();
 
         var counted = _store.NetWorth().Accounts.FirstOrDefault(x => x.Id == a.Id);
@@ -198,7 +202,12 @@ public sealed class AccountsDialog : Window
         {
             if (_id == 0) _id = _store.CreateAccount(edit);
             else _store.UpdateAccount(edit);
-            _store.SetRate(edit.Currency, rate);
+            // 匯率只在欄位真的被動過時才寫：SetRate(x, 值) 會插一筆「今天 + manual」（同一天 manual 優先，
+            // 抓來的就蓋不掉它），SetRate(x, null) 更是直接把整個幣對删掉 ——
+            // 只是改個帳戶名稱就把匯率轉成人工填／抹掉，就是悄悄改了錢的算法。
+            if (_rateDirty ||
+                (rate is not null && _store.Rates().TryGetValue(edit.Currency, out var now) && now != rate))
+                _store.SetRate(edit.Currency, rate);
             _dirty = true;
             Reload();
         }
@@ -229,7 +238,10 @@ public sealed class AccountsDialog : Window
     {
         minor = 0;
         if (string.IsNullOrWhiteSpace(text)) return true;
-        return decimal.TryParse(text.Replace(",", "").Trim(), out var v) && (minor = Money.ToMinor(v)) == minor;
+        if (!decimal.TryParse(text.Replace(",", "").Trim(), out var v)) return false;
+        if (v > long.MaxValue / 100m || v < long.MinValue / 100m) return false;      // 乘 100 會溢位，不是打錯字那麼簡單
+        minor = Money.ToMinor(v);
+        return true;
     }
 
     protected override void OnClosed(EventArgs e)

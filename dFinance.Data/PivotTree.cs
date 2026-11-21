@@ -80,7 +80,10 @@ public static class PivotTree
             if (byId.TryGetValue(cell.CategoryId, out var node)) node.Cells[cell.Month] = cell.TotalMinor;
 
         foreach (var top in tops) Sum(top);
-        var alive = tops.Where(n => n.Total != 0).ToList();       // 整棵 0 的不進表
+        // 進不進表看「有沒有任何一個月有數」，不是看整棵加起來等不等 0：
+        // 1 月刷 1,000、2 月全額退款那種加起來是 0，但兩個月都有數 —— 拿 Total 判斷會讓整棵從報表消失，
+        // 而最下面的總計列（另算的）還是會顯示那兩個月，結果小計跟總計對不上。
+        var alive = tops.Where(n => n.Cells.Values.Any(v => v != 0)).ToList();
 
         var sides = new List<PivotNode>();
         foreach (var (side, id, name) in new[] { (ExpenseSide, ExpenseSideId, expenseName), (IncomeSide, IncomeSideId, incomeName) })

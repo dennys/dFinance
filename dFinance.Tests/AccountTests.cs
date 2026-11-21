@@ -37,6 +37,14 @@ public sealed class AccountTests : IDisposable
     long Manual(long accountId, string kind, long minor, string date = "2026-11-01", string currency = "TWD")
         => _store.InsertManual(new LedgerStore.ManualEntry(accountId, kind, minor, date, null, null, null, null, currency));
 
+    /// <summary>舊庫的真實形狀：台幣帳戶裡混了美金列（那時候還沒有一帳戶一幣別，parser 猜錯就塞進去）。
+    /// InsertManual 現在會擋這種列（那就是 1,250,000 日圓被當台幣的來源），所以舊資料只能照 SQL 塞。</summary>
+    void LegacyForeignEntry(long accountId, string currency, long minor, string merchant = "Ｆ匯入")
+        => Db.Exec(_db, """
+            INSERT INTO entry(kind, account_id, currency, amount_minor, txn_date, merchant, status, source, created_at)
+            VALUES('income', $a, $cur, $amt, '2026-11-01', $m, 'imported', 'import', datetime('now'));
+            """, ("$a", accountId), ("$cur", currency), ("$amt", minor), ("$m", merchant));
+
     // ---------------------------------------------------------------- 建與改
 
     [Fact]
@@ -173,7 +181,7 @@ public sealed class AccountTests : IDisposable
     {
         // 王道那份的真實情況：台幣帳戶裡混了美金列，金額是照台幣算進餘額的，不能讓人當准數
         var id = _store.CreateAccount(Edit(name: "王道活存", type: "bank"));
-        Manual(id, "income", 311_550_00, currency: "USD");
+        LegacyForeignEntry(id, "USD", 311_550_00);
 
         Assert.Equal(1, _store.NetWorth().Accounts.Single(a => a.Name == "王道活存").ForeignEntries);
         Assert.Contains("幣別不符", _store.NetWorth().Accounts.Single(a => a.Name == "王道活存").CountedText);

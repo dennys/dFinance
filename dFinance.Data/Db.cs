@@ -32,12 +32,17 @@ public static class Db
     public static string DocumentsDirectory => Path.Combine(DataDirectory, "documents");
     public static string BackupDirectory => Path.Combine(DataDirectory, "backups");
 
-    /// <summary>開庫（必要时建庫）並跑完遷移。Foreign Keys 一定要在連線字串上，SQLite 預設不啟用外鍵。</summary>
+    /// <summary>
+    /// 開庫（必要时建庫）並跑完遷移。Foreign Keys 一定要在連線字串上，SQLite 預設不啟用外鍵。
+    /// <c>Default Timeout=5</c>：批次匯入故意另開一條連線（UI 那一條不能共享，不是執行緒安全的），
+    /// 兩邊同時寫時預設 30 秒才會丢 "database is locked" —— 整個視窗凍在那裡看起來像當機。
+    /// 這個庫的查詢全是毫秒級，5 秒足夠，搶到鎖的那個早就赢了。
+    /// </summary>
     public static SqliteConnection Open(string? path = null)
     {
         path ??= DatabasePath;
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-        var c = new SqliteConnection($"Data Source={path};Foreign Keys=True");
+        var c = new SqliteConnection($"Data Source={path};Foreign Keys=True;Default Timeout=5");
         c.Open();
         Scalar(c, "PRAGMA journal_mode=WAL;");
         Migrate(c);

@@ -12,7 +12,7 @@ public sealed class UtilityBillParser : IStatementParser
 {
     // 金額形状一律走 PdfText.IsMoney（這裡之前自己寫一份，U+2212 負號不收 → 繳款列靜靜漏掉）。
     private static readonly Regex MoneyLoose = new(@"^\$(\d{1,3}(,\d{3})*|\d+)", RegexOptions.Compiled);
-    private static readonly Regex DateRx = new(@"(\d{3,4})[-/.](\d{1,2})[-/.](\d{1,2})", RegexOptions.Compiled);
+    // 民國年用「年月日」漢字印的（中油天然氣）：共用的 PdfText 只收數字分隔號，這種要自己认。
     private static readonly Regex RocDateWords = new(@"(\d{3})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日", RegexOptions.Compiled);
 
     enum Bill { Electric, Water, Telecom, Gas, Etag }
@@ -132,7 +132,7 @@ public sealed class UtilityBillParser : IStatementParser
         foreach (var row in data.Rows)
         {
             var money = row.Words.Where(w => PdfText.IsMoney(w.Text) && w.Text.StartsWith('$')).ToList();
-            var date = row.Words.Select(w => DateRx.Match(w.Text)).Where(m => m.Success).Select(ToDate).FirstOrDefault();
+            var date = row.Words.Select(w => PdfText.FirstDate(w.Text)).FirstOrDefault(d => d is not null);
             if (money.Count < 5 || date is null) continue;
 
             var amount = ToDecimal(money[^1].Text);
@@ -170,14 +170,7 @@ public sealed class UtilityBillParser : IStatementParser
     }
 
     static DateOnly? DateAfter(PageData data, string label)
-    {
-        foreach (var w in WordsAfterLabel(data, label))
-        {
-            var m = DateRx.Match(w);
-            if (m.Success && ToDate(m) is { } d) return d;
-        }
-        return null;
-    }
+        => WordsAfterLabel(data, label).Select(PdfText.FirstDate).FirstOrDefault(d => d is not null);
 
     static IEnumerable<string> WordsAfterLabel(PageData data, string label)
     {
@@ -195,9 +188,8 @@ public sealed class UtilityBillParser : IStatementParser
     static DateOnly? RowDate(PageData data)
     {
         var row = data.Rows.FirstOrDefault(r => r.Words.Any(w => w.Text.Contains("＊＊＊＊")));
-        if (row is null) return null;
-        var m = row.Words.Select(w => DateRx.Match(w.Text)).FirstOrDefault(x => x.Success && ToDate(x) is not null);
-        return m is null || !m.Success ? null : ToDate(m);
+        // 一個字一個字問（不 join 整列）：日期常被切成好幾個字，join 完會多出空格反而抓不到。
+        return row is null ? null : row.Words.Select(w => PdfText.FirstDate(w.Text)).FirstOrDefault(d => d is not null);
     }
 
     static (DateOnly Start, DateOnly End)? Period(string text)
@@ -205,16 +197,16 @@ public sealed class UtilityBillParser : IStatementParser
         var m = Regex.Match(text, @"(\d{3,4}[-+/.]\d{1,2}[-+/.]\d{1,2})\s*[–至-]\s*(\d{3,4}[-+/.]\d{1,2}[-+/.]\d{1,2})");
         if (m.Success)
         {
-            var a = ToDate(DateRx.Match(m.Groups[1].Value));
-            var b = ToDate(DateRx.Match(m.Groups[2].Value));
+            var a = PdfText.FirstDate(m.Groups[1].Value);
+            var b = PdfText.FirstDate(m.Groups[2].Value);
             if (a is not null && b is not null) return (a.Value, b.Value);
         }
         // 中油天然氣用「115年08月16日 起至 115年10月16日」
         var all = RocDateWords.Matches(text);
         if (all.Count >= 2)
         {
-            var c = ToDate(all[0]);
-            var e = ToDate(all[1]);
+            var c = RocDate(all[0]);
+            var e = RocDate(all[1]);
             if (c is not null && e is not null) return (c.Value, e.Value);
         }
         return null;
@@ -222,10 +214,8 @@ public sealed class UtilityBillParser : IStatementParser
 
     static decimal ToDecimal(string text) => PdfText.ToDecimal(text) ?? 0m;
 
-    static DateOnly? ToDate(Match m)
-    {
-        int year = int.Parse(m.Groups[1].Value);
-        if (year < 1000) year += 1911;   // 民國年
-        // 單子上的編號（例：06-22-1330-57-1）也會被日期樣式抓到，所以範圍不對就當不是日期。
-        return DateOnly.TryParseExact($"{year}-{m.Groups[2].Value}-{m.Groups[3].Value}", "yyyy-M-d", out var d) ? d : null;
-    }}
+    /// <summary>「115年08月16日」：只有這種漢字日期要自己拆（共用的 PdfText 只收數字分隔號）。
+    /// 單子上的編號也可能长得像日期，所以走 TryParse 而不是拼完就用。</summary>
+    static DateOnly? RocDate(Match m)
+        => DateOnly.TryParse($"{int.Parse(m.Groups[1].Value) + 1911}-{m.Groups[2].Value}-{m.Groups[3].Value}", out var d) ? d : null;
+}

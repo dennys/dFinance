@@ -67,6 +67,9 @@
   <data name="Common_Source" xml:space="preserve">
     <value>Source</value>
   </data>
+  <data name="Common_AppError" xml:space="preserve">
+    <value>Something went wrong</value>
+  </data>
   <data name="Common_None" xml:space="preserve">
     <value>(none)</value>
   </data>
@@ -237,9 +240,6 @@ Local bookkeeping, PDFs kept on file, nothing leaves this machine.</value>
   </data>
   <data name="Import_Col_Card" xml:space="preserve">
     <value>Card</value>
-  </data>
-  <data name="Import_Col_Kind" xml:space="preserve">
-    <value>Kind</value>
   </data>
   <data name="Import_Col_Page" xml:space="preserve">
     <value>Page</value>
@@ -465,6 +465,9 @@ Due date: {3}    Amount due: {4}    Minimum due: {5}    Account: {6}</value>
   <data name="Ledger_Kpi_CardUnpaid" xml:space="preserve">
     <value>Card balance due</value>
   </data>
+  <data name="Ledger_Kpi_UnconvertedRows" xml:space="preserve">
+    <value>Unconverted rows</value>
+  </data>
   <data name="Ledger_Kpi_Unconverted" xml:space="preserve">
     <value>Not converted</value>
   </data>
@@ -548,8 +551,8 @@ Mismatches are usually a missing transaction or a wrong opening balance; recount
     <value>Source text
 {0}</value>
   </data>
-  <data name="Ledger_BadCategoryTitle" xml:space="preserve">
-    <value>Invalid category</value>
+  <data name="Ledger_WriteFailed" xml:space="preserve">
+    <value>Could not save</value>
   </data>
   <data name="Ledger_BadDateMsg" xml:space="preserve">
     <value>Spend date must be yyyy/MM/dd (e.g. 2026-11-03); clear it to leave it blank for now.</value>
@@ -1003,6 +1006,15 @@ Mismatches are usually a missing transaction or a wrong opening balance; recount
   <data name="Store_TransferNoCategory" xml:space="preserve">
     <value>A transfer cannot carry a category</value>
   </data>
+  <data name="Store_AccountNotFound" xml:space="preserve">
+    <value>No such account</value>
+  </data>
+  <data name="Store_CurrencyMismatch" xml:space="preserve">
+    <value>{0} is a {1} account, so this entry cannot be booked as {2} (one account, one currency)</value>
+  </data>
+  <data name="Store_TransferCurrency" xml:space="preserve">
+    <value>The two accounts of a transfer must use one currency ({0} → {1}); book two entries to convert</value>
+  </data>
   <data name="Store_NotConvertedShort" xml:space="preserve">
     <value>not converted</value>
   </data>
@@ -1064,7 +1076,7 @@ Mismatches are usually a missing transaction or a wrong opening balance; recount
     <value>(no password)</value>
   </data>
   <data name="Imp_BadPassword" xml:space="preserve">
-    <value>Wrong password or this PDF will not open (tried {0}: {1})</value>
+    <value>Wrong password or this PDF will not open (tried {0}; the passwords themselves are not shown)</value>
   </data>
   <data name="Imp_UnknownIssuer" xml:space="preserve">
     <value>(issuer not recognised)</value>
