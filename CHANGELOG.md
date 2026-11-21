@@ -5,6 +5,38 @@
 
 ## 未發布
 
+### 新增（商家→分類 建議子系統 Step 1：規則進庫、直指最底層分類）
+- 新模組 `dFinance.Classification`（net8.0、零 NuGet、不碰 SQLite/WPF/resx/網路）：對外只有 `MerchantClassifier.Run(ClassifyInput)`
+  一個門面。正規化（NFKD → 去變音符 → 只留 Letter|Digit → invariant 小寫）、按正規化鍵＋收支側群組、剥渠道詞、
+  比對、leaf 白名單、紅標全部住在它裡面（`dFinance.Data` 只准 dump 事實，不准在那邊再寫一份比對）。
+- `0011_classify_rule.sql`：`classify_rule`（pattern/match/category_id/priority/enabled/source/kind/note）
+  ＋ 8 個 catch-all leaf（`餐飲／其他餐飲`、`交通／停車費`、`購物／其他`…）＋ 98 條種子規則＋13 個渠道詞（共 111 條）。
+  規則存 **leaf id** 不存分類名字串（舊表存名字：改名/挪層就無聲失效）。
+- 修掉的四條（編號見 `CLASSIFICATION.md`）：
+  - **B2 「認到了卻靜默失效」**：舊表回頂層名、`SuggestDialog` 拿 leaf 全路徑去對 ⇒ 八個已拆子的頂層全部對不上
+    （本機實測 `代收－全盈支付－全家便利商店` 67 筆至今未分類）。現在規則直指 leaf id，
+    目標被刪/被拆成父類 → 回 `BrokenRule` 紅標给人看，不再跟「沒認到」長得一樣。
+  - **B1 `?險`**：`Contains` 是 literal，那條永不中 → 種子拿掉；引擎另外支援 `glob`（`*`/`?`），要時用 `?險` 重寫。
+  - **B4 `Foodpanda外送交通`、`Netflix網路`**：不會存在的商家名佔著規則，種子清掉。
+  - **B6 沒有正規化**：全形 `ＳＵＫＩＹＡ`、`ＴＷＱＲ`、`A- 中油`、`7-11`/`7-ELEVEN`、`CAFÉ` 現在同一個鍵。
+- **規則有 `kind`（expense/income/any）**：收入規則（`薪資→薪資收入／本薪`、`利息→利息收入`）跟支出規則混在
+  無方向的表裡時，`EnsureLeaf` 只擋父類不擋方向 → 收入列能被標成支出分類，而分類報表的塊按 `category.kind`、
+  「收−支」總計行按 `entry.kind`，兩者會互相對不上（B7）。比對前先 gate；規則方向與目標分類相反 ⇒ `BrokenRule(KindMismatch)`。
+- **套用建議不再寫 `edited_at`**（決定 6）：查證過重匯的「未編輯」分支本來就不動 `category_id`，所以不寫不會丢分類，
+  反而讓 parser 之後修正的金額/日期/商家刷得動（寫了就是讓那批列對未來修正免疫，B10）。
+  現在**只有人在帳本格子裡親手改**才算人工編輯。`devcheck --autocat` 跟著改：假資料不寫 `edited_at`
+  （舊寫法經 `SetCategory` 把本機 238 筆真帳全部標成「人改過」，以後 parser 修正永遠刷不到他們）。
+- **同正規化鍵的原文變體合成一列、一次標完**（B5）：`中油－…` 舆 `A- 中油－…` 現在是一列（群組鍵是「剥完渠道詞」的鍵）。
+  「（無商家）」那一群改用 null 判斷（舊的拿 `Loc.T("Store_Unnamed")` 當群組鍵再比回來，换語系會錯位，B11）。
+- `SuggestDialog` 縮成「綁定＋按鈕」：資料一律經 `SuggestionService`（dump 事實 → `Run` → 寫回），
+  分類下拉照這一列的收支側過濾；底部套用改成逐列成敗、失敗留在視窗上講得出是哪一列（舊的是整批迴圈無 try/catch）。
+- 測試：`ClassificationTests`（純函式 21 條／24 案例：正規化、渠道詞邊界（`A-` 不准把 `amazon` 剥成 `mazon`）、
+  keyword 贏 ignore、priority、exact 勝 contains、glob、三種紅標、收支兩側分群、預勾資格）
+  ＋ `ClassificationDbTests`（9 條：種子全部指得到最底層、遷移冪等、套用不寫 edited_at 也不覆蓋人已標的、
+  規則被拆成父類要紅標）。318 條全綠，`--uismoke` OK。
+- 這輪不做：**learned（從既有帳推建議）** —— 使用者決定緩做（库裡現有分類是 `--autocat` 的假資料，學出來的是垃圾）；
+  規則網格（增刪改）舆 LLM advisor 的實作照 `CLASSIFICATION.md` 分期往後。
+
 ### 修復（「疑似重複」把分期款当成重複）
 - `LedgerStore.DuplicateGroupKey` 的 key 从 `(txn_date, amount_minor, currency)` 改成
   `(account_id, txn_date, amount_minor, currency, posting_date)`（`DuplicateGroupWhere` 的關聯條件跟著改，

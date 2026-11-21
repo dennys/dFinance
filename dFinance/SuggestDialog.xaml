@@ -1,13 +1,17 @@
 <Window x:Class="dFinance.SuggestDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Width="560" Height="480" WindowStartupLocation="CenterOwner" FontSize="13">
+        Width="640" Height="480" WindowStartupLocation="CenterOwner" FontSize="13">
   <DockPanel Margin="10">
     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
       <Button x:Name="ApplyButton" Width="80" Padding="0,3" IsDefault="True" Click="Apply_Click"/>
       <Button x:Name="CancelButton" Width="80" Padding="0,3" Margin="8,0,0,0" IsCancel="True"/>
     </StackPanel>
-    <TextBlock x:Name="HintText" DockPanel.Dock="Top" Foreground="#555" TextWrapping="Wrap" Margin="0,0,0,6"/>
+    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+      <TextBlock x:Name="HintText" Foreground="#555" TextWrapping="Wrap"/>
+      <!-- 規則壞了要看得见：目標被刪/變成父類的規則照樣跳過，靜默跳過就是 B2 那個形状（認到了卻跟沒認到一樣）。 -->
+      <TextBlock x:Name="BrokenText" Foreground="#B00000" TextWrapping="Wrap"/>
+    </StackPanel>
     <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False" CanUserAddRows="False"
               HeadersVisibility="Column" GridLinesVisibility="Horizontal" FontSize="13">
       <DataGrid.Columns>
@@ -18,14 +22,16 @@
             <Style TargetType="TextBlock"><Setter Property="TextAlignment" Value="Right"/></Style>
           </DataGridTextColumn.ElementStyle>
         </DataGridTextColumn>
-        <DataGridTemplateColumn x:Name="CategoryCol" Width="160" SortMemberPath="Category">
+        <DataGridTextColumn x:Name="SourceCol" Binding="{Binding Source}" IsReadOnly="True" Width="60"/>
+        <!-- 下拉的選項是這一列自己的（照收支那一側過濾）：混列兩個方向就能把薪資標成支出分類，
+             分類報表的塊小計與「收−支」總計行會互相對不上（B7）。 -->
+        <DataGridTemplateColumn x:Name="CategoryCol" Width="200" SortMemberPath="Category">
           <DataGridTemplateColumn.CellTemplate>
             <DataTemplate><TextBlock Text="{Binding Category}" VerticalAlignment="Center"/></DataTemplate>
           </DataGridTemplateColumn.CellTemplate>
           <DataGridTemplateColumn.CellEditingTemplate>
             <DataTemplate>
-              <ComboBox ItemsSource="{Binding DataContext.CategoryNames, RelativeSource={RelativeSource AncestorType=Window}}"
-                        SelectedItem="{Binding Category, Mode=TwoWay}"/>
+              <ComboBox ItemsSource="{Binding CategoryOptions}" SelectedItem="{Binding Category, Mode=TwoWay}"/>
             </DataTemplate>
           </DataGridTemplateColumn.CellEditingTemplate>
         </DataGridTemplateColumn>

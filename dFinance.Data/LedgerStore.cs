@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using dFinance.Classification;                  // 建議子系統的事實型別（EntryFact/ClassifyRule/CategoryNode）：Data 只准 dump,不准在那邊再寫一份比對
 using dFinance.Data.Localization;
 using System.Runtime.CompilerServices;
 using Microsoft.Data.Sqlite;
@@ -1058,26 +1059,70 @@ public sealed class LedgerStore
         _categoryCache = [];
     }
 
-    /// <summary>未分類的商家與筆數（報表口徑，依筆數由多到少），給分類建議用。</summary>
-    public List<(string Merchant, int Count)> UncategorizedMerchants(string? from = null, string? to = null, long? accountId = null)
+    /// <summary>
+    /// 未分類的商家事實 dump（報表口徑，排除 transfer/refund），給 <c>MerchantClassifier.Run</c> 用。
+    /// 只 dump 事實：正規化、群組、學習門檻全部在 Classification 裡（口徑分兩處就是那裡的 B5）。
+    /// 「無商家」照 <c>null</c> 交出去 —— 以前 COALESCE 成 <c>Loc.T("Store_Unnamed")</c> 再比回來，
+    /// 換語系時 null 與字串會錯位（B11），而那個 label 只是給人看的。
+    /// </summary>
+    public List<EntryFact> MerchantFacts(string? from = null, string? to = null, long? accountId = null)
     {
-        var list = new List<(string, int)>();
+        var list = new List<EntryFact>();
         using var cmd = _db.CreateCommand();
         cmd.CommandText = $"""
-            SELECT COALESCE(e.merchant, $unnamed), COUNT(*)
+            SELECT e.merchant, CASE WHEN e.kind = 'income' THEN 'income' ELSE 'expense' END, COUNT(*)
             FROM entry e
             WHERE {Live} AND e.category_id IS NULL AND e.kind NOT IN ('transfer','refund')
               AND ($acct IS NULL OR e.account_id = $acct)
               AND (e.txn_date IS NULL OR $from IS NULL OR e.txn_date >= $from) AND (e.txn_date IS NULL OR $to IS NULL OR e.txn_date <= $to)
-            GROUP BY 1
+            GROUP BY 1, 2
             ORDER BY COUNT(*) DESC, 1;
             """;
         cmd.Parameters.AddWithValue("$from", (object?)from ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$to", (object?)to ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$acct", (object?)accountId ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$unnamed", Loc.T("Store_Unnamed"));
         using var r = cmd.ExecuteReader();
-        while (r.Read()) list.Add((r.GetString(0), (int)r.GetInt64(1)));
+        while (r.Read()) list.Add(new EntryFact(r.IsDBNull(0) ? null : r.GetString(0), r.GetString(1), (int)r.GetInt64(2)));
+        return list;
+    }
+
+    /// <summary>分類樹全部節點（含父類）＋是不是最底層。給建議子系統查「規則的目標被刪了還是變成父類了」。</summary>
+    public List<CategoryNode> CategoryNodes()
+    {
+        var list = new List<CategoryNode>();
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = """
+            WITH RECURSIVE cp(id, path) AS (
+                SELECT id, CAST(name AS TEXT) FROM category WHERE parent_id IS NULL
+                UNION ALL
+                SELECT c.id, cp.path || '／' || c.name FROM category c JOIN cp ON c.parent_id = cp.id)
+            SELECT c.id, cp.path, c.kind,
+                   -- 有子類就不是最底層（這裡反過來寫，不然下面讀的人要把 「!=0」 再想一次）
+                   NOT EXISTS(SELECT 1 FROM category ch WHERE ch.parent_id = c.id)
+            FROM category c JOIN cp ON cp.id = c.id
+            ORDER BY c.kind, c.sort_order, cp.path;
+            """;
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add(new CategoryNode(r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetInt64(3) != 0));
+        return list;
+    }
+
+    /// <summary>規則表全部（含 ignore 詞與停用的）。比對與紅標判定都在 <c>MerchantClassifier.Run</c>，這裡只倒。</summary>
+    public List<ClassifyRule> ClassifyRules()
+    {
+        var list = new List<ClassifyRule>();
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = """
+            SELECT id, pattern, match, category_id, priority, enabled, source, kind, note
+            FROM classify_rule ORDER BY priority, id;
+            """;
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new ClassifyRule(r.GetInt64(0), r.GetString(1),
+                                       Enum.Parse<RuleMatch>(r.GetString(2), ignoreCase: true),
+                                       r.IsDBNull(3) ? null : r.GetInt64(3), r.GetInt32(4), r.GetInt32(5) != 0,
+                                       Enum.Parse<RuleSource>(r.GetString(6), ignoreCase: true), r.GetString(7),
+                                       r.IsDBNull(8) ? null : r.GetString(8)));
         return list;
     }
 
@@ -1419,19 +1464,36 @@ public sealed class LedgerStore
     /// 依商家批次補分類，只動尚未分類的列。<c>accountId</c> 要跟著建議視窗的篩選：
     /// 不帶它，看的是 A 帳戶的 3 筆、實際連 B 帳戶同商家一起改。
     /// </summary>
-    public int SetCategoryForMerchant(string merchant, long categoryId, long? accountId = null)
+    /// <summary>
+    /// 批次標一個商家群組（同正規化鍵的原文變體一次標完，B5）。三個講清楚的口徑：
+    /// ① <b>不寫 <c>edited_at</c></b>（決定 6）：只有人在帳本格子裡親手改才算人工編輯。
+    ///    重匯的未編輯分支本來就不動 <c>category_id</c>（<c>StatementImporter</c>），所以這樣不會丢分類，
+    ///    反而讓 parser 之後修正的金額/日期/商家刷得動。寫了 <c>edited_at</c> 等於讓那批列對未來修正免疫（B10）。
+    /// ② 只動 <c>category_id IS NULL</c>：人已標的列一個都不覆蓋。
+    /// ③ <paramref name="rawVariants"/> 是庫裡的原文商家字串；給 <c>null</c> 就是「（無商家）」那一群（<c>merchant IS NULL</c>）。
+    /// </summary>
+    public int SetCategoryForGroup(string side, IReadOnlyList<string>? rawVariants, long categoryId, long? accountId = null)
     {
         EnsureLeaf(categoryId);
-        var merchantKey = merchant == Loc.T("Store_Unnamed") ? null : merchant;
+        // 同側才准標：income 列不能被標成 expense 分類（塊小計與「收−支」總計行會互相對不上，B7）。
+        var sideSql = "(($side = 'income' AND kind = 'income') OR ($side <> 'income' AND kind NOT IN ('income','transfer','refund')))";
+        var ps = new List<(string, object?)> { ("$c", categoryId), ("$at", Db.Now()), ("$side", side),
+                                               ("$acct", (object?)accountId ?? DBNull.Value) };
+        string merchantSql;
+        if (rawVariants is null or { Count: 0 }) merchantSql = "merchant IS NULL";
+        else
+        {
+            var names = rawVariants.Select((_, i) => "$m" + i).ToArray();
+            merchantSql = $"merchant IN ({string.Join(",", names)})";
+            for (var i = 0; i < rawVariants.Count; i++) ps.Add((names[i], rawVariants[i]));
+        }
         Write($"""
-            UPDATE entry SET category_id=$c, status=CASE WHEN status='imported' THEN 'cleared' ELSE status END, edited_at=$at, updated_at=$at
+            UPDATE entry SET category_id=$c, status=CASE WHEN status='imported' THEN 'cleared' ELSE status END, updated_at=$at
             WHERE deleted_at IS NULL AND status IN ('cleared','imported')
-              AND category_id IS NULL AND kind NOT IN ('transfer','refund')
+              AND category_id IS NULL AND {sideSql}
               AND ($acct IS NULL OR account_id = $acct)
-              AND (merchant IS $m OR ($m IS NULL AND merchant IS NULL));
-            """,
-              ("$c", categoryId), ("$at", Db.Now()), ("$m", (object?)merchantKey ?? DBNull.Value),
-              ("$acct", (object?)accountId ?? DBNull.Value));
+              AND {merchantSql};
+            """, ps.ToArray());
         return Db.Scalar(_db, "SELECT changes();") is long n ? (int)n : 0;
     }
 

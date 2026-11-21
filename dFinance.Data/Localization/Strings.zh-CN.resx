@@ -683,6 +683,25 @@
   <data name="Suggest_Hint" xml:space="preserve">
     <value>共 {0} 笔未分类、{1} 个商家（同一商家的笔数会合并成一行）。勾选要套用的商家；可点「分类」栏改成其他分类。取消勾选或选「（不分）」就不套用。</value>
   </data>
+  <data name="Suggest_Source" xml:space="preserve">
+    <value>来源</value>
+  </data>
+  <data name="Suggest_Source_Rule" xml:space="preserve">
+    <value>规则</value>
+  </data>
+  <data name="Suggest_Source_Advisor" xml:space="preserve">
+    <value>AI</value>
+  </data>
+  <data name="Suggest_Variants" xml:space="preserve">
+    <value>{0}（另有 {1} 种写法）</value>
+  </data>
+  <data name="Suggest_Broken" xml:space="preserve">
+    <value>{0} 条规则会被跳过（目标不是最底层分类或已被删）：</value>
+  </data>
+  <data name="Suggest_ApplyFailed" xml:space="preserve">
+    <value>这些商家套用失败，它们尚未改动，改完可以重按一次：
+{0}</value>
+  </data>
   <data name="Account_Title" xml:space="preserve">
     <value>账户管理</value>
   </data>

@@ -4,16 +4,23 @@
 （連「已完成清單」也搬走了，同一件事不要在兩個地方各維護一份）。
 
 主線現在：解析與匯入已穩到能天天用，繳款拆 `transfer`、「單上餘額 ＝ 交易累加」的校驗、與存款單的方向（舊 a0）都已完成（見 CHANGELOG）；
-剩下的主要是**`rule` 表**（省手工最大的那一塊，尚未動）、與四張報表。
+剩下的主要是四張報表，舆**建議分類的 Step 2/3**（規則網格、種子補漏、glob —— 見 `CLASSIFICATION.md` §10）。
 
 ## 0. 本輪 re-review 後的 backlog（2026-11-20）
 
 做完的都進 CHANGELOG 了（P0：快照校驗口徑、同一筆繳款扣兩次、依帳期彙總重計應繳；
 P1：記一筆全域化、幣別下拉、圖的期間、entry id、工具列長條；P2：展開符號、分類管理排版、小口徑、smoke 補洞）。
-**剩下的只有一條**：
+**這輪做完的**：建議分類 Step 1（規則進庫、直指 leaf id、正規化、紅標、income 規則）已進 CHANGELOG。
+**剩下的照 `CLASSIFICATION.md` §10 分期走**：
 
-1. **建議分類抓不到「利息」**（用戶先想一想要不要做）。根因兩條：`MerchantClassifier.Rules` 只有支出規則（收入側一條都沒有），
-    而且規則給的是**頂層名**，`SuggestDialog` 拿 leaf 路徑去對 → 有子類的分類（餐飲/交通…）永遠對不上。
+1. **規則網格**（Step 2）：使用者能自己增/刪/改規則（enabled、priority、備註）與「存成規則」。
+    現在種子是我照本機商家名寫的，**人過一遍**才能當帳本口徑用（`CLASSIFICATION.md` §11）。
+2. **種子補漏＋glob**（Step 3）：`FEE`/`手續費`、`PAYPAL`、`CHT` 那批還沒規則；`?險` 用 glob 重寫。
+3. **learned（從既有帳推建議）** —— 使用者決定這輪不做。要重啟前先處理兩件事：
+    库裡現有分類是 `--autocat` 的假資料（全家 67 筆被拆成 3 個分類、統一超商 16 筆被拆成 13 個），
+    而且沒有欄位能區分「人標的」與「autocat 標的」（都是 `edited_at` 有值）⇒ 得先清庫重練。
+4. **存款單側的轉帳**（`網際轉` 25 筆、`⋯ACH` 8 筆）：本質是帳戶間移轉，現在記成 expense/income。
+    要做「同戶同名帳戶配對」，比建議分類危险，**不准猜**（`CLASSIFICATION.md` N2/N3）。
 
 資料庫現況（test data，可清可重練）：23 份樣本全匯、18 個帳戶 `全部對得上`。
 卡的 `autopay_account_id` 有同行的都設了；匯豐/台新/永豐沒有同行存款帳戶，那幾張的繳款留 `refund`（`PayerOf` 不猜）。
@@ -29,7 +36,7 @@ pie/donut、CSV/JSON 匯出、`credit_card_bill` rollup 表、parser 與 schema 
 
 1. **「不是重複」沒有東西可以標**（使用者要的，他說以後再說）。現在 `status` 五種全都會把錢從
    `LedgerStore.Live` 拿掉，沒有「這筆照樣算錢、只是別再疑我」的地方，那顆按鈕的數字只會隨帳單堆高。
-   計划：遷移 `0011_dup_cleared.sql` 加 `entry.dup_cleared_at`（NULL = 沒看過），底部加一顆「不是重複」
+   計划：遷移 `0012_dup_cleared.sql` 加 `entry.dup_cleared_at`（NULL = 沒看過），底部加一顆「不是重複」
    （作用在選取的列），`DuplicateGroupKey` 加 `AND e.dup_cleared_at IS NULL`，「還原」一并清掉。
    跟「重複」的差別要講清楚：重複＝這筆不算錢，不是重複＝照樣算錢。
    現在不痛的理由：误报清完就不会自己长回来（本機 7 組 → 0 組）。
@@ -80,9 +87,8 @@ pie/donut、CSV/JSON 匯出、`credit_card_bill` rollup 表、parser 與 schema 
 
 ### b. 讓匯入更省手工
 
-- **`rule` 表**：商家字串 → 分類（contains/exact/regex + priority）。現在匯入的 185 筆全部 `category_id IS NULL`。
-  比對前先正規化商家名（全形→半形、去空白、去「電支/網路ATM/代繳」前後綴）。
-  （`--autocat` 已經能把現存的未分類一次標到 leaf，但那是人工一次性，不是 `rule`。）
+- **`rule` 表：已做完**（2026-11-21，進 CHANGELOG）—— 表叫 `classify_rule`，比對前先正規化商家名，渠道詞（代收/全盈支付/連加/⋯）
+  照決定剥前綴。剩下的（規則網格、種子補漏、learned）在上面的 0 節。
 - **存款單餘額校驗的尾巴**（主體已做完，見 CHANGELOG）：中信存款單總覽那欄（現在只用明細最後一列的餘額）與
   王道薄單子都記在 d。
   王道「外幣活期存款總餘額（約等值臺幣）」仍然只警告不入库（它是跨帳戶換匯的合計，對不上單一帳戶的外幣餘額）。

@@ -4,6 +4,7 @@
 // 標假分類（測報表用）：dotnet run -c Release -- - - --autocat
 using dFinance.Parsing;
 using dFinance.Data;
+using dFinance.Classification;
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;   // 重導到檔時要是 UTF-8，不然重看是亂碼
 
@@ -83,19 +84,29 @@ if (args.Length > 2 && args[2] == "--autocat")
 
     var byTop = new Dictionary<string, int>();
     int byRule = 0, i = 0;
+    // 建議一律走 MerchantClassifier.Run：autocat 以前自己拿頂層名去對 leaf 路徑（跟建議視窗同一套错的寫法），
+    // 留第二份私有規則語意就是再犯一次 B2。
+    var facts = rows.Select(r => new EntryFact(r.Merchant, r.Kind == "income" ? "income" : "expense", 1)).ToList();
+    var hitByKey = new Dictionary<string, long>();                       // 原文商家 → 建議的 leaf id
+    foreach (var g in MerchantClassifier.Run(new ClassifyInput(facts, store.ClassifyRules(), store.CategoryNodes())).Rows)
+        if (g.CategoryId is long cid) foreach (var v in g.RawVariants) hitByKey[v] = cid;
+
     foreach (var (id, kind, merchant) in rows)
     {
         var side = kind == "income" ? leaves["income"] : leaves["expense"];         // refund/adjustment 算支出側
-        var suggested = MerchantClassifier.Suggest(merchant);
-        var hit = suggested is null ? [] : side.Where(c => c.Path == suggested || c.Path.StartsWith(suggested + "／")).ToList();
+        var suggested = hitByKey.GetValueOrDefault(merchant ?? "", -1);
+        var hit = suggested < 0 ? [] : side.Where(c => c.Id == suggested).ToList();
         if (hit.Count == 0) hit = side;                                             // 規則比不到 → 輪流塞，就是要讓報表每個格子都有數
         else byRule++;
         var pick = hit[(int)(Math.Abs(id) % hit.Count)];
-        store.SetCategory(id, pick.Id);
+        // 假資料不准寫 edited_at：寫了就等於說「這一筆人改過」，以後重匯只准更新 source_raw，
+        // 真的 parser 修正（金額/日期/商家）就永遠刷不到這批列上。
+        Db.Exec(db, "UPDATE entry SET category_id=$c, updated_at=$at WHERE id=$id;",
+                ("$c", pick.Id), ("$at", Db.Now()), ("$id", id));
         byTop[pick.Path.Split('／')[0]] = byTop.GetValueOrDefault(pick.Path.Split('／')[0]) + 1;
         i++;
     }
-    Console.WriteLine($"標了 {i} 筆（商家規則命中 {byRule} 筆，其餘輪流塞）—— 這是假分類，不要當帳看");
+    Console.WriteLine($"標了 {i} 筆（商家規則命中 {byRule} 筆，其餘輪流塞）—— 這是假分類，不要當帳看（刻意不寫 edited_at）");
     foreach (var (top, n) in byTop.OrderByDescending(kv => kv.Value)) Console.WriteLine($"  {top}　{n} 筆");
     return 0;
 }

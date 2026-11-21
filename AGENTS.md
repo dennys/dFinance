@@ -34,6 +34,11 @@ dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"
   `Localization/`（`Strings*.resx` 四種語系＋`LocalizationManager`/`Loc`，介面文字全在這裡）。
 - `dFinance/`：WPF。`MainWindow`（功能表＋分頁＋匯入 PDF）、`LedgerTab`（首頁 dashboard 與帳戶分頁共用一支）、
   `AccountsDialog`、`CurrencyDialog`（工具→幣別…：基準幣/幣別字典/匯率）、`Dialogs`、`RecentFiles`。
+- `dFinance.Classification/`：商家→分類的建議（**net8.0、零套件、不碰 SQLite/WPF/resx/網路**，靠編譯期擋住「分類邏輯偷偷去碰庫」）。
+  對外只有 `MerchantClassifier.Run(ClassifyInput)` 一個門面：正規化、按正規化鍵群組、剥渠道詞、比對（contains/exact/glob）、
+  leaf 白名單、紅標（`BrokenRule`）全在這裡。設計與 bug 清單在 `CLASSIFICATION.md`。
+- `dFinance.Data/` 那邊的對應面：`SuggestionService`（UI 唯一允許碰的門面：dump 事實 → `Run` → 寫回）、
+  `LedgerStore.MerchantFacts/CategoryNodes/ClassifyRules`（只 dump）、`SetCategoryForGroup`（批次標）、`IMerchantAdvisor`/`NullAdvisor`（LLM 的洞，預設關）。
 - `dFinance.Tests/`：xUnit。樣本測試讀 repo 根 `.env` 與 `D:\dennys\statement`，檔案不在就跳過。
 
 ## 不能破壞的規則
@@ -51,6 +56,15 @@ dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"
 - **entry 只能標最底層分類**（下面沒有子分類的那個）：標在父類會讓分類報表的父列小計 ≠ 子列相加。
   標分類的下拉一律用 `Categories(kind, leavesOnly: true)`，寫入前 `LedgerStore.EnsureLeaf` 會擋；
   篩選下拉要含父類（筛「交通」要連子類一起筛到），所以用不帶參數的那一支。
+- **建議分類只准經 `SuggestionService` / `MerchantClassifier.Run`**：UI 不准自己比對商家字串、不准直接查 `classify_rule`，
+  `dFinance.Data` 也不准再寫一份正規化（兩把尺就是 B5/B2 的成因）。`devcheck --autocat` 也走同一個 `Run`。
+  比對用的正規化一律 invariant 小寫＋`StringComparison.Ordinal`：換成 tr-TR/de-DE 不准讓建議結果改變（`ClassificationTests` 鎖）。
+- **規則的目標存 leaf id 不存分類名字串**（改名/挪層不能無聲失效），而且**要帶 `kind`（expense/income/any）**：
+  `EnsureLeaf` 只擋父類不擋方向，少了 kind 就能把收入列標成支出分類（塊小計與「收−支」總計行對不上）。
+  目標被刪/被拆成父類/方向寫反 → `MerchantClassifier` 回 `BrokenRule`，UI 紅標＋跳過，**不准靜默失效**。
+- **套用建議不寫 `edited_at`**：只有人在帳本格子裡親手改才算人工編輯（重匯的未編輯分支本來就不動 `category_id`，
+  不寫不會丢分類；寫了就是讓那批列對未來的 parser 修正免疫）。`devcheck --autocat` 同樣不寫（假資料不是人改的）。
+  套用也只准動 `category_id IS NULL` 的列，人已標的一個都不覆蓋。
 - **parser 不准碰資料庫，也不准碰語系檔**：單子上的幣別原文（「美金」）照原文交出去，對代碼是 `StatementImporter.EnsureCurrency`
   用 `currency.aliases` 做的事；parser 的 warning 照原文進匯入 log，不進 resx。
   例外只允許「版面判定」不是對映（繳費單只印「元」、中信幣別在圖片標題）；**不准在 parser 裡把原文對成代碼**。
@@ -58,7 +72,7 @@ dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"
 - **語系只換 UI，不換錢與日期**：`LocalizationManager.ChangeCulture` 只動 `CurrentUICulture`，
   `CurrentCulture` 不准一起改（碰上小數點是逗號的語系會把金額解錯一百倍）；帶參數的字串走 `Loc.F("Key", a1, a2)`
   跟 resx 裡的 `{0}`，不准在程式裡拼句子（語序會破）。細節見 `LOCALIZATION.md`。
-- 遷移檔只能新增（下一支是 `0006_*.sql`），已套用的不要改 —— `migration` 表只記 version/name/applied_at，
+- 遷移檔只能新增（下一支是 `0012_*.sql`；`0011_classify_rule.sql` 已用），已套用的不要改 —— `migration` 表只記 version/name/applied_at，
   改了內容不會被發現，只會讓既有庫跟新開的庫長得不一樣。
 - 帳本 UI 的金額唯讀；要調帳記一筆 `adjustment`。
 - **去重的比對範圍由「有沒有可靠身份」決定**（`StatementImporter.FindExisting` 的 `crossFile`）：
@@ -151,6 +165,8 @@ dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"
 - `--uismoke` 要先有分類資料（`devcheck - - --autocat`）：未標分類的庫會照「排序後報表空了」fail，那是設計不是壞了。
 - `--uismoke` 已經把「幣別…」視窗也建一次（不 Show、不打網路），改那個視窗壞了會被抓到。
 - `--uismoke` 也會建「建議分類」視窗並跑一次分類報表的展開/排序（`SmokeOpenSuggestDialog`、`SmokeCategoryReport`），壞了會被抓到。
+  但建議視窗在 uismoke 只驗「建得起來」：功能性斷言（規則命中、套用不寫 edited_at、紅標）在 `ClassificationDbTests`（自備 temp 庫）——
+  uismoke 跑 live 庫，而它的分類資料是靠 `--autocat` 塞的，塞完就沒有未分類商家可建議，兩個要求互斥。
 - 分類報表的展開/收合**只動差額**（不重建整張表），所以 `PivotNode.IsExpanded` 一定要發 `PropertyChanged(Label)`，
   不然那一格會靜靜的一直是 `+`；`--uismoke` 讀的就是真的畫出來的那一格（展開 `−`、收合 `+`）與幾個下拉的 `DisplayMemberPath`。
 - **分類帳報表**＝分類樹（列）× 月（欄）：樹、小計、排序、展開的規則都在 `dFinance.Data/PivotTree`（純函式，`PivotTreeTests` 鎖住），

@@ -683,6 +683,25 @@
   <data name="Suggest_Hint" xml:space="preserve">
     <value>未分類 {0} 件、店舗 {1} 件（同一店舗の件数は 1 行にまとめてあります）。適用する店舗にチェックを付け、「分類」列をクリックすると変更できます。チェックを外すか「（分類なし）」を選ぶと適用しません。</value>
   </data>
+  <data name="Suggest_Source" xml:space="preserve">
+    <value>出典</value>
+  </data>
+  <data name="Suggest_Source_Rule" xml:space="preserve">
+    <value>ルール</value>
+  </data>
+  <data name="Suggest_Source_Advisor" xml:space="preserve">
+    <value>AI</value>
+  </data>
+  <data name="Suggest_Variants" xml:space="preserve">
+    <value>{0}（表記 +{1}）</value>
+  </data>
+  <data name="Suggest_Broken" xml:space="preserve">
+    <value>{0} 件のルールはスキップされます（対象が最下層分類でないか削除済み）： </value>
+  </data>
+  <data name="Suggest_ApplyFailed" xml:space="preserve">
+    <value>これらの店舗は適用に失敗しました（まだ変更されていません）。直してもう一度押してください：
+{0}</value>
+  </data>
   <data name="Account_Title" xml:space="preserve">
     <value>口座管理</value>
   </data>

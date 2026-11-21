@@ -19,6 +19,8 @@
   <ItemGroup>
     <ProjectReference Include="../dFinance.Parsing/dFinance.Parsing.csproj" />
     <ProjectReference Include="..\dFinance.Data\dFinance.Data.csproj" />
+    <!-- 建議子系統是純函式：正規化/比對/門檻這一塊不需要 DB 就能測，別把它包在 DB 測試裡 -->
+    <ProjectReference Include="..\dFinance.Classification\dFinance.Classification.csproj" />
   </ItemGroup>
 
   <ItemGroup>

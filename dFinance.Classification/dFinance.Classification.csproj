@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- 零 NuGet 相依、不碰 SQLite / WPF / resx / HttpClient：分類邏輯偷偷去碰庫，就是靠這個編譯期擋住的。
+         （見 CLASSIFICATION.md §2） -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 正規化與 glob 是 internal（不對外開），但它們正是會悄悄錯的那一段，要能直接測。 -->
+    <InternalsVisibleTo Include="dFinance.Tests" />
+  </ItemGroup>
+
+</Project>

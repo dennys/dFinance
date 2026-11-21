@@ -683,6 +683,25 @@ Mismatches are usually a missing transaction or a wrong opening balance; recount
   <data name="Suggest_Hint" xml:space="preserve">
     <value>{0} uncategorised rows across {1} merchants (counts per merchant are merged into one row). Tick the merchants to apply; click the Category column to change it. Unticking or choosing (no category) skips it.</value>
   </data>
+  <data name="Suggest_Source" xml:space="preserve">
+    <value>Source</value>
+  </data>
+  <data name="Suggest_Source_Rule" xml:space="preserve">
+    <value>Rule</value>
+  </data>
+  <data name="Suggest_Source_Advisor" xml:space="preserve">
+    <value>AI</value>
+  </data>
+  <data name="Suggest_Variants" xml:space="preserve">
+    <value>{0} (+{1} more spellings)</value>
+  </data>
+  <data name="Suggest_Broken" xml:space="preserve">
+    <value>{0} rule(s) will be skipped (target is not a leaf, or was deleted): </value>
+  </data>
+  <data name="Suggest_ApplyFailed" xml:space="preserve">
+    <value>These merchants failed to apply; nothing was changed for them, fix it and try again:
+{0}</value>
+  </data>
   <data name="Account_Title" xml:space="preserve">
     <value>Accounts</value>
   </data>

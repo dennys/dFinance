@@ -369,12 +369,12 @@ public sealed class LedgerStoreTests : IDisposable
         Entry("expense", b, 300, "2026-11-03", merchant: "全聯");
         Entry("expense", b, 400, "2026-11-04", merchant: null);
 
-        var all = _store.UncategorizedMerchants();
+        var all = _store.MerchantFacts();
         Assert.Equal(3, all.Count);
         Assert.Equal(2, all.First(m => m.Merchant == "Uber").Count);
-        Assert.Contains(Loc.T("Store_Unnamed"), all.Select(m => m.Merchant));   // 無店名那列的 label 要跟著語系
+        Assert.Single(all.Where(m => m.Merchant is null));            // 無店名那群照 null 交出去（以前 COALESCE 成語系 label 再比回來會錯位）
 
-        Assert.Single(_store.UncategorizedMerchants(accountId: a));             // 帳戶筛選之前根本沒進 SQL
+        Assert.Single(_store.MerchantFacts(accountId: a));             // 帳戶筛選之前根本沒進 SQL
     }
 
     [Fact]
@@ -387,9 +387,9 @@ public sealed class LedgerStoreTests : IDisposable
         var parent = _store.AddCategory("交通", "expense");
         var leaf = _store.AddCategory("車票", "expense", parent);
 
-        Assert.Equal(1, _store.SetCategoryForMerchant("Uber", leaf, accountId: a));
+        Assert.Equal(1, _store.SetCategoryForGroup("expense", new[] { "Uber" }, leaf, accountId: a));
         Assert.Equal(1L, Db.Scalar(_db, "SELECT COUNT(*) FROM entry WHERE category_id=$c;", ("$c", leaf)));
-        Assert.Throws<InvalidOperationException>(() => _store.SetCategoryForMerchant("Uber", parent));
+        Assert.Throws<InvalidOperationException>(() => _store.SetCategoryForGroup("expense", new[] { "Uber" }, parent));
     }
 
     [Fact]
