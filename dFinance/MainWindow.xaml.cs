@@ -183,6 +183,16 @@ namespace dFinance
             return new AccountsDialog(new LedgerStore(db)).AccountCount;      // 建得出來 = 控件與資料接得上
         }
 
+        /// <summary>給 <c>--uismoke</c> 用的钩子：幣別/匯率視窗建得出來嗎（不 Show，不會真的去打網路）。</summary>
+        internal int SmokeOpenCurrencyDialog()
+        {
+            if (_db is not { } db) return -1;
+            var store = new LedgerStore(db);
+            var n = new CurrencyDialog(store).CurrencyRowCount;
+            if (string.IsNullOrEmpty(store.BaseCurrency)) throw new InvalidOperationException("基準幣讀不到");
+            return n;
+        }
+
         internal string SmokeReport()
         {
             var home = HomeTab.Content as LedgerTab;
@@ -258,6 +268,14 @@ namespace dFinance
         }
 
         void Exit_Click(object sender, RoutedEventArgs e) => Close();
+
+        void CurrencyManager_Click(object sender, RoutedEventArgs e)
+        {
+            if (_db is null) return;
+            new CurrencyDialog(new LedgerStore(_db)) { Owner = this }.ShowDialog();
+            (HomeTab.Content as LedgerTab)?.RefreshIfStale();          // 基準幣一改，淨值與圖的幣別就不同
+            foreach (var tab in _accountTabs.Values) (tab.Content as LedgerTab)?.RefreshIfStale();
+        }
 
         void CategoryManager_Click(object sender, RoutedEventArgs e)
         {

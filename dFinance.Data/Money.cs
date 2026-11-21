@@ -19,4 +19,12 @@ public static class Money
 
     public static long ToAssetUnits(decimal amount) => (long)Math.Round(amount * AssetScale, MidpointRounding.AwayFromZero);
     public static decimal FromAssetUnits(long units) => units / (decimal)AssetScale;
+
+    /// <summary>
+    /// 依幣別小數位顯示（scale 來自 <c>currency.scale</c>：TWD/JPY 0、USD/EUR 2）。
+    /// 儲存一律 1/100，所以 scale 只動顯示，不准拿去做加總。
+    /// shortcut: 只做小數位，不做貨幣符號表（$ / ¥ / NT$ 的寫法各地不同，等有真實需求再說）。
+    /// </summary>
+    public static string Format(long minor, int scale)
+        => FromMinor(minor).ToString(scale <= 0 ? "N0" : "N" + scale);
 }

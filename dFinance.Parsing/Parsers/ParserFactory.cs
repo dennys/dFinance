@@ -16,6 +16,7 @@ public static class ParserFactory
         new TaishinCardParser(),
         new WangdaoDepositParser(),
         new MegaCardParser(),
+        new MegaDepositParser(),
         new SinopacCardParser(),
         new SinopacDepositParser(),
         new CathayCardParser(),

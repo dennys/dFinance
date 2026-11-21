@@ -18,7 +18,10 @@
 | 錢 | **全部 `INTEGER`，結尾一律 `_minor`，帳本單位 = 1/100 元** | SQLite 只有 INTEGER/REAL/TEXT/BLOB。REAL 會飄；TEXT 存小數時 SQL 端 `SUM()` 仍會轉 REAL、而且 `WHERE amount > x` 變成字典序比較。只有整數同時滿足「SQL 聚合精確」與「金額可篩可排」 |
 | 投資數量/單價 | 另用 `_minor` scale = 10^8 | 股數要八位小數，跟帳本的 1/100 不能共用 |
 | 換算位置 | 只能出現在 `dFinance.Data/Money.cs` | parser 持續用 `decimal`，進出 DB 才轉換，避免 ×100 散落各處 |
-| 貨幣小數位 | `currency.scale` **只影響顯示**，儲存統一 1/100 | 否則跨幣 `SUM(amount_minor)` 會因各幣位數不同而錯 |
+| 貨幣小數位 | `currency.scale` **只影響顯示**（讀它的是 `Money.Format`），儲存統一 1/100 | 否則跨幣 `SUM(amount_minor)` 會因各幣位數不同而錯；美金也不會被顯示成整數 |
+| 基準幣 | 存 `settings.base_currency`（預設 TWD）；匯率存在幣對上、不依賴它 | 換基準幣只是換報表口徑，不會弄髒既有匯率，也不用改表 |
+| 一個帳戶一種幣別 | 匯入時帳戶鍵值 = `(issuer, mask, type, currency)` | 否則 1,250,000 日圓會照台幣進淨值（舊資料有「拆到對的帳戶」按鈕可搬） |
+| 國際化 | **延後**：UI 繁中寫死、日期要收民國年、`IssuerNames` 是台灣銀行清單 | 這期只求「錢與幣別層通用」；非台灣銀行本來就沒 parser，文件層靠手動記帳 |
 | 日期 | `TEXT`，格式 `yyyy-MM-dd` | 可字串排序、可用 `date()` 系列函式。C# 端用 `DateOnly`，provider 本來就存這個格式 |
 | 日期缺失 | **留 NULL，不准塞 `0001-01-01`** | 並把該列 `status` 留 `imported` 等人補。舊程式碼用 `DateOnly` 預設值，進 DB 就會憑空多一筆 |
 | 布林 | `INTEGER` + `CHECK (x IN (0,1))` | SQLite 沒有 BOOLEAN |
@@ -78,8 +81,10 @@ entry      帶 source_document_id / source_page / source_raw / source_line_hash 
 - **餘額当场算**（derived）：`opening_balance + Σ(收入/調整) − Σ(支出/繳款/退款) + Σ(轉入)`，
   一個 `GROUP BY` 算完所有帳戶（不是每帳戶一支查詢），不建 rollup 表。
   `account_balance`（存款單快照）只做**校驗**：`BalanceMismatches()` 就是 parser 漏列的偵測器。
-- **非台幣帳戶不計入淨值**（`exchange_rate` 還沒有來源），只回報「N 個帳戶未折算」——
-  宁可不計，也不用 1:1 把淨值算錯。
+- **非基準幣帳戶沒有匯率就不計入淨值**（匯率存幣對，讀的是「帳戶幣別 → `settings.base_currency`」），
+  只回報「N 個帳戶未折算」與缺哪幾對（`NetWorthReport.MissingPairs`）—— 宁可不計，也不用 1:1 把淨值算錯。
+- **一個帳戶一種幣別**：匯入時帳戶鍵值是 `(issuer, mask, type, currency)`，同一帳號的美金/日圓列會分建兩個帳戶。
+  舊資料（王道、兆豐）用「工具→幣別…」裡的「把幣別不符的列拆到對的帳戶」一键搬。
 - **卡未繳查 `credit_card_bill`**（`paid_at IS NULL`），不從 `entry` 推。
 - **可編輯的只有 分類/商家/備註/消費日**，四個都一併寫 `edited_at`（重匯只准更新 `source_raw`）。
   **金額唯讀**：改了就和留底 PDF 對不上、餘額校驗永遠失敗；修正用 `kind='adjustment'` 另記一筆。
@@ -92,15 +97,19 @@ entry      帶 source_document_id / source_page / source_raw / source_line_hash 
 
 ## 表清單
 
-**已實作（`0001_init.sql` 結構 + `0002_seed_category.sql` 分類種子）**
+**已實作（`0001_init.sql` 結構 + `0002` 分類種子 + `0003` USD seed + `0004` 分類樹 + `0005` 幣對匯率/幣別別名/基準幣）**
 `migration` `settings` `currency` `member` `account` `category` `document` `card` `credit_card_bill`
 `entry` `account_balance` `exchange_rate`
 
 `account_balance` 不只是存餘額：**「既有交易累加 == 最近一次帳單餘額快照」是偵測 parser 漏列的自動校驗**，
 比「解析到 0 筆才警告」強得多（漏 3 筆也會被抓到）。目前 parser 還沒有把餘額欄解析出來（TODO 2a）。
 
-`exchange_rate` 先建表沒有資料來源。之後接 Yahoo Finance 時：預設關閉、使用者明確開啟才連網、失敗要能退回人工填；
-海外消費**優先取帳單上已印的換算後台幣金額**（`amount_minor`），原幣金額只放 `orig_amount_minor`/`orig_currency` 做顯示。
+`exchange_rate` 明記幣對 `(from_ccy, to_ccy, rate_date, source)`：「1 from = ? to」，所以換基準幣只是換 where，
+舊數字的意義不會靜靜改變（也就不用清匯率）。同一天的 `manual` 優先於 `yahoo` —— 抓來的蓋不掉人填的。
+來源 `RateSource`（Yahoo chart API，符號 `{from}{to}=X`）：**只有人按按鈕才連網**，失敗一律不動現有數字。
+實測兩個坑：不帶 User-Agent 直接 429；公司網不填 proxy（`settings.rate_proxy_url`）就連不出去。
+海外消費**優先取帳單上已印的換算後金額**（`amount_minor`），原幣金額只放 `orig_amount_minor`/`orig_currency` 做顯示。
+單子上的幣別原文（「美金」「日圓」）靠 `currency.aliases` 對成代碼 —— parser 不查資料庫，只交原文。
 
 **尚未建表（等要做時再發 `0002_*.sql`）**
 

@@ -142,7 +142,7 @@
               </DataTemplate>
             </DataGridTemplateColumn.CellEditingTemplate>
           </DataGridTemplateColumn>
-          <DataGridTextColumn Header="金額" Binding="{Binding Amount, StringFormat=N0}" Width="90" IsReadOnly="True"
+          <DataGridTextColumn Header="金額" Binding="{Binding AmountText}" Width="90" IsReadOnly="True"
                               ElementStyle="{StaticResource AmountCell}"/>
           <DataGridTextColumn x:Name="AccountCol" Header="帳戶" Binding="{Binding Account}" Width="140" IsReadOnly="True"/>
           <DataGridTextColumn Header="狀態" Binding="{Binding StatusText}" Width="54" IsReadOnly="True"/>
@@ -190,7 +190,7 @@
             <DataGridTextColumn Header="類型" Binding="{Binding TypeLabel}" Width="60"/>
             <DataGridTextColumn Header="幣別" Binding="{Binding Currency}" Width="46"/>
             <DataGridTextColumn Header="餘額" Binding="{Binding BalanceText}" Width="100"/>
-            <DataGridTextColumn Header="折算後（TWD）" Binding="{Binding ConvertedText}" Width="110"/>
+            <DataGridTextColumn x:Name="ConvertedCol" Header="折算後" Binding="{Binding ConvertedText}" Width="110"/>
             <DataGridTextColumn Header="計入淨值" Binding="{Binding CountedText}" Width="*"/>
           </DataGrid.Columns>
         </DataGrid>

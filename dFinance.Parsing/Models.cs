@@ -44,6 +44,9 @@ public class ParsedTransaction
 
     public string Card { get; set; } = "";
 
+    /// <summary>列級帳號。一份單子含多個帳號時（存款對帳單）由 parser 填，匯入端逐列歸戶；空白 = 用整份的 AccountMask。</summary>
+    public string Account { get; set; } = "";
+
     public int Page { get; set; }
 
     public string RawLine { get; set; } = "";

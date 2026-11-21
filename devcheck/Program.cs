@@ -30,6 +30,22 @@ if (args.Length > 2 && args[2] == "--import")
     return 0;
 }
 
+// 抓匯率（要連網，公司網就給 proxy）：dotnet run -c Release -- - - --rates [proxyUrl]
+if (args.Length > 2 && args[2] == "--rates")
+{
+    using var db = Db.Open();
+    var store = new LedgerStore(db);
+    var proxy = args.Length > 3 && args[3] != "-" ? args[3] : store.RateProxy;
+    Console.WriteLine($"data = {Db.DataDirectory}  基準幣 = {store.BaseCurrency}  proxy = {(string.IsNullOrWhiteSpace(proxy) ? "直連" : proxy)}");
+    var source = new RateSource { ProxyUrl = proxy };
+    Console.WriteLine("測試：" + source.Test(store));
+    var (updated, errors) = source.Refresh(store);
+    Console.WriteLine($"更新 {updated} 個幣對" + (errors.Count == 0 ? "" : "；" + string.Join("；", errors)));
+    foreach (var r in store.RateRows())
+        Console.WriteLine($"  {r.From} → {r.To} = {r.Rate}　{r.RateDate}　{r.Source}{(r.IsStale ? "　⚠過期" : "")}");
+    return 0;
+}
+
 ParsedStatement? statement = null;
 PageData? pageData = null;
 string? openedWith = null;

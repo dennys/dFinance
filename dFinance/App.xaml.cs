@@ -25,7 +25,8 @@ namespace dFinance
                 var w = new MainWindow();
                 w.Show();
                 w.SmokeOpenFirstAccountTab();
-                var line = "OK  " + w.SmokeReport() + $"，帳戶管理開得來（{w.SmokeOpenAccountsDialog()} 個帳戶）";
+                var line = "OK  " + w.SmokeReport() + $"，帳戶管理開得來（{w.SmokeOpenAccountsDialog()} 個帳戶）"
+                         + $"，幣別/匯率開得來（{w.SmokeOpenCurrencyDialog()} 種幣別）";
                 w.Close();
                 File.WriteAllText(report, line + "  data=" + Db.DataDirectory);
                 Shutdown(0);

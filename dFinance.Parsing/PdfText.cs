@@ -11,6 +11,8 @@ public static class PdfText
     public static readonly Regex DateRx = new(@"^(\d{3,4})[-/.\u2010-\u2015](\d{1,2})[-/.\u2010-\u2015](\d{1,2})$", RegexOptions.Compiled);
     // 有些銀行把日期和文字接在同一個字（例：115-10-28已繳款金額），這種要從字串裡抓。
     private static readonly Regex LooseDateRx = new(@"(\d{3,4})[-/.\u2010-\u2015](\d{1,2})[-/.\u2010-\u2015](\d{1,2})", RegexOptions.Compiled);
+    // 有的銀行把日期壓成 8 碼（兆豐存款單的 1151001）；當成日期的單號會被月/日的 TryParseExact 擋掉。
+    private static readonly Regex CompactDateRx = new(@"^(1\d{2})(\d{2})(\d{2})$", RegexOptions.Compiled);
 
     /// <summary>從任意字串裡取第一個日期（不要求整個字就是日期）。</summary>
     public static DateOnly? FirstDate(string? text)
@@ -52,6 +54,9 @@ public static class PdfText
     public static DateOnly? ToDate(string? text, DateOnly? reference = null)
     {
         if (text is null) return null;
+
+        var compact = CompactDateRx.Match(text);                       // 1151001 → 115-10-01
+        if (compact.Success) text = $"{compact.Groups[1].Value}-{compact.Groups[2].Value}-{compact.Groups[3].Value}";
 
         if (DateRx.IsMatch(text))
         {

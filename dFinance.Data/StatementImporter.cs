@@ -83,6 +83,7 @@ public sealed class StatementImporter
             ("$warnings", warnings.Count == 0 ? (object)DBNull.Value : JsonSerializer.Serialize(warnings)));
 
         var touched = new List<long>();
+        var lineAccounts = new Dictionary<string, long>();          // 列級帳號 → account.id（同帳號只查/建一次）
         var billId = LinkBill(s, cardId, docId, warnings);      // 先建帳單記錄，下面每筆才能挂上去
         var occurrences = new Dictionary<string, int>();      // 同鍵出現第幾次（同天同額刷兩次要存成兩筆）
         foreach (var t in s.Transactions)
@@ -91,6 +92,7 @@ public sealed class StatementImporter
             if (minor == 0) { skippedZero++; continue; }                       // 水費退款抵掉那种 0 元列，不進帳
 
             var currency = EnsureCurrency(t.Currency, warnings);
+            var account = LineAccount(s, t, accountId, kind, currency, lineAccounts, warnings, ref autoCreated);
             var txnDate = t.Date == default ? null : Iso(t.Date);
             if (txnDate is null) warnings.Add($"有一筆拿不到消費日（{t.Merchant} {t.Amount}），先留空等人補。");
 
@@ -100,10 +102,10 @@ public sealed class StatementImporter
             occurrences[baseHash] = n;
             var hash = n == 1 ? baseHash : $"{baseHash}#{n}";
 
-            var existing = FindExisting(hash, accountId, docId, kind);
+            var existing = FindExisting(hash, account, docId, kind);
             if (existing is not null && touched.Contains(existing.Value))      // 保底：同一筆不准被兩列同時認領
             {
-                hash = NextFreeHash(hash, accountId, docId, kind);
+                hash = NextFreeHash(hash, account, docId, kind);
                 existing = null;
             }
 
@@ -148,7 +150,7 @@ public sealed class StatementImporter
                 VALUES($kind, $account, $card, $bill, $cur, $amt, $date, $post,
                        $merchant, 'imported', 'import', $doc, $page, $hash, $raw, $at);
                 """,
-                ("$kind", lineKind), ("$account", accountId), ("$card", (object?)cardId ?? DBNull.Value),
+                ("$kind", lineKind), ("$account", account), ("$card", (object?)cardId ?? DBNull.Value),
                 ("$bill", (object?)billId ?? DBNull.Value),
                 ("$cur", currency), ("$amt", minor),
                 ("$date", (object?)txnDate ?? DBNull.Value), ("$post", Date(t.PostingDate)),
@@ -212,7 +214,8 @@ public sealed class StatementImporter
         if (kind == StatementKind.Bill) return (PaymentAccount(warnings, ref autoCreated), null);
 
         var type = kind == StatementKind.Card ? "credit_card" : "bank";
-        var accountId = FindAccount(issuer, mask, type) ?? CreateAccount(issuer, mask, type, warnings, ref autoCreated);
+        var currency = EnsureCurrency(s.Transactions.FirstOrDefault(t => !string.IsNullOrWhiteSpace(t.Currency))?.Currency, warnings);
+        var accountId = FindAccount(issuer, mask, type, currency) ?? CreateAccount(issuer, mask, type, currency, warnings, ref autoCreated);
         if (autoCreated > 0) warnings.Add($"自動建立帳戶，請確認是不是既有帳戶。");
 
         long? cardId = null;
@@ -228,15 +231,56 @@ public sealed class StatementImporter
         return (accountId, cardId);
     }
 
-    long? FindAccount(string issuer, string mask, string type)
-        => Db.Scalar(_db, """
-            SELECT id FROM account WHERE ifnull(issuer,'')=$i AND ifnull(mask,'')=$m AND type=$t AND is_archived=0
-            ORDER BY id LIMIT 1;
-            """, ("$i", issuer), ("$m", mask), ("$t", type)) is long id ? id : (long?)null;
-
-    long CreateAccount(string issuer, string mask, string type, List<string> warnings, ref int autoCreated)
+    /// <summary>
+    /// 一筆交易的帳戶。列上寫了帳號就照它（一份單子含多個帳號的存款單），沒寫就跟著整份單子的帳戶；
+    /// 幣別永遠 participate 鍵值 —— 一個帳戶只放一種幣別，美金列不會再被倒進台幣帳戶（那個錢照台幣進淨值）。
+    /// </summary>
+    long LineAccount(ParsedStatement s, ParsedTransaction t, long docAccountId, StatementKind kind, string currency,
+                     Dictionary<string, long> cache, List<string> warnings, ref int autoCreated)
     {
-        var baseName = string.IsNullOrEmpty(mask) ? issuer : $"{issuer} {mask}";
+        if (kind == StatementKind.Bill || docAccountId == 0) return docAccountId;
+        var key = $"{(t.Account ?? "").Trim()}|{currency}";
+        if (cache.TryGetValue(key, out var cached)) return cached;
+
+        var (docIssuer, docMask, docCurrency) = DocAccount(docAccountId);
+        var mask = (t.Account ?? "").Trim();
+        if (mask.Length == 0)
+        {
+            if (currency == docCurrency) return cache[key] = docAccountId;   // 列上沒帳號也没換幣別 = 就是這份單子的帳戶
+            mask = docMask;                                                  // 要換幣別：帳號沿用整份單子的，另開一個幣別的帳戶
+        }
+
+        var issuer = (string.IsNullOrWhiteSpace(s.Issuer) ? docIssuer : s.Issuer.Trim()) ?? "(未辨識發行方)";
+        var type = kind == StatementKind.Card ? "credit_card" : "bank";
+        var before = autoCreated;
+        var id = FindAccount(issuer, mask, type, currency) ?? CreateAccount(issuer, mask, type, currency, warnings, ref autoCreated);
+        if (autoCreated > before) warnings.Add("自動建立帳戶，請確認是不是既有帳戶。");
+        return cache[key] = id;
+    }
+
+    readonly Dictionary<long, (string? Issuer, string Mask, string Currency)> _docAccounts = new();
+
+    (string? Issuer, string Mask, string Currency) DocAccount(long id)
+    {
+        if (_docAccounts.TryGetValue(id, out var hit)) return hit;
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT issuer, ifnull(mask,''), currency FROM account WHERE id=$i;";
+        cmd.Parameters.AddWithValue("$i", id);
+        using var r = cmd.ExecuteReader();
+        var value = r.Read() ? (r.IsDBNull(0) ? null : r.GetString(0), r.GetString(1), r.GetString(2)) : (null, "", "TWD");
+        return _docAccounts[id] = value;
+    }
+
+    long? FindAccount(string issuer, string mask, string type, string currency)
+        => Db.Scalar(_db, """
+            SELECT id FROM account WHERE ifnull(issuer,'')=$i AND ifnull(mask,'')=$m AND type=$t AND currency=$c AND is_archived=0
+            ORDER BY id LIMIT 1;
+            """, ("$i", issuer), ("$m", mask), ("$t", type), ("$c", currency)) is long id ? id : (long?)null;
+
+    long CreateAccount(string issuer, string mask, string type, string currency, List<string> warnings, ref int autoCreated)
+    {
+        var baseName = (string.IsNullOrEmpty(mask) ? issuer : $"{issuer} {mask}")
+                     + (currency == Db.BaseCurrency(_db) ? "" : $" {currency}");   // 同帳號多幣別時名字要分得開
         var name = baseName;
         for (int n = 2; Db.Scalar(_db, "SELECT id FROM account WHERE name=$n;", ("$n", name)) is not null; n++)
             name = $"{baseName} {n}";
@@ -244,9 +288,9 @@ public sealed class StatementImporter
         autoCreated++;
         return Db.InsertId(_db, """
             INSERT INTO account(name, type, currency, issuer, mask, created_at)
-            VALUES($n, $t, 'TWD', $i, $m, $at);
+            VALUES($n, $t, $c, $i, $m, $at);
             """,
-            ("$n", name), ("$t", type), ("$i", issuer),
+            ("$n", name), ("$t", type), ("$c", currency), ("$i", issuer),
             ("$m", string.IsNullOrEmpty(mask) ? (object)DBNull.Value : mask), ("$at", Db.Now()));
     }
 
@@ -270,27 +314,47 @@ public sealed class StatementImporter
         warnings.Add("還沒有任何銀行帳戶，繳費單先記到新的現金帳戶（之後可在設定改預設付款帳戶）。");
         autoCreated++;
         var newId = Db.InsertId(_db, """
-            INSERT INTO account(name, type, currency, created_at) VALUES('現金', 'cash', 'TWD', $at);
-            """, ("$at", Db.Now()));
+            INSERT INTO account(name, type, currency, created_at) VALUES('現金', 'cash', $c, $at);
+            """, ("$c", Db.BaseCurrency(_db)), ("$at", Db.Now()));
         Db.Exec(_db, "INSERT OR REPLACE INTO settings(key, value) VALUES('default_payment_account_id', $v);", ("$v", newId.ToString()));
         return newId;
     }
 
+    /// <summary>
+    /// 單子上的幣別原文 → 代碼。三尺碼直接用；「美金」「日圓」這種中文靠 <c>currency.aliases</c> 對映
+    /// —— parser 不碰資料庫，所以對映只能坐在匯入端（parser 只負賣把原文交出來）。
+    /// 對不上就用基準幣，但要警告：靜靜當成台幣算是這件事最壞的做法。
+    /// </summary>
     string EnsureCurrency(string? raw, List<string> warnings)
     {
-        var code = (raw ?? "").Trim().ToUpperInvariant();
-        if (code.Length != 3 || !code.All(char.IsLetter))
+        var text = (raw ?? "").Trim();
+        var baseCcy = Db.BaseCurrency(_db);
+        if (text.Length == 0) return baseCcy;                                  // 單子上根本沒寫幣別
+
+        var code = Db.NormalizeCurrencyCode(text);
+        // 三尺碼而且全是英文大寫才算代碼（「新台幣」也是三字，用 char.IsLetter 會被誤判成代碼）。
+        if (code.Length != 3 || !code.All(c => c >= 'A' && c <= 'Z')) code = ResolveAlias(text) ?? "";
+        if (code.Length == 0)
         {
-            if (!string.IsNullOrWhiteSpace(raw)) warnings.Add($"幣別「{raw}」不是三尺碼，先當 TWD。");
-            return "TWD";
+            warnings.Add($"幣別「{text}」對不到代碼，先按基準幣 {baseCcy} 記；請在「工具→幣別…」補別名，或自己改這一列。");
+            return baseCcy;
         }
+
         if (Db.Scalar(_db, "SELECT code FROM currency WHERE code=$c;", ("$c", code)) is null)
         {
-            warnings.Add($"第一次看到幣別 {code}，先以 2 位小數建立，顯示位數之後可改。");
+            warnings.Add($"第一次看到幣別 {code}，先以 2 位小數建立，顯示位數之後可在「幣別…」改。");
             Db.Exec(_db, "INSERT INTO currency(code, name, scale) VALUES($c, $c, 2);", ("$c", code));
         }
         return code;
     }
+
+    /// <summary>aliases 存成「美金|美元」；對不上回 null。</summary>
+    string? ResolveAlias(string text)
+        => Db.Query(_db, "SELECT code || '@@' || aliases FROM currency WHERE aliases IS NOT NULL")
+             .Select(o => ((string)o!).Split("@@", 2))
+             .FirstOrDefault(kv => kv[1].Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                    .Any(a => a.Equals(text, StringComparison.OrdinalIgnoreCase)))
+             ?.FirstOrDefault();
 
     long? LinkBill(ParsedStatement s, long? cardId, long docId, List<string> warnings)
     {
@@ -363,7 +427,8 @@ public sealed class StatementImporter
     /// 進哈希會讓舊列全部認不出來、變成重複列。
     /// </summary>
     static string BaseHash(ParsedStatement s, ParsedTransaction t, long minor, string currency)
-        => Sha256(Encoding.UTF8.GetBytes(string.Join('|', s.Issuer, s.AccountMask, t.Card,
+        => Sha256(Encoding.UTF8.GetBytes(string.Join('|', s.Issuer,
+               string.IsNullOrWhiteSpace(t.Account) ? s.AccountMask : t.Account, t.Card,
                s.StatementEndDate?.ToString("yyyyMMdd") ?? "",
                t.Date == default ? "" : t.Date.ToString("yyyyMMdd"),
                t.PostingDate?.ToString("yyyyMMdd") ?? "", minor, currency, t.Page)));

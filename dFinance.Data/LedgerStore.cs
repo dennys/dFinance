@@ -59,6 +59,10 @@ public sealed class LedgerStore
         public long AmountMinor { get; init; }
         public string Kind { get; init; } = "";
         public string Currency { get; init; } = "TWD";
+        /// <summary>這個幣別顯示幾位小數（<c>currency.scale</c>）；加總一律用 AmountMinor，不用這個。</summary>
+        public int Scale { get; init; } = 2;
+        /// <summary>清單的金額欄：顯示小數位跟幣別走（美金 1,250.00、台幣 3,000）。</summary>
+        public string AmountText => Money.Format(AmountMinor, Scale);
         public string? OrigCurrency { get; init; }
         public long AccountId { get; init; }
         public string Account { get; init; } = "";
@@ -141,11 +145,12 @@ public sealed class LedgerStore
             SELECT e.id, e.txn_date, e.merchant, e.note, e.category_id,
                    cp.path, e.amount_minor, e.kind, e.currency, e.orig_currency,
                    a.id, a.name, a.type, e.status, e.edited_at, e.orphaned_at,
-                   e.source_raw, d.file_name, e.source_page, d.issuer, d.parser, d.archived_path
+                   e.source_raw, d.file_name, e.source_page, d.issuer, d.parser, d.archived_path, ec.scale
             FROM entry e
             JOIN account a ON a.id = e.account_id
             LEFT JOIN cat_path cp ON cp.id = e.category_id
             LEFT JOIN document d ON d.id = e.source_document_id
+            LEFT JOIN currency ec ON ec.code = e.currency
             WHERE {where}
             ORDER BY (e.txn_date IS NULL), e.txn_date DESC, e.id DESC
             LIMIT $limit;
@@ -166,6 +171,7 @@ public sealed class LedgerStore
                     Id = r.GetInt64(0), Date = Str(r, 1), Merchant = Str(r, 2), Note = Str(r, 3),
                     CategoryId = NullableLong(r, 4), Category = Str(r, 5), AmountMinor = r.GetInt64(6),
                     Kind = r.GetString(7), Currency = r.GetString(8), OrigCurrency = Str(r, 9),
+                    Scale = r.IsDBNull(22) ? 2 : r.GetInt32(22),
                     AccountId = r.GetInt64(10), Account = r.GetString(11), AccountType = r.GetString(12),
                     Status = r.GetString(13), Edited = r.IsDBNull(14) == false, Orphaned = r.IsDBNull(15) == false,
                     SourceRaw = Str(r, 16), SourceFile = Str(r, 17), SourcePage = NullableInt(r, 18),
@@ -226,22 +232,31 @@ public sealed class LedgerStore
     }
 
     public sealed record AccountBalance(long Id, string Name, string Type, string Currency, long BalanceMinor,
-                                        bool CountedInNet, long ConvertedMinor, decimal? Rate, int ForeignEntries)
+                                        bool CountedInNet, long ConvertedMinor, decimal? Rate, int ForeignEntries,
+                                        int Scale = 2, string BaseCcy = "TWD", int BaseScale = 0)
     {
         /// <summary>總表給人看的文字。口徑留在 Data 層，UI 不准自己拼。</summary>
         public string TypeLabel => LedgerStore.TypeLabel(Type);
-        public string BalanceText => Money.FromMinor(BalanceMinor).ToString("N0");
-        public string ConvertedText => CountedInNet ? Money.FromMinor(ConvertedMinor).ToString("N0") : "—";
+        public string BalanceText => Money.Format(BalanceMinor, Scale);          // 帳戶幣別的小數位
+        public string ConvertedText => CountedInNet ? Money.Format(ConvertedMinor, BaseScale) : "—";   // 基準幣的小數位
         public string CountedText => ForeignEntries > 0
             ? $"{(CountedInNet ? "✓" : "未折算")}　⚠ 含 {ForeignEntries} 筆幣別不符的列（已按帳戶幣別算）"
-            : CountedInNet ? (Currency == "TWD" ? "✓" : $"✓（{Currency} × {Rate:0.####}）")
-                           : $"未折算（{Currency} 沒有匯率）";
+            : CountedInNet ? (Currency == BaseCcy ? "✓" : $"✓（{Currency} → {BaseCcy} × {Rate:0.####}）")
+                           : $"未折算（{Currency} → {BaseCcy} 沒有匯率）";
         /// <summary>首頁淨值表的分組：銀行 → 信用卡 → 其它。</summary>
         public int GroupOrder => Type switch { "bank" => 0, "credit_card" => 1, _ => 2 };
         public string Group => Type switch { "bank" => "銀行", "credit_card" => "信用卡", _ => "其它" };
     }
+    /// <summary>淨值報告。所有金額都以 <paramref name="BaseCurrency"/> 表達；
+    /// <paramref name="UnconvertedAccounts"/> 大於 0 代表這個數字不完整（寧可不計也不瞎算 1:1）。</summary>
     public sealed record NetWorthReport(long AssetsMinor, long LiabilitiesMinor, long NetMinor,
-                                        int UnconvertedAccounts, IReadOnlyList<AccountBalance> Accounts);
+                                        int UnconvertedAccounts, IReadOnlyList<AccountBalance> Accounts,
+                                        string BaseCurrency = "TWD")
+    {
+        /// <summary>還缺哪些幣對（給「幣別…」對話框跟警示列用：沒這些就湊不出淨值）。</summary>
+        public IReadOnlyList<string> MissingPairs =>
+            Accounts.Where(a => !a.CountedInNet).Select(a => $"{a.Currency} → {BaseCurrency}").Distinct().ToList();
+    };
 
     /// <summary>
     /// 餘額一律当场由交易推（derived）：期初 + 收入 −（支出/繳款/退款）+ 轉入。
@@ -252,8 +267,9 @@ public sealed class LedgerStore
     const string DerivedBalancesCore = """
         SELECT a.id, a.name, a.type, a.currency, a.is_archived, a.opening_balance_minor, a.opening_date,
                a.opening_balance_minor + COALESCE(s.delta, 0) + COALESCE(t.in_minor, 0) AS bal,
-               COALESCE(f.n, 0) AS foreign_rows
+               COALESCE(f.n, 0) AS foreign_rows, COALESCE(cc.scale, 2) AS scale
         FROM account a
+        LEFT JOIN currency cc ON cc.code = a.currency
         LEFT JOIN (
             SELECT account_id, SUM(CASE WHEN kind IN ('income','adjustment') THEN amount_minor ELSE -amount_minor END) AS delta
             FROM entry WHERE deleted_at IS NULL AND status IN ('cleared','imported')
@@ -273,45 +289,168 @@ public sealed class LedgerStore
         """;
 
     const string DerivedBalances = $"""
-        SELECT id, name, type, currency, bal, foreign_rows
+        SELECT id, name, type, currency, bal, foreign_rows, scale
         FROM ({DerivedBalancesCore}) WHERE is_archived = 0 ORDER BY type, name
         """;
 
-    /// <summary>每種幣最新的匯率（1 外幣 = ? TWD）。遷移 seed 了 USD 32.9，人工改的也讀同一張表。</summary>
-    public Dictionary<string, decimal> Rates()
+    /// <summary>基準幣（報表與匯率的「對照幣」）。存在 settings，改它不用清匯率。</summary>
+    public string BaseCurrency => Db.BaseCurrency(_db);
+
+    /// <summary>抓匯率要走的 proxy（例 http://10.191.190.5:3128）；空白 = 直連。公司網不填就永遠連不出去。</summary>
+    public string RateProxy
+    {
+        get => Db.Scalar(_db, "SELECT value FROM settings WHERE key='rate_proxy_url';") as string ?? "";
+        set => Db.Exec(_db, "INSERT OR REPLACE INTO settings(key, value) VALUES('rate_proxy_url', $v);", ("$v", (value ?? "").Trim()));
+    }
+
+    /// <summary>換基準幣。代碼要在 <c>currency</c> 字典裡，否則報表會出現查不到的幣別。</summary>
+    public void SetBaseCurrency(string code)
+    {
+        var ccy = Db.NormalizeCurrencyCode(code);
+        if (Db.Scalar(_db, "SELECT code FROM currency WHERE code=$c;", ("$c", ccy)) is null)
+            Db.Exec(_db, "INSERT INTO currency(code, name, scale) VALUES($c, $c, 2);", ("$c", ccy));
+        Db.Exec(_db, "INSERT OR REPLACE INTO settings(key, value) VALUES('base_currency', $c);", ("$c", ccy));
+        Touch();
+    }
+
+    /// <summary>幣別字典（含顯示小數位與匯入用的別名）。</summary>
+    public sealed record CurrencyRow(string Code, string Name, int Scale, string? Aliases)
+    {
+        public string Display => $"{Code}　{Name}" + (string.IsNullOrEmpty(Aliases) ? "" : $"　（{Aliases}）");
+    }
+
+    public List<CurrencyRow> CurrencyList()
+    {
+        var list = new List<CurrencyRow>();
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT code, name, scale, aliases FROM currency ORDER BY code;";
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add(new CurrencyRow(r.GetString(0), r.GetString(1), r.GetInt32(2), r.IsDBNull(3) ? null : r.GetString(3)));
+        return list;
+    }
+
+    /// <summary>新增／改幣別字典。小數位只影響顯示，別名是匯入時對映用的原文（「美金|美元」）。</summary>
+    public void SaveCurrency(string code, string name, int scale, string? aliases, string? oldCode = null)
+    {
+        code = Db.NormalizeCurrencyCode(code);
+        if (code.Length != 3 || !code.All(c => c >= 'A' && c <= 'Z')) throw new ArgumentException("代碼要用三個英文大寫字母（例 USD）。", nameof(code));
+        if (scale is < 0 or > 4) throw new ArgumentOutOfRangeException(nameof(scale), "顯示小數位只能 0–4。");
+        name = string.IsNullOrWhiteSpace(name) ? code : name.Trim();
+        aliases = string.IsNullOrWhiteSpace(aliases) ? null : aliases.Trim();
+
+        var exists = Db.Scalar(_db, "SELECT code FROM currency WHERE code=$c;", ("$c", code)) is not null;
+        if (oldCode is null)
+        {
+            Db.Exec(_db, """
+                INSERT INTO currency(code, name, scale, aliases) VALUES($c, $n, $s, $a)
+                ON CONFLICT(code) DO UPDATE SET name=excluded.name, scale=excluded.scale, aliases=excluded.aliases;
+                """, ("$c", code), ("$n", name), ("$s", scale), ("$a", (object?)aliases ?? DBNull.Value));
+        }
+        else
+        {
+            oldCode = Db.NormalizeCurrencyCode(oldCode);
+            if (!exists) Db.Exec(_db, "INSERT INTO currency(code, name, scale, aliases) VALUES($c, $n, $s, $a);",
+                                ("$c", code), ("$n", name), ("$s", scale), ("$a", (object?)aliases ?? DBNull.Value));
+            else Db.Exec(_db, "UPDATE currency SET name=$n, scale=$s, aliases=$a WHERE code=$c;",
+                         ("$n", name), ("$s", scale), ("$a", (object?)aliases ?? DBNull.Value), ("$c", code));
+            if (oldCode != code) Db.Exec(_db, "DELETE FROM currency WHERE code=$o;", ("$o", oldCode));
+        }
+        Touch();
+    }
+
+    /// <summary>帳戶裡出現過、但還不在字典裡的幣別（匯入時兵分兩路：一個進 entry、一個自己建）。</summary>
+    public List<string> CurrenciesWithoutDictEntry()
+        => Db.Query(_db, "SELECT DISTINCT currency FROM account UNION SELECT DISTINCT currency FROM entry")
+             .Select(o => Db.NormalizeCurrencyCode((string)o!))
+             .Where(c => Db.Scalar(_db, "SELECT code FROM currency WHERE code=$c;", ("$c", c)) is null)
+             .OrderBy(c => c, StringComparer.Ordinal).ToList();
+
+    /// <summary>顯示要用的小數位（字典沒這個幣就當 2 位）。</summary>
+    public int ScaleOf(string currency)
+        => Db.Scalar(_db, "SELECT scale FROM currency WHERE code=$c;", ("$c", Db.NormalizeCurrencyCode(currency))) is long s ? (int)s : 2;
+
+    /// <summary>每種幣 → 基準幣的最新匯率（1 from = ? 基準幣）。人工填的優先於抓來的。</summary>
+    public Dictionary<string, decimal> Rates() => RatesTo(BaseCurrency);
+
+    /// <summary>某幣對的最新匯率。同一天的 manual 優先於 yahoo（抓的蓋不掉人打的）。</summary>
+    public Dictionary<string, decimal> RatesTo(string toCcy)
     {
         var map = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            SELECT currency, rate FROM (
-                SELECT currency, rate, ROW_NUMBER() OVER (PARTITION BY currency ORDER BY rate_date DESC) rn
-                FROM exchange_rate) WHERE rn = 1;
+            SELECT from_ccy, rate FROM (
+                SELECT from_ccy, rate, ROW_NUMBER() OVER (
+                    PARTITION BY from_ccy ORDER BY rate_date DESC, CASE WHEN source='manual' THEN 0 ELSE 1 END) rn
+                FROM exchange_rate WHERE to_ccy=$to) WHERE rn = 1;
             """;
+        cmd.Parameters.AddWithValue("$to", Db.NormalizeCurrencyCode(toCcy));
         using var r = cmd.ExecuteReader();
         while (r.Read()) map[r.GetString(0)] = Convert.ToDecimal(r.GetValue(1));
         return map;
     }
 
-    /// <summary>人工填匯率。留空 = 故意不折算（那个帳戶就不進淨值，比瞎算 1:1 好）。</summary>
-    public void SetRate(string currency, decimal? rate)
+    public sealed record RateRow(string From, string To, decimal Rate, string RateDate, string Source, string? FetchedAt)
     {
-        if (currency.Equals("TWD", StringComparison.OrdinalIgnoreCase)) return;      // 本幣沒有匯率這回事
-        if (rate is null) Db.Exec(_db, "DELETE FROM exchange_rate WHERE currency=$c;", ("$c", currency));
-        else Db.Exec(_db, """
-            INSERT INTO exchange_rate(currency, rate_date, rate, source) VALUES($c, $d, $r, 'manual')
-            ON CONFLICT(currency, rate_date) DO UPDATE SET rate=excluded.rate, source='manual';
-            """, ("$c", currency), ("$d", Db.Today()), ("$r", (double)rate.Value));
-        Touch();
+        /// <summary>超過 <see cref="LedgerStore.StaleAfterDays"/> 沒更新就要標出來，否則人不知道這數字是多久以前的。</summary>
+        public bool IsStale => DateOnly.TryParseExact(RateDate, "yyyy-MM-dd", out var d)
+                            && DateOnly.FromDateTime(DateTime.Today).DayNumber - d.DayNumber > StaleAfterDays;
+        public string StaleText => IsStale ? $"⚠ 超過 {StaleAfterDays} 天沒更新" : "";
+        public const int StaleAfterDays = 3;
+    }
+
+    /// <summary>基準幣那一側的全部匯率（給「幣別…」對話框的匯率表）。</summary>
+    public List<RateRow> RateRows() => RateRowsTo(BaseCurrency);
+
+    public List<RateRow> RateRowsTo(string toCcy)
+    {
+        var list = new List<RateRow>();
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = """
+            SELECT from_ccy, to_ccy, rate, rate_date, source, fetched_at FROM exchange_rate
+            WHERE to_ccy=$t ORDER BY from_ccy, rate_date DESC;
+            """;
+        cmd.Parameters.AddWithValue("$t", Db.NormalizeCurrencyCode(toCcy));
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new RateRow(r.GetString(0), r.GetString(1), Convert.ToDecimal(r.GetValue(2)),
+                                 r.GetString(3), r.GetString(4), r.IsDBNull(5) ? null : r.GetString(5)));
+        return list;
     }
 
     /// <summary>
-    /// 淨值。台幣帳戶直接計；外幣帳戶有匯率才計（<c>exchange_rate</c>：USD 由遷移 seed 32.9，其餘靠人在帳戶管理裡填，自動更新之後再做），
-    /// 只回報「N 個帳戶未折算」讓人知道數字不完整。
+    /// 寫一筆「1 from = rate to」的匯率。<paramref name="toCcy"/> 省略就是基準幣。
+    /// 留空 rate = 故意不折算（那個帳戶就不進淨值，比瞎算 1:1 好）。
+    /// </summary>
+    public void SetRate(string fromCcy, decimal? rate, string? toCcy = null, string source = "manual", string? rateDate = null)
+    {
+        var from = Db.NormalizeCurrencyCode(fromCcy);
+        var to = Db.NormalizeCurrencyCode(toCcy ?? BaseCurrency);
+        if (from == to) return;                                  // 同一種幣沒有匯率這回事
+        if (rate is null) Db.Exec(_db, "DELETE FROM exchange_rate WHERE from_ccy=$f AND to_ccy=$t;", ("$f", from), ("$t", to));
+        else Db.Exec(_db, """
+            INSERT INTO exchange_rate(from_ccy, to_ccy, rate_date, rate, source, fetched_at) VALUES($f, $t, $d, $r, $s, $at)
+            ON CONFLICT(from_ccy, to_ccy, rate_date, source) DO UPDATE SET rate=excluded.rate, fetched_at=excluded.fetched_at;
+            """, ("$f", from), ("$t", to), ("$d", rateDate ?? Db.Today()), ("$r", (double)rate.Value),
+            ("$s", source), ("$at", source == "manual" ? (object)DBNull.Value : Db.Now()));
+        Touch();
+    }
+
+    /// <summary>帳戶裡出現過、但还不是基準幣的幣別 —— 要抓匯率就是抓這幾個對基準幣的價。</summary>
+    public List<string> NeededCurrencies()
+        => Db.Query(_db, "SELECT DISTINCT currency FROM account WHERE is_archived=0;")
+             .Select(o => Db.NormalizeCurrencyCode((string)o!))
+             .Where(c => c != BaseCurrency).OrderBy(c => c, StringComparer.Ordinal).ToList();
+
+    /// <summary>
+    /// 淨值。以基準幣表達：基準幣帳戶直接計，其他幣別有匯率才計，沒匯率寧可不計（不瞎算 1:1），
+    /// 只用「N 個帳戶未折算」+ <see cref="NetWorthReport.MissingPairs"/> 讓人知道這個數字不完整。
     /// </summary>
     public NetWorthReport NetWorth()
     {
         var list = new List<AccountBalance>();
-        var rates = Rates();
+        var baseCcy = BaseCurrency;
+        var baseScale = ScaleOf(baseCcy);
+        var rates = RatesTo(baseCcy);
         long assets = 0, liabilities = 0;
         int unconverted = 0;
 
@@ -323,23 +462,65 @@ public sealed class LedgerStore
             {
                 var currency = r.GetString(3);
                 var bal = r.GetInt64(4);
-                decimal? rate = currency.Equals("TWD", StringComparison.OrdinalIgnoreCase) ? 1m
+                decimal? rate = currency.Equals(baseCcy, StringComparison.OrdinalIgnoreCase) ? 1m
                               : rates.TryGetValue(currency, out var rv) ? rv : null;
                 bool counted = rate is not null;                       // 沒匯率寧可不計，不瞎算 1:1
                 var converted = counted ? Money.Convert(bal, rate!.Value) : 0;
                 list.Add(new AccountBalance(r.GetInt64(0), r.GetString(1), r.GetString(2), currency, bal,
-                                            counted, converted, rate, r.GetInt32(5)));
+                                            counted, converted, rate, r.GetInt32(5), r.GetInt32(6), baseCcy, baseScale));
                 if (!counted) { unconverted++; continue; }
                 if (converted >= 0) assets += converted; else liabilities += converted;
             }
         }
-        return new NetWorthReport(assets, liabilities, assets + liabilities, unconverted, list);
+        return new NetWorthReport(assets, liabilities, assets + liabilities, unconverted, list, baseCcy);
+    }
+
+    /// <summary>
+    /// 把「幣別跟帳戶不一樣」的列搬進獨立的帳戶（舊資料：王道的美金列直接倒進台幣帳戶）。
+    /// 不搬的話那些金額是照帳戶幣別算進淨值的，⚠ 只是標起來、數字仍然错。
+    /// </summary>
+    public int SplitForeignCurrencyEntries()
+    {
+        int moved = 0;
+        var rows = new List<(long AccountId, string Currency, long Id, string Name, string Type, string? Issuer, string? Mask)>();
+        using (var cmd = _db.CreateCommand())
+        {
+            cmd.CommandText = """
+                SELECT e.account_id, e.currency, e.id, a.name, a.type, a.issuer, a.mask
+                FROM entry e JOIN account a ON a.id = e.account_id
+                WHERE e.deleted_at IS NULL AND e.currency <> a.currency;
+                """;
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                rows.Add((r.GetInt64(0), r.GetString(1), r.GetInt64(2), r.GetString(3), r.GetString(4),
+                          r.IsDBNull(5) ? null : r.GetString(5), r.IsDBNull(6) ? null : r.GetString(6)));
+        }
+
+        var target = new Dictionary<(long, string), long>();
+        foreach (var (accountId, currency, entryId, name, type, issuer, mask) in rows)
+        {
+            if (!target.TryGetValue((accountId, currency), out var to))
+            {
+                var ccy = Db.NormalizeCurrencyCode(currency);
+                to = Db.InsertId(_db, """
+                    INSERT INTO account(name, type, currency, issuer, mask, created_at)
+                    VALUES($n, $t, $c, $i, $m, $at);
+                    """, ("$n", $"{name} {ccy}"), ("$t", type), ("$c", ccy), ("$i", (object?)issuer ?? DBNull.Value),
+                    ("$m", (object?)mask ?? DBNull.Value), ("$at", Db.Now()));
+                target[(accountId, currency)] = to;
+            }
+            Db.Exec(_db, "UPDATE entry SET account_id=$to, updated_at=$at WHERE id=$id;",
+                    ("$to", to), ("$at", Db.Now()), ("$id", entryId));
+            moved++;
+        }
+        if (moved > 0) Touch();
+        return moved;
     }
 
     public sealed record MonthPoint(DateOnly Month, long NetMinor);
 
     /// <summary>
-    /// 每月月底的總資產（台幣），首頁折線圖用。口徑跟 <see cref="NetWorth"/> 一樣：
+    /// 每月月底的總資產（基準幣），首頁折線圖用。口徑跟 <see cref="NetWorth"/> 一樣：
     /// 只算未歸檔帳戶、沒匯率的外幣不計。shortcut: 全部用「現在」的匯率，不存歷史匯率（要準得先有 rates 歷史）。
     /// </summary>
     public List<MonthPoint> MonthlyNetWorth(DateOnly? through = null)
@@ -347,7 +528,8 @@ public sealed class LedgerStore
         var endMonth = through ?? DateOnly.FromDateTime(DateTime.Today);
         endMonth = new DateOnly(endMonth.Year, endMonth.Month, 1);
 
-        var rates = Rates();
+        var baseCcy = BaseCurrency;
+        var rates = RatesTo(baseCcy);
         var accounts = new Dictionary<long, (long BalanceMinor, decimal Rate)>();
         using (var cmd = _db.CreateCommand())
         {
@@ -356,7 +538,7 @@ public sealed class LedgerStore
             while (r.Read())
             {
                 var currency = r.GetString(1);
-                decimal? rate = currency.Equals("TWD", StringComparison.OrdinalIgnoreCase) ? 1m
+                decimal? rate = currency.Equals(baseCcy, StringComparison.OrdinalIgnoreCase) ? 1m
                               : rates.TryGetValue(currency, out var rv) ? rv : null;
                 if (rate is not null) accounts[r.GetInt64(0)] = (r.GetInt64(2), rate.Value);
             }
@@ -633,16 +815,17 @@ public sealed class LedgerStore
     public sealed record AccountEdit(long Id, string Name, string Type, string Currency, string? Issuer, string? Mask,
                                      long OpeningBalanceMinor, string? OpeningDate, bool IsArchived,
                                      long? CreditLimitMinor, long? AutopayAccountId, long BalanceMinor,
-                                     long? ManualBalanceMinor, string? ManualBalanceDate)
+                                     long? ManualBalanceMinor, string? ManualBalanceDate, int Scale = 2,
+                                     string BaseCcy = "TWD")
     {
         /// <summary>帳戶管理左側清單那一行。</summary>
-        public string ListLabel => $"{Name}　{(Currency == "TWD" ? "" : Currency + " ")}{Money.FromMinor(BalanceMinor):N0}"
+        public string ListLabel => $"{Name}　{(Currency == BaseCcy ? "" : Currency + " ")}{Money.Format(BalanceMinor, Scale)}"
                                  + (IsArchived ? "　（已歸檔）" : "");
     }
 
     const string AccountsAllSql = $"""
         SELECT a.id, a.name, a.type, a.currency, a.issuer, a.mask, a.opening_balance_minor, a.opening_date,
-               a.is_archived, k.credit_limit_minor, k.autopay_account_id, v.bal, mb.balance_minor, mb.as_of
+               a.is_archived, k.credit_limit_minor, k.autopay_account_id, v.bal, mb.balance_minor, mb.as_of, v.scale
         FROM ({DerivedBalancesCore}) v
         JOIN account a ON a.id = v.id
         LEFT JOIN card k ON k.id = (SELECT MIN(id) FROM card c2 WHERE c2.account_id = a.id)
@@ -659,13 +842,14 @@ public sealed class LedgerStore
     public List<AccountEdit> AccountsAll()
     {
         var list = new List<AccountEdit>();
+        var baseCcy = BaseCurrency;
         using var cmd = _db.CreateCommand();
         cmd.CommandText = AccountsAllSql;
         using var r = cmd.ExecuteReader();
         while (r.Read())
             list.Add(new AccountEdit(r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetString(3), Str(r, 4), Str(r, 5),
                                      r.GetInt64(6), Str(r, 7), r.GetInt32(8) == 1, NullableLong(r, 9), NullableLong(r, 10),
-                                     r.GetInt64(11), NullableLong(r, 12), Str(r, 13)));
+                                     r.GetInt64(11), NullableLong(r, 12), Str(r, 13), r.IsDBNull(14) ? 2 : r.GetInt32(14), baseCcy));
         return list;
     }
 

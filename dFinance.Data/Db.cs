@@ -85,6 +85,21 @@ public static class Db
     public static string Now() => DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
     public static string Today() => DateTime.Now.ToString("yyyy-MM-dd");
 
+    /// <summary>
+    /// 基準幣：只決定「報表用哪種幣講」、「要哪些幣對的匯率」。
+    /// <c>exchange_rate</c> 的列明記 (from_ccy, to_ccy)，不會因為換基準幣而改變意義，所以改它不用清匯率。
+    /// </summary>
+    public static string BaseCurrency(SqliteConnection c)
+        => Scalar(c, "SELECT value FROM settings WHERE key='base_currency';") as string is string v && v.Trim().Length > 0
+            ? NormalizeCurrencyCode(v) : "TWD";
+
+    /// <summary>幣別代碼統一成大寫（SQL 的比较是 BINARY，`usd` 會被当成另一種幣）。空白回 TWD。</summary>
+    public static string NormalizeCurrencyCode(string? raw)
+        => string.IsNullOrWhiteSpace(raw) ? "TWD" : raw.Trim().ToUpperInvariant();
+
+    /// <summary>嵌入的遷移腳本名稱（依編號）。測試拿它跟 migration 表對照，加腳本就不會再弄爆斷言。</summary>
+    public static List<string> MigrationNames() => Scripts().Select(s => s.Name).ToList();
+
     public static int Exec(SqliteConnection c, string sql, params (string Name, object? Value)[] ps)
     {
         using var cmd = c.CreateCommand();

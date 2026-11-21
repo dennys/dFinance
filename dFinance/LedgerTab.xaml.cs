@@ -242,8 +242,8 @@ public partial class LedgerTab : UserControl
         ShowKpi(k, nw, s.CardUnpaidMinor());
         ShowAlerts(orphans, dups, mismatch);
         if (_accountId is { } id && nw.Accounts.FirstOrDefault(a => a.Id == id) is { } mine)
-            AccountHeaderText.Text = $"{mine.Name}（{mine.Type} {mine.Currency}）餘額 {mine.BalanceMinor / 100m:N0}" +
-                                     (mine.CountedInNet ? "" : "　— 非台幣帳戶，未計入淨值");
+            AccountHeaderText.Text = $"{mine.Name}（{mine.Type} {mine.Currency}）餘額 {mine.BalanceText}" +
+                                     (mine.CountedInNet ? "" : $"　— 未折算（查不到 {mine.Currency} → {nw.BaseCurrency} 的匯率）");
     }
 
     /// <summary>首頁：淨值明細分組（銀行→信用卡→其它）＋每月總資產折線＋未來帳單。</summary>
@@ -269,7 +269,7 @@ public partial class LedgerTab : UserControl
             LabelFormatter = v => v.ToString("N0"),
         };
         plot.Axes.AutoScale();
-        plot.Title("每月總資產（TWD）");
+        plot.Title($"每月總資產（{nw.BaseCurrency}）");
         plot.Font.Automatic();                 // 標題是中文，預設字型沒有 glyph 會變亂碼
         NetWorthPlot.Refresh();
     }

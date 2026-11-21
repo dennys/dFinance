@@ -46,14 +46,39 @@ public sealed class ImportTests : IDisposable
         => Convert.ToInt32(Db.Scalar(_db, $"SELECT count(*) FROM entry WHERE deleted_at IS NULL {where};", ps));
 
     [Fact]
+    public void 存款單的多個帳號分別歸到自己的帳戶()
+    {
+        var st = new ParsedStatement
+        {
+            Issuer = "兆豐國際商業銀行", Parser = "MegaDepositParser", AccountMask = "02010660350",
+            Transactions =
+            [
+                new ParsedTransaction { Date = new DateOnly(2026, 10, 21), Merchant = "利息", Amount = 99m, Currency = "TWD", Account = "02064003171" },
+                new ParsedTransaction { Date = new DateOnly(2026, 10, 22), Merchant = "網際轉", Amount = -99m, Currency = "TWD", Account = "02064003171" },
+                new ParsedTransaction { Date = new DateOnly(2026, 10, 22), Merchant = "網際轉", Amount = 99m, Currency = "TWD", Account = "02010660350" },
+            ],
+        };
+
+        var result = new StatementImporter(_db, _docsDir).Import(st, "mega.pdf");
+
+        Assert.Equal(3, result.Inserted);
+        Assert.Equal(2L, Db.Scalar(_db, "SELECT count(*) FROM account WHERE issuer='兆豐國際商業銀行';"));
+        // 同一筆轉帳在兩個帳戶各留一列，不會疊成同一帳戶的兩筆支出
+        Assert.Equal(1, Count("AND account_id=(SELECT id FROM account WHERE mask='02064003171') AND amount_minor=9900"));
+        Assert.Equal(1, Count("AND account_id=(SELECT id FROM account WHERE mask='02064003171') AND amount_minor=-9900"));
+    }
+
+    [Fact]
     public void 建立資料庫會跑遷移並留下版本紀錄()
     {
-        Assert.Equal(3L, Db.Scalar(_db, "SELECT count(*) FROM migration;"));
+        // 對照嵌入的遷移檔清單（加腳本不用回來改這條斷言）
+        Assert.Equal(Db.MigrationNames(),
+                     Db.Query(_db, "SELECT name FROM migration ORDER BY version").Select(o => (string)o!).ToList());
         Assert.Equal("0001_init", Db.Scalar(_db, "SELECT name FROM migration WHERE version=1;"));
-        Assert.Equal("0002_seed_category", Db.Scalar(_db, "SELECT name FROM migration WHERE version=2;"));
-        Assert.Equal("0003_seed_rate", Db.Scalar(_db, "SELECT name FROM migration WHERE version=3;"));
         Assert.Equal(6L, Db.Scalar(_db, "SELECT count(*) FROM currency;"));        // 內建 TWD/USD/JPY/...
-        Assert.Equal(32.9m, Convert.ToDecimal(Db.Scalar(_db, "SELECT rate FROM exchange_rate WHERE currency='USD';")));   // 匯率自動更新之前的寫死值
+        // 匯率自動更新之前的寫死值；0005 之後存的是幣對（1 美金 = 32.9 台幣）
+        Assert.Equal(32.9m, Convert.ToDecimal(Db.Scalar(_db,
+            "SELECT rate FROM exchange_rate WHERE from_ccy='USD' AND to_ccy='TWD';")));
     }
 
     [Fact]

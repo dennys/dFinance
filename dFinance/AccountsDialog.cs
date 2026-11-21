@@ -118,13 +118,14 @@ public sealed class AccountsDialog : Window
     }
 
     string TypeValue => _type.SelectedIndex >= 0 ? LedgerStore.AccountTypes[_type.SelectedIndex].Value : "bank";
-    string CurrencyValue => _currency.SelectedItem as string ?? "TWD";
+    string CurrencyValue => _currency.SelectedItem as string ?? _store.BaseCurrency;
 
     /// <summary>信用額度/自動扣繳只有信用卡用得到，匯率只有外幣用得到 —— 不對的組合別擺在那裡讓人填。</summary>
     void SyncFields()
     {
         if (_filling) return;
-        bool card = TypeValue == "credit_card", foreign = CurrencyValue != "TWD";
+        bool card = TypeValue == "credit_card", foreign = CurrencyValue != _store.BaseCurrency;
+        _rateLabel.Text = $"匯率（1 {CurrencyValue} = ? {_store.BaseCurrency}）";   // 方向寫在標籤上，不然人不知道在填什麼
         _limit.Visibility = _limitLabel.Visibility = card ? Visibility.Visible : Visibility.Collapsed;
         _autopay.Visibility = _autopayLabel.Visibility = card ? Visibility.Visible : Visibility.Collapsed;
         _rate.Visibility = _rateLabel.Visibility = foreign ? Visibility.Visible : Visibility.Collapsed;
@@ -136,7 +137,7 @@ public sealed class AccountsDialog : Window
         _id = 0;
         _name.Text = ""; _issuer.Text = ""; _mask.Text = ""; _opening.Text = ""; _openingDate.Text = "";
         _limit.Text = ""; _rate.Text = ""; _autopay.SelectedItem = null;
-        _type.SelectedIndex = 1; _currency.SelectedItem = "TWD";
+        _type.SelectedIndex = 1; _currency.SelectedItem = _store.BaseCurrency;
         _filling = false;
         _list.SelectedItem = null;
         SyncFields();
@@ -163,8 +164,8 @@ public sealed class AccountsDialog : Window
         SyncFields();
 
         var counted = _store.NetWorth().Accounts.FirstOrDefault(x => x.Id == a.Id);
-        _info.Text = $"系統推導餘額 {Money.FromMinor(a.BalanceMinor):N0} {a.Currency}"
-                   + (a.ManualBalanceMinor is { } mb ? $"　｜　最近盤點 {Money.FromMinor(mb):N0}（{a.ManualBalanceDate}）" : "　｜　還沒盤點過")
+        _info.Text = $"系統推導餘額 {Money.Format(a.BalanceMinor, a.Scale)} {a.Currency}"
+                   + (a.ManualBalanceMinor is { } mb ? $"　｜　最近盤點 {Money.Format(mb, a.Scale)}（{a.ManualBalanceDate}）" : "　｜　還沒盤點過")
                    + (counted is null ? "　｜　已歸檔，不計入淨值" : $"　｜　{counted.CountedText}");
         _archive.Content = a.IsArchived ? "還原" : "歸檔";
         _archive.IsEnabled = _count.IsEnabled = true;
@@ -258,7 +259,7 @@ public sealed class BalanceCountDialog : Window
         var panel = new StackPanel { Margin = new Thickness(12) };
         panel.Children.Add(new TextBlock
         {
-            Text = $"系統從交易算出來的是 {Money.FromMinor(account.BalanceMinor):N0} {account.Currency}。" +
+            Text = $"系統從交易算出來的是 {Money.Format(account.BalanceMinor, account.Scale)} {account.Currency}。" +
                    "對不上通常不是算錯，是漏了交易或期初填錯。",
             TextWrapping = TextWrapping.Wrap,
         });
@@ -292,7 +293,7 @@ public sealed class BalanceCountDialog : Window
             _store.AddBalanceSnapshot(_account.Id, date, _account.Currency, counted);
             var diff = counted - _account.BalanceMinor;
             if (diff != 0 && MessageBox.Show(
-                    $"盤點 {Money.FromMinor(counted):N0}，交易累加 {Money.FromMinor(_account.BalanceMinor):N0}，差 {Money.FromMinor(diff):N0}。\n\n" +
+                    $"盤點 {Money.Format(counted, _account.Scale)}，交易累加 {Money.Format(_account.BalanceMinor, _account.Scale)}，差 {Money.Format(diff, _account.Scale)}。\n\n" +
                     "要記一筆調整把差額補齊嗎？（選「否」就只留快照，主頁底部會把它列成餘額不符）",
                     "餘額盤點", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
