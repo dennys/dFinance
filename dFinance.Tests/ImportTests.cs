@@ -69,6 +69,56 @@ public sealed class ImportTests : IDisposable
     }
 
     [Fact]
+    public void 單上印的餘額會進帳戶餘額當漏解析的校驗輸入()
+    {
+        var st = new ParsedStatement
+        {
+            Issuer = "兆豐國際商業銀行", Parser = "MegaDepositParser", AccountMask = "02010660350",
+            Transactions =
+            [
+                new ParsedTransaction { Date = new DateOnly(2026, 10, 21), Merchant = "利息", Amount = 99m, Currency = "TWD", Account = "02010660350" },
+            ],
+            Balances =
+            [
+                new ParsedBalance { AsOf = new DateOnly(2026, 10, 31), Amount = 10_924m, Currency = "TWD", Account = "02010660350" },
+            ],
+        };
+
+        new StatementImporter(_db, _docsDir).Import(st, "mega.pdf");
+
+        // 存成 statement 來源，才能跟人工盤點分得開；幣別要對成代碼後再存（帳戶一筆只一種幣別）。
+        Assert.Equal("1092400@TWD@statement", Db.Scalar(_db,
+            "SELECT balance_minor || '@' || currency || '@' || source FROM account_balance;"));
+        Assert.Equal("2026-10-31", Db.Scalar(_db, "SELECT as_of FROM account_balance;"));
+    }
+
+    [Fact]
+    public void 單上的餘額不准蓋掉人当场盤的數()
+    {
+        var st = new ParsedStatement
+        {
+            Issuer = "兆豐國際商業銀行", Parser = "MegaDepositParser", AccountMask = "02010660350",
+            Transactions =
+            [
+                new ParsedTransaction { Date = new DateOnly(2026, 10, 21), Merchant = "利息", Amount = 99m, Currency = "TWD", Account = "02010660350" },
+            ],
+            Balances = [ new ParsedBalance { AsOf = new DateOnly(2026, 10, 31), Amount = 10_924m, Currency = "TWD", Account = "02010660350" } ],
+        };
+
+        var imp = new StatementImporter(_db, _docsDir);
+        imp.Import(st, "mega.pdf");
+        var acct = (long)Db.Scalar(_db, "SELECT id FROM account WHERE mask='02010660350';")!;
+        // 同一 (帳戶, 日, 幣別) 只能有一列：先把單子的換成人当场盤的那個數，再看重匯會不會蓋掉它
+        Db.Exec(_db, "DELETE FROM account_balance;");
+        Db.Exec(_db, "INSERT INTO account_balance(account_id, as_of, currency, balance_minor, source) VALUES($a,'2026-10-31','TWD',777,'manual');",
+                ("$a", acct));
+
+        imp.Import(st, "mega.pdf");                                       // 重匯同一份單子
+
+        Assert.Equal(777L, Db.Scalar(_db, "SELECT balance_minor FROM account_balance WHERE source='manual';"));
+    }
+
+    [Fact]
     public void 建立資料庫會跑遷移並留下版本紀錄()
     {
         // 對照嵌入的遷移檔清單（加腳本不用回來改這條斷言）
@@ -135,14 +185,46 @@ public sealed class ImportTests : IDisposable
     }
 
     [Fact]
-    public void 負額記成退款並提醒可能是繳款列()
+    public void 沒被認出的負額先當退款並提醒()
     {
-        var st = Card(new DateOnly(2026, 10, 31), (new DateOnly(2026, 10, 9), -8420m, "繳款"));
+        var st = Card(new DateOnly(2026, 10, 31), (new DateOnly(2026, 10, 9), -8420m, "刷卡現金回饋"));
         var r = new StatementImporter(_db, _docsDir).Import(st, "a.pdf");
 
         Assert.Equal("refund", Db.Scalar(_db, "SELECT kind FROM entry;"));
         Assert.Equal(-842000L, Db.Scalar(_db, "SELECT amount_minor FROM entry;"));  // 1/100 元，整數儲存
-        Assert.Contains(r.Warnings!, w => w.Contains("繳款"));
+        Assert.Contains(r.Warnings!, w => w.Contains("負額"));
+    }
+
+    [Fact]
+    public void 繳款列記成轉帳從扣款帳戶扣到卡帳()
+    {
+        var bank = Db.InsertId(_db, "INSERT INTO account(name, type, currency, created_at) VALUES('活存', 'bank', 'TWD', '2026-11-01');");
+        Db.Exec(_db, "INSERT OR REPLACE INTO settings(key, value) VALUES('default_payment_account_id', $v);", ("$v", bank.ToString()));
+
+        var st = Card(new DateOnly(2026, 10, 31),
+                      (new DateOnly(2026, 10, 5), 1500m, "全聯"),
+                      (new DateOnly(2026, 10, 20), -1500m, "已繳款金額-本行帳戶扣款"));
+        st.Transactions[^1].IsPayment = true;                                  // 正常由 StatementParser 標，這裡直接遞 ParsedStatement 就自己標
+        var r = new StatementImporter(_db, _docsDir).Import(st, "a.pdf");
+
+        Assert.Equal("transfer", Db.Scalar(_db, "SELECT kind FROM entry WHERE merchant LIKE '已繳款%';"));
+        Assert.Equal(150000L, Db.Scalar(_db, "SELECT amount_minor FROM entry WHERE merchant LIKE '已繳款%';"));   // CHECK 要正數
+        Assert.Equal(bank, Convert.ToInt64(Db.Scalar(_db, "SELECT account_id FROM entry WHERE merchant LIKE '已繳款%';")));   // 扣的那一側
+        var card = Convert.ToInt64(Db.Scalar(_db, "SELECT id FROM account WHERE type='credit_card';"));
+        Assert.Equal(card, Convert.ToInt64(Db.Scalar(_db, "SELECT to_account_id FROM entry WHERE merchant LIKE '已繳款%';"))); // 收錢的是卡帳
+        Assert.Contains(r.Warnings!, w => w.Contains("轉帳") && w.Contains("活存"));
+    }
+
+    [Fact]
+    public void 繳款列沒有扣款帳戶時宁願留退款也不憑空扣別的帳戶()
+    {
+        var st = Card(new DateOnly(2026, 10, 31), (new DateOnly(2026, 10, 20), -1500m, "已繳款金額-本行帳戶扣款"));
+        st.Transactions[0].IsPayment = true;
+        var r = new StatementImporter(_db, _docsDir).Import(st, "a.pdf");
+
+        Assert.Equal("refund", Db.Scalar(_db, "SELECT kind FROM entry;"));
+        Assert.Null(Db.Scalar(_db, "SELECT to_account_id FROM entry;"));          // 不准猜一個帳戶去扣
+        Assert.Contains(r.Warnings!, w => w.Contains("扣款"));
     }
 
     [Fact]

@@ -14,6 +14,8 @@ public sealed class WangdaoDepositParser : IStatementParser
     static readonly Regex MoneyRe = new(@"^([+\-\u2212])\$?([\d,]+(?:[./]\d+)?)$", RegexOptions.Compiled);
     static readonly Regex AccountRe = new(@"帳號[:：]\s*([0-9*]+)", RegexOptions.Compiled);
     static readonly Regex ForeignTotalRe = new(@"外幣活期存款總餘額[^0-9]*([\d,]+)\s*元", RegexOptions.Compiled);
+    // 單子上的餘額長成「帳號：010000***41988 餘額1元」與「美元：餘額 0.71元」：前者是台幣帳戶，後者是該貨幣帳戶。
+    static readonly Regex BalanceRe = new(@"餘額\s*[:：]?\s*([\d,]+(?:\.\d+)?)\s*元", RegexOptions.Compiled);
 
     static readonly (string Name, string Code)[] Currencies =
     {
@@ -48,6 +50,7 @@ public sealed class WangdaoDepositParser : IStatementParser
             if (acct.Success)
             {
                 account = acct.Groups[1].Value;
+                AddBalance(s, BalanceRe.Match(text), currency, account);          // 「帳號：… 餘額1元」就是這個帳戶的餘額
                 continue;
             }
 
@@ -55,6 +58,7 @@ public sealed class WangdaoDepositParser : IStatementParser
             if (cur != default)
             {
                 currency = cur.Code;
+                AddBalance(s, BalanceRe.Match(text), currency, account);          // 「美元：餘額 0.71元」是外幣帳戶的餘額
                 continue;
             }
 
@@ -98,13 +102,24 @@ public sealed class WangdaoDepositParser : IStatementParser
         // 對帳單上沒有清楚的帳期欄位，用明細的首末日期當帳期。
         s.StatementStartDate = s.Transactions.Min(t => t.Date);
         s.StatementEndDate = s.Transactions.Max(t => t.Date);
+        // 單子上的餘額是「開單當時」的數，拿最後一筆交易日當 as_of：那天（含）以前的交易都算進去了。
+        foreach (var b in s.Balances) b.AsOf = s.StatementEndDate.Value;
         if (fixedDepositLines > 0)
             s.Warnings.Add($"另有 {fixedDepositLines} 筆定期存款（到期日/利率）未列入明細，v1 不處理。");
         if (foreignTotal is not null)
-            s.Warnings.Add($"外幣活期存款總餘額（約等值臺幣）{foreignTotal} 元沒進模型，只記了外幣交易明細。");
+            s.Warnings.Add($"外幣活期存款總餘額（約等值臺幣）{foreignTotal} 元沒進模型（那個是跨帳戶換成臺幣的合計，"
+                         + $"跟單一帳戶的外幣餘額對不上），記進去只會造成誤報。");
         if (tableHeaders > s.Transactions.Count)
             s.Warnings.Add($"有 {tableHeaders} 個明細段落但只解析到 {s.Transactions.Count} 筆：其餘可能是本期沒交易，也可能是版面對不上。");
 
         return s;
+    }
+
+    /// <summary>從「餘額 0.71元」那樣的文字存一個單上餘額（讀不到就当沒有，不猜）。</summary>
+    static void AddBalance(ParsedStatement s, Match m, string currency, string account)
+    {
+        if (!m.Success) return;
+        if (!decimal.TryParse(m.Groups[1].Value.Replace(",", ""), NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)) return;
+        s.Balances.Add(new ParsedBalance { Amount = amount, Currency = currency, Account = account });
     }
 }

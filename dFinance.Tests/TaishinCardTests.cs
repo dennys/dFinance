@@ -51,7 +51,9 @@ public class TaishinCardTests
     {
         var s = Parse();
         Assert.NotEqual(s.TotalDue, s.Transactions.Sum(t => t.Amount));
-        Assert.Contains(s.Warnings, w => w.Contains("繳款/退款"));
+        // 繳款列（轉帳）不算消費：扣掉之後合計就是應繳，這條警告之前一直在報，現在不該再出現。
+        Assert.Contains(s.Transactions, StatementParser.LooksLikePayment);
+        Assert.DoesNotContain(s.Warnings, w => w.Contains("不等於"));
         Assert.DoesNotContain(s.Warnings, w => w.Contains("讀不到交易明細"));
     }
 

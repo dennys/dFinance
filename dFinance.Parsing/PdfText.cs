@@ -128,6 +128,14 @@ public static class PdfText
     public static DateOnly? DateFor(this PageData data, string label) => PdfText.ToDate(data.ValueFor(label, w => DateRx.IsMatch(w.Text))?.Text);
 
     /// <summary>
+    /// 找寫著 label 的那一列，從**整列**取第一個日期。<see cref="ValueFor"/> 只往 label 的「下一個字」找，
+    /// 但銀行常把標籤與日期塞在同一格（「餘額基準日：115/9/30」「截至115-10-31為止」），那種會找不到。
+    /// </summary>
+    public static DateOnly? DateInRow(this PageData data, string label)
+        => data.Rows.Select(r => Row.Join(r.Words)).Where(t => t.Contains(label))
+                    .Select(t => PdfText.FirstDate(t)).FirstOrDefault(d => d is not null);
+
+    /// <summary>
     /// 表頭那一列取標籤座標（整個字相同）。找不到回 null ——
     /// 要用 null 判斷並記一筆警告，不准 <c>.First()</c>：銀行改一個欄位名就丢例外，會讓整份檔案一筆都進不去。
     /// </summary>

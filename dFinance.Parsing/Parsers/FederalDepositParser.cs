@@ -2,7 +2,7 @@ namespace dFinance.Parsing;
 
 /// <summary>
 /// 聯邦商業銀行 數位存款電子對帳單（帳戶明細那一段）。
-/// 收入列當正數、支出列當負數；餘額欄還沒建模（見 TODO）。
+/// 收入列當正數、支出列當負數；單上的餘額進 <c>ParsedStatement.Balances</c>（「帳戶可用餘額」那張表）。
 /// </summary>
 public sealed class FederalDepositParser : IStatementParser
 {
@@ -38,6 +38,8 @@ public sealed class FederalDepositParser : IStatementParser
         var outCol = Col("支出金額");
         var inCol = Col("收入金額");
         var balanceCol = Col("餘額");
+        decimal? lastBalance = null;                                  // 明細最後一列的餘額：那張餘額表找不到時的保底
+        DateOnly? lastBalanceDate = null;
 
         foreach (var row in StatementTable.DetailRows(data, header))
         {
@@ -46,6 +48,9 @@ public sealed class FederalDepositParser : IStatementParser
             var expense = row.Words.Where(w => w.Overlaps(outCol)).Select(w => PdfText.ToDecimal(w.Text)).FirstOrDefault(a => a is not null);
             if (date is null || (income is null && expense is null)) continue;
             if (row.Words.Any(w => w.Overlaps(balanceCol) && PdfText.IsMoney(w.Text)) == false) continue;   // 沒餘額就不是明細列
+
+            var printed = row.Words.Where(w => w.Overlaps(balanceCol)).Select(w => PdfText.ToDecimal(w.Text)).FirstOrDefault(a => a is not null);
+            if (printed is not null) { lastBalance = printed; lastBalanceDate = date; }
 
             decimal amount = income ?? -expense!.Value;
             var summary = Row.Join(row.Words.Where(w => w.Overlaps(summaryCol)));
@@ -67,7 +72,42 @@ public sealed class FederalDepositParser : IStatementParser
 
         s.StatementStartDate = s.Transactions.Min(t => t.Date);
         s.StatementEndDate = s.Transactions.Max(t => t.Date);
-        s.Warnings.Add("存款單的餘額欄沒有建模（總資產/帳戶餘額在 TODO 上）。");
+
+        ReadBalances(data, s, header.Top);
+        if (s.Balances.Count == 0 && lastBalance is not null && lastBalanceDate is not null)
+            s.Balances.Add(new ParsedBalance
+            {
+                AsOf = lastBalanceDate.Value, Amount = lastBalance.Value, Currency = "TWD", Account = s.AccountMask,
+            });
+        if (s.Balances.Count == 0)
+            s.Warnings.Add("單上的餘額沒讀到（找不到「臺幣存款帳戶餘額」那張表，明細列也沒帶餘額），這個帳戶不會進餘額校驗。");
         return s;
+    }
+
+    /// <summary>
+    /// 「臺幣存款帳戶餘額　餘額基準日：115/9/30」那一張表（帳號 / 帳戶類別 / 帳戶可用餘額）。
+    /// 它是單子上唯一寫了「哪天結算」的餘額，所以優先用它；低於 <paramref name="belowTop"/>（明細表頭）就不再往下收，
+    /// 免得把明細列當成一張一帳戶一餘額的表。
+    /// </summary>
+    static void ReadBalances(PageData data, ParsedStatement s, double belowTop)
+    {
+        var table = data.Rows.FirstOrDefault(r => r.Words.Any(w => w.Text.Contains("帳戶可用餘額")));
+        var asOf = data.DateInRow("餘額基準日");
+        if (table is null || asOf is null) return;
+
+        var acctCol = table.LabelLike("帳號");
+        var balCol = table.LabelLike("帳戶可用餘額")!;
+        foreach (var row in data.Rows.Where(r => r.Page == table.Page && r.Top < table.Top && r.Top > belowTop))
+        {
+            var amount = row.Words.Where(w => w.Overlaps(balCol)).Select(w => PdfText.ToDecimal(w.Text))
+                                  .FirstOrDefault(a => a is not null);
+            if (amount is null) continue;
+            var acct = Row.Join(row.Words.Where(w => acctCol is not null && w.Overlaps(acctCol) && !PdfText.IsMoney(w.Text)));
+            s.Balances.Add(new ParsedBalance
+            {
+                AsOf = asOf.Value, Amount = amount.Value, Currency = "TWD",
+                Account = acct.Length > 0 ? acct : s.AccountMask,
+            });
+        }
     }
 }

@@ -99,8 +99,7 @@ public sealed class MegaCardParser : IStatementParser
         s.StatementStartDate = s.Transactions.Min(t => t.Date);
         s.StatementEndDate ??= s.Transactions.Max(t => t.Date);
 
-        int payments = s.Transactions.Count(t => t.Kind == "credit" && t.Merchant.Contains("繳款"));
-        if (payments > 0)
-            s.Warnings.Add($"明細含 {payments} 筆繳款（負數），本期總應繳款只算消費，所以明細合計不會等於應繳。");
+        // 繳款列不計入消費合計（它是轉帳）；排掉之後還對不上才会警告。
+        StatementParser.WarnIfDueMismatch(s, "本期總應繳款");
     }
 }

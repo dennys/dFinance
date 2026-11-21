@@ -51,9 +51,7 @@ public sealed class SinopacCardParser : IStatementParser
         s.StatementStartDate = s.Transactions.Min(t => t.Date);
         s.StatementEndDate ??= s.Transactions.Max(t => t.Date);
 
-        int payments = s.Transactions.Count(t => t.Amount < 0);
-        if (payments > 0 && s.Transactions.Sum(t => t.Amount) != s.TotalDue)
-            s.Warnings.Add($"明細含 {payments} 筆繳款/退款（負數），本期應繳總金額只算消費，所以合計不會等於應繳。");
+        StatementParser.WarnIfDueMismatch(s, "本期應繳總金額");
 
         return s;
     }

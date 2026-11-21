@@ -7,7 +7,7 @@ namespace dFinance.Parsing;
 public static class StatementParser
 {
     /// <summary>改動任何 parser 的解析規則就 +1。落庫時寫進 document.parser_ver，重匯與「哪些列是舊版解析的」都靠它。</summary>
-    public const int Version = 2;   // v2：圖片式帳單走 OCR（ValueFor 改優先取文字層、中信/匯豐 parser 上線）
+    public const int Version = 3;   // v3：卡帳的繳款列拆成 IsPayment（匯入端改記 transfer，不再當成退款）
 
     public static ParsedStatement Parse(string path, string? password) => Parse(path, password, null, null);
 
@@ -29,6 +29,11 @@ public static class StatementParser
         s.Parser = parser?.GetType().Name ?? "";
         if (string.IsNullOrEmpty(s.Issuer)) s.Issuer = IssuerNames.Detected(data);
 
+        // 卡帳上的繳款列不是消費（那是「從別個帳戶打錢進來把卡帳抵掉」）。在這裡認一次，
+        // 八支卡帳 parser 就不必各寫一份，匯入端也能把它記成 transfer 而不是 refund。
+        if (s.Parser.EndsWith("CardParser", StringComparison.Ordinal))
+            foreach (var t in s.Transactions) t.IsPayment = LooksLikePayment(t);
+
         if (parser is null)
             s.Warnings.Add(s.Issuer == "" ? "辨識不出銀行，只顯示原始文字。"
                                         : $"{s.Issuer}：沒有適用的解析器（格式跟已知的樣本不同）。");
@@ -41,5 +46,29 @@ public static class StatementParser
                 : "文字層幾乎沒有中文（頁面是圖片），需要 OCR：把 ch_PP-OCRv5_rec_mobile.onnx 跟 ppocrv5_dict.txt 放進 data\\ocr_models\\（或設 DFINANCE_OCR_MODELS）。");
 
         return s;
+    }
+
+    // 繳款列的判斷：金額是负的（銀行把它記成抵掉應繳）而且商家寫的是「打錢進來還卡」那類字。
+    // 詞表是樣本上各家自己印的寫法（已驗證）：「已繳款金額-本行帳戶扣款」「兆豐商銀自扣入帳」
+    // 「...自動轉帳扣繳台新信用卡款」「兆豐銀扣」。現金回饋（會直接抵應繳）不是繳款，
+    // 要留在消費合計裡，所以故意不收「退款」；宁願漏判（只是多一筆 refund）也不要誤判（誤判會憑空變轉帳）。
+    static readonly string[] PaymentWords = ["繳款", "還款", "扣款", "扣繳", "自扣", "銀扣", "儲值"];
+
+    /// <summary>這列是不是「繳卡費」而不是消費。</summary>
+    public static bool LooksLikePayment(ParsedTransaction t) =>
+        t.Amount < 0 && PaymentWords.Any(w => t.Merchant.Contains(w));
+
+    /// <summary>
+    /// 「明細合計 ＝ 本期應繳」的校驗（各卡帳 parser 共用，口徑只留一份）。
+    /// 繳款列是轉帳不是消費，要先從合計裡扣掉；排掉之後還對不上才是真的漏列
+    /// —— 之前繳款列混在合計裡，那個訊號會被掩蓋掉。
+    /// </summary>
+    public static void WarnIfDueMismatch(ParsedStatement s, string label)
+    {
+        if (s.TotalDue is null || s.Transactions.Count == 0) return;
+        var spend = s.Transactions.Where(t => !LooksLikePayment(t)).Sum(t => t.Amount);
+        if (spend == s.TotalDue) return;
+        int payments = s.Transactions.Count(LooksLikePayment);
+        s.Warnings.Add($"扣掉 {payments} 筆繳款後的明細合計 {spend:N0} 不等於{label} {s.TotalDue:N0}（可能漏列，請比對原始單據）。");
     }
 }

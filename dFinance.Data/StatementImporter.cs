@@ -102,17 +102,32 @@ public sealed class StatementImporter
         var lineAccounts = new Dictionary<string, long>();          // 列級帳號 → account.id（同帳號只查/建一次）
         var billId = LinkBill(s, cardId, docId, warnings);      // 先建帳單記錄，下面每筆才能挂上去
         var occurrences = new Dictionary<string, int>();      // 同鍵出現第幾次（同天同額刷兩次要存成兩筆）
+        // 繳款列的錢要從那個帳戶扣（卡的自動扣繳帳戶 → 預設付款帳戶）；認不出來就不拆（見 PayerOf）。
+        long? payer = s.Transactions.Any(t => t.IsPayment) ? PayerOf(cardId) : null;
+        int transfers = 0;
         foreach (var t in s.Transactions)
         {
             var minor = Money.ToMinor(t.Amount);
             if (minor == 0) { skippedZero++; continue; }                       // 水費退款抵掉那种 0 元列，不進帳
 
             var currency = EnsureCurrency(t.Currency, warnings);
-            var account = LineAccount(s, t, accountId, kind, currency, lineAccounts, warnings, ref autoCreated);
+            var account = AccountFor(s, t.Account, currency, accountId, kind, lineAccounts, warnings, ref autoCreated);
             var txnDate = t.Date == default ? null : Iso(t.Date);
             if (txnDate is null) warnings.Add(Loc.F("Imp_NoDate", t.Merchant, t.Amount));
 
             var lineKind = minor < 0 ? "refund" : "expense";
+            // 繳款列不是消費也不是退款：那是從另一個帳戶打錢進來把卡帳抵掉，所以要記成轉帳
+            // （扣款帳戶 → 卡帳帳戶；卡帳的 derived 是負的，轉入才會往 0 走）。
+            // 扣款帳戶認不出來就宁願留 refund：性質錯比憑空讓某個帳戶少一筆錢好。
+            long? toAccount = null;
+            if (t.IsPayment && kind == StatementKind.Card && payer is long from)
+            {
+                lineKind = "transfer";
+                toAccount = account;                       // 收錢的那側才是這份單子的帳戶
+                account = from;
+                minor = Math.Abs(minor);                   // transfer 的 CHECK 要正數
+                transfers++;
+            }
             var baseHash = BaseHash(s, t, minor, currency);
             // 跳檔案比的資格只看有沒有可靠身份（不是看單據類型）：缴費單現在會抽戶號，抽不到就退回檔案內比。
             bool crossFile = kind != StatementKind.Unknown &&
@@ -146,12 +161,14 @@ public sealed class StatementImporter
             if (existing is not null)
             {
                 Db.Exec(_db, """
-                    UPDATE entry SET kind=$kind, amount_minor=$amt, currency=$cur, txn_date=$date, posting_date=$post,
+                    UPDATE entry SET kind=$kind, account_id=$account, to_account_id=$to, amount_minor=$amt,
+                                     currency=$cur, txn_date=$date, posting_date=$post,
                                      merchant=$merchant, source_raw=$raw, source_page=$page, source_document_id=$doc,
                                      card_id=$card, bill_id=$bill, updated_at=$at, orphaned_at=NULL
                     WHERE id=$id;
                     """,
-                    ("$kind", lineKind), ("$amt", minor), ("$cur", currency),
+                    ("$kind", lineKind), ("$account", account), ("$to", (object?)toAccount ?? DBNull.Value),
+                    ("$amt", minor), ("$cur", currency),
                     ("$date", (object?)txnDate ?? DBNull.Value), ("$post", Date(t.PostingDate)),
                     ("$merchant", (object?)t.Merchant ?? DBNull.Value),
                     ("$raw", (object?)t.RawLine ?? DBNull.Value), ("$page", Page(t)), ("$doc", docId),
@@ -163,13 +180,14 @@ public sealed class StatementImporter
             }
 
             var newId = Db.InsertId(_db, """
-                INSERT INTO entry(kind, account_id, card_id, bill_id, currency, amount_minor, txn_date, posting_date,
+                INSERT INTO entry(kind, account_id, to_account_id, card_id, bill_id, currency, amount_minor, txn_date, posting_date,
                                   merchant, status, source, source_document_id, source_page, source_line_hash,
                                   source_raw, created_at)
-                VALUES($kind, $account, $card, $bill, $cur, $amt, $date, $post,
+                VALUES($kind, $account, $to, $card, $bill, $cur, $amt, $date, $post,
                        $merchant, 'imported', 'import', $doc, $page, $hash, $raw, $at);
                 """,
-                ("$kind", lineKind), ("$account", account), ("$card", (object?)cardId ?? DBNull.Value),
+                ("$kind", lineKind), ("$account", account), ("$to", (object?)toAccount ?? DBNull.Value),
+                ("$card", (object?)cardId ?? DBNull.Value),
                 ("$bill", (object?)billId ?? DBNull.Value),
                 ("$cur", currency), ("$amt", minor),
                 ("$date", (object?)txnDate ?? DBNull.Value), ("$post", Date(t.PostingDate)),
@@ -180,8 +198,30 @@ public sealed class StatementImporter
             inserted++;
         }
 
-        if (s.Transactions.Any(t => t.Amount < 0))
+        if (s.Transactions.Any(t => t.Amount < 0 && !t.IsPayment))
             warnings.Add(Loc.T("Imp_NegativeRows"));
+        if (transfers > 0)
+            warnings.Add(Loc.F("Imp_PaymentTransfer", transfers, AccountName(payer!.Value), AccountName(accountId)));
+        else if (s.Transactions.Any(t => t.IsPayment))
+            warnings.Add(Loc.F("Imp_PaymentNoPayer", s.Transactions.Count(t => t.IsPayment)));
+
+        // 單子上印的餘額進 account_balance（source='statement'）：這是偵測漏解析的自動防呆，
+        // 對不對得上由 LedgerStore.BalanceMismatches() 照 as_of 講，這裡只負責存進去。
+        foreach (var b in s.Balances)
+        {
+            if (b.AsOf == default) continue;                                       // 不知道哪天結算的餘額存了只會造成誤報
+            var currency = EnsureCurrency(b.Currency, warnings);
+            var account = AccountFor(s, b.Account, currency, accountId, kind, lineAccounts, warnings, ref autoCreated);
+            if (account == 0) continue;
+            Db.Exec(_db, """
+                INSERT INTO account_balance(account_id, as_of, currency, balance_minor, source)
+                VALUES($a, $asof, $cur, $amt, 'statement')
+                ON CONFLICT(account_id, as_of, currency) DO UPDATE
+                    SET balance_minor = excluded.balance_minor
+                  WHERE account_balance.source = 'statement';
+                """,
+                ("$a", account), ("$asof", Iso(b.AsOf)), ("$cur", currency), ("$amt", Money.ToMinor(b.Amount)));
+        }
 
         var superseded = SupersedePrior(s, accountId, docId, touched, kind);
 
@@ -248,18 +288,18 @@ public sealed class StatementImporter
     }
 
     /// <summary>
-    /// 一筆交易的帳戶。列上寫了帳號就照它（一份單子含多個帳號的存款單），沒寫就跟著整份單子的帳戶；
+    /// 一筆交易（或一個單上餘額）的帳戶。列上寫了帳號就照它（一份單子含多個帳號的存款單），沒寫就跟著整份單子的帳戶；
     /// 幣別永遠 participate 鍵值 —— 一個帳戶只放一種幣別，美金列不會再被倒進台幣帳戶（那個錢照台幣進淨值）。
     /// </summary>
-    long LineAccount(ParsedStatement s, ParsedTransaction t, long docAccountId, StatementKind kind, string currency,
-                     Dictionary<string, long> cache, List<string> warnings, ref int autoCreated)
+    long AccountFor(ParsedStatement s, string? lineAccount, string currency, long docAccountId, StatementKind kind,
+                    Dictionary<string, long> cache, List<string> warnings, ref int autoCreated)
     {
         if (kind == StatementKind.Bill || docAccountId == 0) return docAccountId;
-        var key = $"{(t.Account ?? "").Trim()}|{currency}";
+        var key = $"{(lineAccount ?? "").Trim()}|{currency}";
         if (cache.TryGetValue(key, out var cached)) return cached;
 
         var (docIssuer, docMask, docCurrency) = DocAccount(docAccountId);
-        var mask = (t.Account ?? "").Trim();
+        var mask = (lineAccount ?? "").Trim();
         if (mask.Length == 0)
         {
             if (currency == docCurrency) return cache[key] = docAccountId;   // 列上沒帳號也没換幣別 = 就是這份單子的帳戶
@@ -309,6 +349,29 @@ public sealed class StatementImporter
             ("$n", name), ("$t", type), ("$c", currency), ("$i", issuer),
             ("$m", string.IsNullOrEmpty(mask) ? (object)DBNull.Value : mask), ("$at", Db.Now()));
     }
+
+    /// <summary>
+    /// 卡帳繳款列的「錢從哪來」：這張卡的自動扣繳帳戶 → settings 的預設付款帳戶（兩個都要没歸檔）。
+    /// 兩個都拿不出來就回 null —— 宁願把繳款留成 refund（性質錯，但不會動到別的帳戶），
+    /// 也不要憑空猜一個帳戶扣它（猜錯就是悄悄讓那個帳戶的餘額少一筆）。
+    /// </summary>
+    long? PayerOf(long? cardId)
+    {
+        if (cardId is not null &&
+            Db.Scalar(_db, """
+                SELECT k.autopay_account_id FROM card k
+                JOIN account a ON a.id = k.autopay_account_id AND a.is_archived = 0
+                WHERE k.id=$c;
+                """, ("$c", cardId.Value)) is long autopay) return autopay;
+
+        var setting = Db.Scalar(_db, "SELECT value FROM settings WHERE key='default_payment_account_id';") as string;
+        return setting is not null && long.TryParse(setting, out var configured)
+               && Db.Scalar(_db, "SELECT id FROM account WHERE id=$id AND is_archived=0;", ("$id", configured)) is long id
+                ? id : null;
+    }
+
+    /// <summary>帳戶名（警告文字要用，不能叫人去查 id）。</summary>
+    string AccountName(long id) => Db.Scalar(_db, "SELECT name FROM account WHERE id=$id;", ("$id", id)) as string ?? id.ToString();
 
     /// <summary>繳費單的付款帳戶：settings 指定的 → 最早建的銀行帳戶 → 建一個現金帳戶並講明。</summary>
     long PaymentAccount(List<string> warnings, ref int autoCreated)

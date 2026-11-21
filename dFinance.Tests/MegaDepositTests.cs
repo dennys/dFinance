@@ -50,8 +50,25 @@ public class MegaDepositTests
     {
         var s = Samples.Parse(Main);
 
-        // 02010660350：115/09 月底餘額 16,254 → 10/30 最後一列餘額 10,924（餘額欄還沒建模，先用它驗解析有沒有漏列）
-        Assert.Equal(10924m, 16254m + s.Transactions.Where(t => t.Account == "02010660350").Sum(t => t.Amount));
+        // 02010660350：115/09 月底餘額 16,254 → 10/31 總覽 10,924（兩個都是單子上讀來的，不是手抄的）
+        var opening = s.Balances.Single(b => b.Account == "02010660350" && b.AsOf == new DateOnly(2026, 9, 30)).Amount;
+        var closing = s.Balances.Single(b => b.Account == "02010660350" && b.AsOf == new DateOnly(2026, 10, 31)).Amount;
+        Assert.Equal(16254m, opening);
+        Assert.Equal(closing, opening + s.Transactions.Where(t => t.Account == "02010660350").Sum(t => t.Amount));
+    }
+
+    [Fact]
+    public void 單上的餘額進_balances_並帶著結算那天()
+    {
+        var s = Samples.Parse(Main);
+
+        var closing = s.Balances.Single(b => b.Account == "02010660350" && b.AsOf == new DateOnly(2026, 10, 31));
+        Assert.Equal(10924m, closing.Amount);
+        Assert.Equal("新台幣", closing.Currency);                 // 照原文交，對代碼是匯入端靠 aliases 做的事
+        // 本月無交易的帳戶也要有快照，不然那個帳戶永遠不會被校驗到
+        Assert.Contains(s.Balances, b => b.Account == "02061020820" && b.Amount == 0m);
+        // 讀到了就不該再呛「餘額沒讀到」
+        Assert.DoesNotContain(s.Warnings, w => w.Contains("餘額沒讀到"));
     }
 
     [Fact]
@@ -60,7 +77,6 @@ public class MegaDepositTests
         var s = Samples.Parse(Main);
 
         Assert.DoesNotContain(s.Transactions, t => t.Merchant.Contains("月底餘額") || t.Merchant.Contains("無交易明細"));
-        Assert.Contains(s.Warnings, w => w.Contains("餘額欄"));
     }
 
     [Fact]

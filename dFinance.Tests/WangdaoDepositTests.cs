@@ -12,6 +12,19 @@ public class WangdaoDepositTests
     private static ParsedStatement? Parse() => Samples.Parse(Sample);
 
     [Fact]
+    public void 台幣與外幣帳戶的餘額都讀得到()
+    {
+        var s = Parse();
+
+        // 「帳號：010000***41988 餘額1元」與「美元：餘額 0.71元」各是一個帳戶的餘額（一個帳戶一種幣別）
+        Assert.Equal(1m, s.Balances.Single(b => b.Currency == "TWD").Amount);
+        Assert.Equal(0.71m, s.Balances.Single(b => b.Currency == "USD").Amount);
+        Assert.All(s.Balances, b => Assert.Equal(new DateOnly(2026, 1, 26), b.AsOf));   // 單子沒印基準日：拿帳期末日
+        // 「外幣活期存款總餘額（約等值臺幣）」是跨帳戶換匯的合計，對不上單一帳戶的外幣餘額 → 故意不存（會警告）
+        Assert.Contains(s.Balances, b => b.Currency == "USD" && b.Amount == 0.71m);
+    }
+
+    [Fact]
     public void Header_fields_match_the_sample()
     {
         var s = Parse();

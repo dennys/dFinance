@@ -11,6 +11,8 @@ public sealed class MegaDepositParser : IStatementParser
 {
     // 帳號欄：純數字（各分行位數不同，9 碼起）。
     private static readonly Regex Account = new(@"^\d{9,}$", RegexOptions.Compiled);
+    // 「115/09月底餘額」：這是上月底的結算餘額（10 月的單子印 09 月底），不是本期期末，as_of 要照它講的那天。
+    private static readonly Regex MonthEnd = new(@"(1\d{2})/(\d{1,2})月底餘額", RegexOptions.Compiled);
     private static readonly string[] SkipWords = ["月底餘額", "本月無交易明細", "存摺存款", "交易期間", "帳戶總覽", "存款種類", "存單面額"];
 
     // 發動行/備註那帶會出現純數字（例：外幣列的台幣對照額 159.090000），那種不該混進商家名；
@@ -66,6 +68,25 @@ public sealed class MegaDepositParser : IStatementParser
         {
             var joined = Row.Join(row.Words);
             var tight = joined.Replace(" ", "");
+            if (tight.Contains("月底餘額"))
+            {
+                // 「新台幣 02010660350 16,254.00 115/09月底餘額」= 這個帳戶上月底的結算餘額，是漏解析的校驗輸入。
+                var me = MonthEnd.Match(tight);
+                var meAccount = row.Words.Where(w => w.Overlaps(accountCol)).Select(w => Account.Match(w.Text))
+                                         .FirstOrDefault(m => m.Success)?.Value;
+                var meAmount = row.Words.Where(w => w.Overlaps(balanceCol)).Select(w => PdfText.ToDecimal(w.Text))
+                                        .FirstOrDefault(a => a is not null)
+                                    ?? row.Words.Where(w => PdfText.IsMoney(w.Text)).Select(w => PdfText.ToDecimal(w.Text))
+                                                .LastOrDefault(a => a is not null);
+                var meCurrency = Row.Join(row.Words.Where(w => w.Overlaps(currencyCol)));
+                if (me.Success && meAccount is not null && meAmount is not null && meCurrency.Length > 0)
+                    s.Balances.Add(new ParsedBalance
+                    {
+                        AsOf = MonthEndDate(int.Parse(me.Groups[1].Value) + 1911, int.Parse(me.Groups[2].Value)),
+                        Amount = meAmount.Value, Currency = meCurrency, Account = meAccount,
+                    });
+                continue;
+            }
             if (SkipWords.Any(tight.Contains)) continue;
 
             var account = row.Words.Where(w => w.Overlaps(accountCol)).Select(w => Account.Match(w.Text))
@@ -106,7 +127,50 @@ public sealed class MegaDepositParser : IStatementParser
             s.Warnings.Add($"這份含 {accountLines.Count} 個帳號（{string.Join("、", accountLines.Keys)}），已照列級帳號分別歸戶。");
         if (oddCurrency.Count > 0)
             s.Warnings.Add($"有非台幣列（{string.Join("、", oddCurrency)}）；帳戶會按幣別分開，但沒匯率就不計入淨值，請到「工具→幣別…」確認匯率。");
-        s.Warnings.Add("存款單的餘額欄（月底餘額/餘額列）沒有建模（總資產/餘額校驗在 TODO 上）。");
+
+        // 「帳號 幣別 存款種類 存款餘額」那张帳戶總覽（截至 115/10/31 為止）。跟明細裡的上月底餘額一起存：
+        // 兩個 as_of 不同，「期初 ＋ Σ交易 ＝ 期末」兩頭都能校驗（account_balance 的主鍵容得下同帳戶不同日期）。
+        s.Balances.AddRange(ReadOverview(data));
+        if (s.Balances.Count == 0)
+            s.Warnings.Add("單上的餘額沒讀到（帳戶總覽與月底餘額列都沒對到），這個帳戶不會進餘額校驗。");
         return s;
+    }
+
+    /// <summary>月底：單子只寫「115/09」，校驗要看的是那天結算的數，所以補成該月最後一天。</summary>
+    static DateOnly MonthEndDate(int year, int month) => new(year, month, DateTime.DaysInMonth(year, month));
+
+    /// <summary>
+    /// 頁首的帳戶總覽（帳號 / 幣別 / 存款種類 / 存款餘額 / 往來分行），帳期取自「截至115-10-31為止」。
+    /// 只收活期：定期存單的「存款餘額」是面額，進 account_balance 會跟存摺交易對不上。
+    /// </summary>
+    static IEnumerable<ParsedBalance> ReadOverview(PageData data)
+    {
+        var table = data.Rows.FirstOrDefault(r => r.Words.Any(w => w.Text == "存款餘額")
+                                               && r.Words.Any(w => w.Text == "存款種類"));
+        if (table is null) yield break;
+        var asOf = data.DateInRow("截至");
+        if (asOf is null) yield break;
+
+        var accountCol = table.Label("帳號");
+        var currencyCol = table.Label("幣別");
+        var balanceCol = table.Label("存款餘額")!;
+        if (accountCol is null || currencyCol is null) yield break;
+
+        // 往下收到遇到下一個表頭（明細的「交易日期」）為止。
+        var stop = data.Rows.Where(r => r.Page == table.Page && r.Top < table.Top
+                                     && r.Words.Any(w => w.Text == "交易日期"))
+                            .Select(r => r.Top).DefaultIfEmpty(double.MinValue).Min();
+        foreach (var row in data.Rows.Where(r => r.Page == table.Page && r.Top < table.Top && r.Top > stop))
+        {
+            var tight = Row.Join(row.Words).Replace(" ", "");
+            if (!tight.Contains("活期")) continue;
+            var account = row.Words.Where(w => w.Overlaps(accountCol)).Select(w => Account.Match(w.Text))
+                                   .FirstOrDefault(m => m.Success)?.Value;
+            var amount = row.Words.Where(w => w.Overlaps(balanceCol)).Select(w => PdfText.ToDecimal(w.Text))
+                                  .FirstOrDefault(a => a is not null);
+            var currency = Row.Join(row.Words.Where(w => w.Overlaps(currencyCol)));
+            if (account is null || amount is null || currency.Length == 0) continue;
+            yield return new ParsedBalance { AsOf = asOf.Value, Amount = amount.Value, Currency = currency, Account = account };
+        }
     }
 }

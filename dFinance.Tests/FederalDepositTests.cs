@@ -26,8 +26,20 @@ public class FederalDepositTests
     {
         var s = Samples.Parse(Sample);
 
-        // 信用卡 parser 的警告不該出現；餘額未建模要講明
+        // 信用卡 parser 的警告不該出現
         Assert.DoesNotContain(s.Warnings, w => w.Contains("本期應繳") || w.Contains("消費明細"));
-        Assert.Contains(s.Warnings, w => w.Contains("餘額"));
+    }
+
+    [Fact]
+    public void 單上的餘額基準日表會進_balances()
+    {
+        var s = Samples.Parse(Sample);
+
+        // 「臺幣存款帳戶餘額　餘額基準日：115/9/30」→ 帳號 888-50-*1*9*9* 可用餘額 1 元
+        var b = Assert.Single(s.Balances);
+        Assert.Equal("888-50-*1*9*9*", b.Account);
+        Assert.Equal(1m, b.Amount);
+        Assert.Equal(new DateOnly(2026, 9, 30), b.AsOf);              // 基準日是單子上寫的，不是最後一筆交易日
+        Assert.DoesNotContain(s.Warnings, w => w.Contains("餘額沒讀到"));
     }
 }

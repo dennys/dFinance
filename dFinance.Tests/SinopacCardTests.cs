@@ -28,7 +28,9 @@ public class SinopacCardTests
         Assert.Equal(13735m, s.Transactions.Where(t => t.Kind == "charge").Sum(t => t.Amount));
         var pay = Assert.Single(s.Transactions.Where(t => t.Amount == -16951m));
         Assert.Contains("自扣", pay.Merchant);
-        Assert.Contains(s.Warnings, w => w.Contains("繳款/退款"));
+        // 「自扣入帳」是繳款（轉帳）不是消費：扣掉它之後合計就是應繳，不該再報對不上。
+        Assert.True(StatementParser.LooksLikePayment(pay), "繳款列要被抓出來，匯入端才記成轉帳");
+        Assert.DoesNotContain(s.Warnings, w => w.Contains("不等於"));
     }
 
     [Fact]

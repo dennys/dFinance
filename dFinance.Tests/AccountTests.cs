@@ -126,6 +126,24 @@ public sealed class AccountTests : IDisposable
     }
 
     [Fact]
+    public void 餘額校驗只比快照那天以前的交易()
+    {
+        // 兆豐那份的狀態：10 月的單子上印的是 09/10 月底結算餘額，不是現在的餘額。
+        // 拿全部交易去比，那張期初快照會天天報對不上（舊版就這樣），所以要比 as_of 當天（含）以前的累加。
+        var id = _store.CreateAccount(Edit(name: "活存", type: "bank"));
+        Manual(id, "expense", 1_000, "2026-10-05");                    // 快照之前：要算
+        Manual(id, "expense", 5_000, "2026-11-20");                    // 快照之後：不准算
+
+        Db.Exec(_db, "INSERT INTO account_balance(account_id, as_of, currency, balance_minor, source) VALUES($a, '2026-10-31', 'TWD', -1_000, 'statement');",
+                ("$a", id));
+        Assert.Empty(_store.BalanceMismatches());                       // 11/20 那筆不能算進來（算了會报 −6,000）
+
+        Db.Exec(_db, "UPDATE account_balance SET balance_minor = 2_000;");
+        var bad = Assert.Single(_store.BalanceMismatches());
+        Assert.Equal(3_000, bad.DiffMinor);                             // 2,000 −(−1,000)，不是 8,000
+    }
+
+    [Fact]
     public void 同一天重覆盤點是蓋掉不是多一筆()
     {
         var id = _store.CreateAccount(Edit(name: "活存", type: "bank", opening: 100_000));

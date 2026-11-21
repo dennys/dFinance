@@ -31,7 +31,9 @@ public class MegaCardTests
                    + s.Transactions.Where(t => t.Kind == "credit" && !t.Merchant.Contains("繳款")).Sum(t => t.Amount));
         var payment = Assert.Single(s.Transactions.Where(t => t.Merchant.Contains("繳款")));
         Assert.Equal(-4534.00m, payment.Amount);
-        Assert.Contains(s.Warnings, w => w.Contains("繳款"));
+        // 繳款列被认出（匯入端會改記 transfer）：扣掉之後合計就是應繳，不該再報對不上。
+        Assert.True(StatementParser.LooksLikePayment(payment));
+        Assert.DoesNotContain(s.Warnings, w => w.Contains("不等於"));
     }
 
     [Fact]

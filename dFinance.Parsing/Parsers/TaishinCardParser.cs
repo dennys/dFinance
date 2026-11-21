@@ -38,9 +38,7 @@ public sealed class TaishinCardParser : IStatementParser
 
         ParseTransactions(data, s);
 
-        var payments = s.Transactions.Count(t => t.Amount < 0);
-        if (s.Transactions.Count > 0 && payments > 0 && s.Transactions.Sum(t => t.Amount) != s.TotalDue)
-            s.Warnings.Add($"本期累計應繳只含本期新增款項，帳單明細裡有 {payments} 筆繳款/退款金額為負，所以明細合計不會等於應繳金額。");
+        StatementParser.WarnIfDueMismatch(s, "本期累計應繳金額");
 
         return s;
     }

@@ -30,8 +30,7 @@ public sealed class CtbcCardParser : IStatementParser
         ParseTransactions(data, s);
 
         if (s.TotalDue is null) s.Warnings.Add("找不到本期應繳總金額（OCR 沒讀到那個標籤？）");
-        else if (s.Transactions.Count > 0 && s.Transactions.Sum(t => t.Amount) != s.TotalDue)
-            s.Warnings.Add($"明細合計 {s.Transactions.Sum(t => t.Amount):N0} 不等於本期應繳總金額 {s.TotalDue:N0}（含繳款/退款，或是漏列，請比對原始單據）。");
+        else StatementParser.WarnIfDueMismatch(s, "本期應繳總金額");
 
         return s;
     }
