@@ -42,7 +42,7 @@ public class TaishinCardTests
         Assert.DoesNotContain("TAIPEI", buy.Merchant);
         Assert.Equal(new DateOnly(2026, 9, 23), buy.Date);
         Assert.Equal(new DateOnly(2026, 9, 24), buy.PostingDate);
-        Assert.Equal("TWD", buy.Currency);
+        Assert.Equal("TW", buy.Currency);              // 照單上原文交；對成 TWD 是匯入端 aliases（...|TW）的事
         Assert.Equal("4605", buy.Card);
     }
 

@@ -18,9 +18,9 @@ public class FubonCardTests
         Assert.Equal(min, s.MinimumDue);
         Assert.Equal(new DateOnly(y, m, d), s.DueDate);
 
-        Assert.Equal(charges, s.Transactions.Count(t => t.Kind == "charge"));
-        Assert.Equal(total, s.Transactions.Where(t => t.Kind == "charge").Sum(t => t.Amount));
-        Assert.Contains(s.Transactions, t => t.Kind == "credit" && t.Merchant.Contains("ACH自動扣繳"));
+        Assert.Equal(charges, s.Transactions.Count(t => t.Amount > 0));
+        Assert.Equal(total, s.Transactions.Where(t => t.Amount > 0).Sum(t => t.Amount));
+        Assert.Contains(s.Transactions, t => t.Amount < 0 && t.Merchant.Contains("ACH自動扣繳"));
         Assert.All(s.Transactions, t =>
         {
             Assert.False(string.IsNullOrWhiteSpace(t.Merchant), $"商家是空的：{t.RawLine}");

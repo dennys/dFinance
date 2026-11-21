@@ -53,6 +53,8 @@ dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"
   篩選下拉要含父類（筛「交通」要連子類一起筛到），所以用不帶參數的那一支。
 - **parser 不准碰資料庫，也不准碰語系檔**：單子上的幣別原文（「美金」）照原文交出去，對代碼是 `StatementImporter.EnsureCurrency`
   用 `currency.aliases` 做的事；parser 的 warning 照原文進匯入 log，不進 resx。
+  例外只允許「版面判定」不是對映（繳費單只印「元」、中信幣別在圖片標題）；**不准在 parser 裡把原文對成代碼**。
+  `ParsedTransaction` **沒有 `Kind`**（2026-11-20 砍：它只是正負號的複製，而且卡帳/存款單語意相反），方向只看 `Amount` 正負號。
 - **語系只換 UI，不換錢與日期**：`LocalizationManager.ChangeCulture` 只動 `CurrentUICulture`，
   `CurrentCulture` 不准一起改（碰上小數點是逗號的語系會把金額解錯一百倍）；帶參數的字串走 `Loc.F("Key", a1, a2)`
   跟 resx 裡的 `{0}`，不准在程式裡拼句子（語序會破）。細節見 `LOCALIZATION.md`。

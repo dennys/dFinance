@@ -38,8 +38,7 @@ public sealed class SinopacCardParser : IStatementParser
                 PostingDate = table.Date(row, posting: true, reference: s.DueDate),
                 Merchant = table.Merchant(row),
                 Amount = amount.Value,
-                Kind = amount.Value < 0 ? "credit" : "charge",
-                Currency = "TWD",
+                Currency = "臺幣",           // 表頭印的是「臺幣金額」：照原文交，對成 TWD 是匯入端 aliases 的事
                 Card = table.Card(row),
                 RawLine = Row.Join(row.Words),
             });

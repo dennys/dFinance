@@ -190,11 +190,11 @@ Console.WriteLine($"issuer={s.Issuer} period={s.StatementStartDate}~{s.Statement
 Console.WriteLine($"txns={s.Transactions.Count} sum={s.Transactions.Sum(t => t.Amount)} cards={string.Join(",", s.Transactions.Select(t => t.Card).Distinct())}");
 Console.WriteLine("byPage: " + string.Join(" ", s.Transactions.GroupBy(t => t.Page).Select(g => $"p{g.Key}={g.Count()}")));
 Console.WriteLine("byCurrency: " + string.Join(" ", s.Transactions.GroupBy(t => t.Currency).Select(g => $"'{g.Key}'={g.Count()}")));
-Console.WriteLine("credits: " + string.Join(" | ", s.Transactions.Where(t => t.Kind == "credit").Select(t => $"{t.Merchant} {t.Amount}")));
+Console.WriteLine("negative(退款/存入/抵帳): " + string.Join(" | ", s.Transactions.Where(t => t.Amount < 0).Select(t => $"{t.Merchant} {t.Amount}")));
 Console.WriteLine("balances: " + string.Join(" | ", s.Balances.Select(b => $"{b.Account} {b.Currency} {b.Amount} @{b.AsOf}")));
 foreach (var w in s.Warnings) Console.WriteLine("WARN: " + w);
 foreach (var t in s.Transactions.Take(5)) Console.WriteLine($"  {t.Date} {t.PostingDate} {t.Merchant} {t.Amount} {t.Currency} card={t.Card} p{t.Page}");
-foreach (var t in s.Transactions.TakeLast(3)) Console.WriteLine($"  ...{t.Date} {t.Merchant} {t.Amount} {t.Kind}");
+foreach (var t in s.Transactions.TakeLast(3)) Console.WriteLine($"  ...{t.Date} {t.Merchant} {t.Amount}");
 
 if (args.Length > 2 && args[2] == "--table")
 {

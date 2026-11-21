@@ -32,9 +32,15 @@ public class CtbcDepositTests
 
         Assert.Equal(3, s.Transactions.Count);
         Assert.Equal(new[] { 500m, 500m, -1000m }, s.Transactions.Select(t => t.Amount).ToArray());
-        Assert.All(s.Transactions, t => Assert.Equal("TWD", t.Currency));
-        Assert.Equal(new[] { "charge", "charge", "credit" }, s.Transactions.Select(t => t.Kind).ToArray());
+        Assert.All(s.Transactions, t => Assert.Equal("TWD", t.Currency));   // 幣別来自段落標題的字典（那段是圖片，不是文字層原文）
+        // Kind 拿掉了：方向就是上面那排金額的正負號。
         Assert.Contains("慈善款", s.Transactions.Single(t => t.Amount < 0).Merchant);
+
+        // 單上的期末餘額要交給匯入端進 account_balance（那張帳戶總覽也印 0；51.00 是美元帳戶換過來的）。
+        var bal = Assert.Single(s.Balances);
+        Assert.Equal(new DateOnly(2025, 12, 15), bal.AsOf);
+        Assert.Equal(0m, bal.Amount);
+        Assert.Equal("29953**3590*", bal.Account);
     }
 
     [Fact]

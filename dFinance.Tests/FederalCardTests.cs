@@ -47,10 +47,10 @@ public class FederalCardTests
     }
 
     [Fact]
-    public void Refund_rows_are_negative_and_marked_credit()
+    public void Refund_rows_are_the_negative_ones()
     {
         var s = Parse();
-        Assert.All(s.Transactions.Where(t => t.Kind == "credit"), t => Assert.True(t.Amount < 0));
+        Assert.Contains(s.Transactions, t => t.Amount < 0);              // 退款列在，而且是負的（匯入端就看正負號）
     }
 
     [Fact]

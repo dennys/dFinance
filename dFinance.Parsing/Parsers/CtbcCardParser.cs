@@ -88,7 +88,6 @@ public sealed class CtbcCardParser : IStatementParser
                 Merchant = merchant,
                 Amount = amount.Value,
                 Currency = "TWD",               // 這張表就是「台幣消費明細」
-                Kind = amount.Value < 0 ? "credit" : "charge",
                 Card = cardCol is null ? "" :
                     row.Words.Where(w => w.Overlaps(cardCol)).Select(w => w.Text).FirstOrDefault(t => t.Length >= 4 && t.All(char.IsDigit)) ?? "",
                 RawLine = Row.Join(row.Words),

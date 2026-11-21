@@ -33,6 +33,20 @@ public class SinopacDepositTests
     }
 
     [Fact]
+    public void 單上的期末餘額進得来_幣別是帳號行印的那個()
+    {
+        var s = Samples.Parse(Sample);
+
+        // 餘額取明細最後一列的 running 餘額；幣別取段落標題「帳號:…(新臺幣)」的原文。
+        var bal = Assert.Single(s.Balances);
+        Assert.Equal(new DateOnly(2026, 7, 25), bal.AsOf);
+        Assert.Equal(0m, bal.Amount);                                  // 跟單上那張資產表的臺幣餘額 0 對得上
+        Assert.Equal("新臺幣", bal.Currency);
+        Assert.Equal("198-01*-**53769-*", bal.Account);
+        Assert.All(s.Transactions, t => Assert.Equal("新臺幣", t.Currency));   // 照原文交，對成 TWD 是匯入端的事
+    }
+
+    [Fact]
     public void Long_counterparty_account_numbers_are_not_the_merchant()
     {
         var s = Samples.Parse(Sample);

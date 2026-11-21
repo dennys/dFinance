@@ -86,7 +86,6 @@ public sealed class MegaCardParser : IStatementParser
                 Merchant = merchant.Length == 0 ? "（未載明說明）" : merchant,
                 Currency = Row.Join(row.Words.Where(w => w.Left >= currencyLeft && w.Left < amountCol.Left && !PdfText.IsMoney(w.Text))),
                 Amount = PdfText.ToDecimal(amount.Text) ?? 0m,
-                Kind = (PdfText.ToDecimal(amount.Text) ?? 0m) < 0 ? "credit" : "charge",
                 Card = card,
                 RawLine = joined,
             });

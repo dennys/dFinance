@@ -44,8 +44,8 @@ public class WangdaoDepositTests
         Assert.Equal(8, s.Transactions.Count);
         Assert.All(s.Transactions, t => Assert.Equal("USD", t.Currency));
         Assert.Equal(0.50m, s.Transactions.Sum(t => t.Amount));
-        Assert.All(s.Transactions.Where(t => t.Kind == "charge"), t => Assert.True(t.Amount > 0));
-        Assert.All(s.Transactions.Where(t => t.Kind == "credit"), t => Assert.True(t.Amount < 0));
+        Assert.Contains(s.Transactions, t => t.Amount > 0);      // 存入與支出都要在（方向就是正負號）
+        Assert.Contains(s.Transactions, t => t.Amount < 0);
         Assert.Contains(s.Transactions, t => t.Merchant == "帳戶存入");
     }
 
@@ -71,7 +71,6 @@ public class WangdaoDepositTests
         Assert.Equal(9.44m, interest.Amount);
         Assert.Equal("USD", interest.Currency);
         Assert.True(interest.Amount > 0, "利息是收入，金額要是正的（落庫只看正負號）");
-        Assert.Equal("charge", interest.Kind);                  // 存款單那組慣例：正數=charge、負數=credit（跟聯邦/永豐/兆豐存款單一致；匯入不看 Kind）
         Assert.Contains(s.Warnings, w => w.Contains("沒進模型"));
         Assert.Contains(s.Warnings, w => w.Contains("個明細段落"));
     }

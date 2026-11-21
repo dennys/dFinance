@@ -53,7 +53,6 @@ public sealed class CathayCardParser : IStatementParser
                 PostingDate = table.Date(row, posting: true, reference: reference),
                 Merchant = table.Merchant(row),
                 Amount = amount.Value,
-                Kind = amount.Value < 0 ? "credit" : "charge",
                 Currency = table.Currency(row),
                 Card = table.Card(row),
                 RawLine = Row.Join(row.Words),

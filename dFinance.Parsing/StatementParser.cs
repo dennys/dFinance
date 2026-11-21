@@ -7,7 +7,14 @@ namespace dFinance.Parsing;
 public static class StatementParser
 {
     /// <summary>改動任何 parser 的解析規則就 +1。落庫時寫進 document.parser_ver，重匯與「哪些列是舊版解析的」都靠它。</summary>
-    public const int Version = 3;   // v3：卡帳的繳款列拆成 IsPayment（匯入端改記 transfer，不再當成退款）
+    public const int Version = 4;   // v4：Kind 刪掉（它只是 Amount 正負號的複製）、卡帳/存款單的幣別照單上原文交、中信/永豐存款單補上單上餘額
+
+    // 公開面只有這一層（要拆出去發 dll 時，這就是 API 審查看板）：
+    //   主入口：Parse(...) → ParsedStatement（唯一承諾的外部契約，欄位口徑見 Models.cs 與 ParserContractTests）。
+    //   公開但不是契約（只是 devcheck/測試要拿来除錯，改了得先問他們）：
+    //     PdfRows.Read、OcrReader.Read/ModelsDirectory、StatementTable.Find/DetailRows、PdfText.Is*/ToDecimal、
+    //     Row.Join/JoinDedup、StatementParser.LooksLikePayment/WarnIfDueMismatch、ParserFactory、IssuerNames。
+    // 那些东西现在是 public 只是因为同 repo 要拿；真要 pack 成 nupkg 前先想清楚要不承诺。
 
     public static ParsedStatement Parse(string path, string? password) => Parse(path, password, null, null);
 

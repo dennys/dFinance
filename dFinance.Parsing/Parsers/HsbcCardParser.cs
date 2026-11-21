@@ -87,7 +87,6 @@ public sealed class HsbcCardParser : IStatementParser
                                            ?? ocr.FirstOrDefault(w => w.Overlaps(postCol) && PdfText.IsDateLike(w.Text)))?.Text, s.DueDate),
                 Merchant = merchant,
                 Amount = amount.Value,
-                Kind = amount.Value < 0 ? "credit" : "charge",
                 // 幣別：消費地/外幣金額那段裡的最後一個三字母碼（SGP TWD 1,363.00 → TWD）。
                 Currency = System.Text.RegularExpressions.Regex.Matches(
                                Row.Join(row.Words.Where(w => w.Left >= merchantRight - 12 && w.Left < amountCol.Left)),

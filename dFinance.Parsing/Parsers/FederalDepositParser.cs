@@ -62,7 +62,6 @@ public sealed class FederalDepositParser : IStatementParser
                 Date = date.Value,
                 Merchant = counterparty.Length > 0 ? $"{summary} {counterparty}" : summary,
                 Amount = amount,
-                Kind = amount < 0 ? "credit" : "charge",
                 Currency = "TWD",
                 RawLine = Row.Join(row.Words),
             });

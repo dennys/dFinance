@@ -112,8 +112,7 @@ public sealed class TaishinCardParser : IStatementParser
                     PostingDate = ToDate(dates[1].Text),
                     Merchant = merchant.Length == 0 ? "（不明消費）" : merchant,
                     Amount = ToDecimal(amount.Text) ?? 0m,
-                    Kind = (ToDecimal(amount.Text) ?? 0m) < 0 ? "credit" : "charge",
-                    Currency = currency == "TW" ? "TWD" : currency,
+                    Currency = currency,        // 照原文交（單上印「TW」）；對成 TWD 是匯入端 aliases 的事
                     Card = card,
                     RawLine = Row.Join(row.Words),
                 });

@@ -45,6 +45,33 @@ public sealed class ImportTests : IDisposable
     int Count(string where = "", params (string, object?)[] ps)
         => Convert.ToInt32(Db.Scalar(_db, $"SELECT count(*) FROM entry WHERE deleted_at IS NULL {where};", ps));
 
+    /// <summary>
+    /// parser 交的是單上的原文（永豐卡「臺幣」、永豐存款單「新臺幣」、台新卡「TW」），
+    /// 對成代碼是匯入端的活：這一對錯就是「外幣金額被當成台幣」那百倍級的錯，所以從匯入側也钉一次。
+    /// </summary>
+    [Theory]
+    [InlineData("臺幣")]
+    [InlineData("新臺幣")]
+    [InlineData("台幣")]
+    [InlineData("TW")]
+    public void parser交的原文幣別靠aliases對成代碼(string raw)
+    {
+        var st = new ParsedStatement
+        {
+            Issuer = "永豐商業銀行", Parser = "SinopacCardParser", AccountMask = "9209",
+            StatementEndDate = new DateOnly(2026, 11, 15),
+            Transactions =
+            [
+                new ParsedTransaction { Date = new DateOnly(2026, 11, 1), Merchant = "全聯", Amount = 100m, Currency = raw, Page = 1 },
+            ],
+        };
+
+        var r = new StatementImporter(_db, _docsDir).Import(st, "sinopac.pdf");
+
+        Assert.Equal("TWD", Db.Scalar(_db, "SELECT currency FROM account WHERE mask='9209';"));
+        Assert.DoesNotContain(r.Warnings, w => w.Contains("幣別「"));      // 對不到才會退回基準幣並警告
+    }
+
     [Fact]
     public void 存款單的多個帳號分別歸到自己的帳戶()
     {

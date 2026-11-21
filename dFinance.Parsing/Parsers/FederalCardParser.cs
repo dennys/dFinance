@@ -94,7 +94,6 @@ public sealed class FederalCardParser : IStatementParser
                 PostingDate = ToMmDd(post.Text, year, s.DueDate),
                 Merchant = merchant,
                 Amount = amount,
-                Kind = amount < 0 ? "credit" : "charge",
                 Currency = currency,
                 Card = card,
                 Page = row.Page,

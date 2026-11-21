@@ -86,6 +86,7 @@ public sealed class CtbcDepositParser : IStatementParser
         var acctCol = header.Words.Where(w => w.Left < dateCol.Left).OrderBy(w => w.Left).First();
 
         decimal? opening = null, lastBalance = null;
+        DateOnly? lastBalanceDate = null;
         decimal sectionSum = 0;
         string account = "";
 
@@ -118,7 +119,7 @@ public sealed class CtbcDepositParser : IStatementParser
             if (date is null || amount is null) continue;
 
             var balance = Money(text, ocr, balanceCol);
-            if (balance is not null) lastBalance = balance;
+            if (balance is not null) { lastBalance = balance; lastBalanceDate = date; }
             sectionSum += amount.Value;
 
             if (account.Length > 0) accounts[account] = accounts.GetValueOrDefault(account) + 1;
@@ -131,7 +132,6 @@ public sealed class CtbcDepositParser : IStatementParser
                            ? m : "（未載明摘要）",
                 Amount = amount.Value,
                 Currency = currency,
-                Kind = inWord is null ? "credit" : "charge",
                 Account = account,
                 RawLine = Row.Join(row.Words),
             });
@@ -140,6 +140,13 @@ public sealed class CtbcDepositParser : IStatementParser
         // 餘額鏈校驗：這是 OCR 讀錯數字時唯一的自動偵錯機會。
         if (opening is not null && lastBalance is not null && opening + sectionSum != lastBalance)
             s.Warnings.Add($"{currency} 帳戶 {account}：上期結餘 {opening:N0} + 本期交易 {sectionSum:N0} 不等於單子上的期末餘額 {lastBalance:N0}（OCR 可能讀錯金額，請比對原始單據）。");
+
+        // 單上的期末餘額交給匯入端進 account_balance（source='statement'），期初校驗才有的比。
+        if (lastBalance is not null && lastBalanceDate is not null)
+            s.Balances.Add(new ParsedBalance
+            {
+                AsOf = lastBalanceDate.Value, Amount = lastBalance.Value, Currency = currency, Account = account,
+            });
     }
 
     static WordBox? First(List<WordBox> words, Func<WordBox, bool> match) => words.FirstOrDefault(match);

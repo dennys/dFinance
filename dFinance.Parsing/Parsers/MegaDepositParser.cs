@@ -110,7 +110,6 @@ public sealed class MegaDepositParser : IStatementParser
                 Date = date.Value,
                 Merchant = (summary + " " + counterparty).Trim() is { Length: > 0 } m ? m : "（未載明摘要）",
                 Amount = income ?? -expense!.Value,
-                Kind = income is null ? "credit" : "charge",
                 Currency = currencyWord,
                 Account = account,
                 RawLine = joined,

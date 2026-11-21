@@ -32,8 +32,7 @@ public class CtbcCardTests
         var s = Samples.Parse(PaidInFull);
 
         var txn = Assert.Single(s.Transactions);
-        Assert.Equal(-1166m, txn.Amount);
-        Assert.Equal("credit", txn.Kind);
+        Assert.Equal(-1166m, txn.Amount);                 // 繳款列：負號就是方向
         Assert.Equal(new DateOnly(2026, 9, 29), txn.Date);
         Assert.Contains("兆豐銀", txn.Merchant);
         Assert.DoesNotContain("1,166", txn.Merchant);
@@ -51,8 +50,8 @@ public class CtbcCardTests
         Assert.Equal("1648", s.AccountMask);
         Assert.All(s.Transactions, t =>
         {
-            Assert.Equal("charge", t.Kind);
-            Assert.Equal("TWD", t.Currency);
+            Assert.True(t.Amount > 0);
+            Assert.Equal("TWD", t.Currency);              // 那張表是「台幣消費明細」：幣別是版面判定，單上沒印（標題是圖片）
             Assert.Contains("CHT", t.Merchant);          // 這張單子的商店名就是這樣編碼的
         });
     }

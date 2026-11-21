@@ -110,7 +110,6 @@ public sealed class UtilityBillParser : IStatementParser
                     Date = due ?? period?.End ?? default,
                     Merchant = merchant,
                     Amount = amount.Value,
-                    Kind = amount.Value < 0 ? "credit" : "charge",
                     Currency = "TWD",
                     Page = 1,
                     RawLine = data.Rows.FirstOrDefault(r => r.Words.Any(w => w.Text.Contains(amountLabel))) is { } r
@@ -144,7 +143,6 @@ public sealed class UtilityBillParser : IStatementParser
                 Date = date.Value,
                 Merchant = "通行費",
                 Amount = amount,
-                Kind = "charge",
                 Currency = "TWD",
                 Page = row.Page,
                 RawLine = Row.Join(row.Words),

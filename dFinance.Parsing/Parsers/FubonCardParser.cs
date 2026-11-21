@@ -74,7 +74,6 @@ public sealed class FubonCardParser : IStatementParser
                 Merchant = Row.Join(row.Words.Where(w => w.Left > dateCol.Right + 2 && w.Left < postCol.Left - 2 && !w.Overlaps(postCol, 2))),
                 Currency = Row.Join(row.Words.Where(w => w.Overlaps(currCol) && !PdfText.IsMoney(w.Text))),
                 Amount = PdfText.ToDecimal(amount.Text) ?? 0m,
-                Kind = (PdfText.ToDecimal(amount.Text) ?? 0m) < 0 ? "credit" : "charge",
                 Card = card,
                 RawLine = joined,
             });

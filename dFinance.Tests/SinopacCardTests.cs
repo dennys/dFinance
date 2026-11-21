@@ -25,7 +25,7 @@ public class SinopacCardTests
     {
         var s = Samples.Parse(Sample);
 
-        Assert.Equal(13735m, s.Transactions.Where(t => t.Kind == "charge").Sum(t => t.Amount));
+        Assert.Equal(13735m, s.Transactions.Where(t => t.Amount > 0).Sum(t => t.Amount));
         var pay = Assert.Single(s.Transactions.Where(t => t.Amount == -16951m));
         Assert.Contains("自扣", pay.Merchant);
         // 「自扣入帳」是繳款（轉帳）不是消費：扣掉它之後合計就是應繳，不該再報對不上。
@@ -39,7 +39,7 @@ public class SinopacCardTests
         var s = Samples.Parse(Sample);
 
         Assert.NotEmpty(s.Transactions);
-        Assert.All(s.Transactions.Where(t => t.Kind == "charge"), t =>
+        Assert.All(s.Transactions.Where(t => t.Amount > 0), t =>
         {
             Assert.False(string.IsNullOrWhiteSpace(t.Merchant), "商家是空的：" + t.RawLine);
             Assert.Equal("9209", t.Card);                       // 消費明細都掛在同一張卡（繳款列沒有卡號）

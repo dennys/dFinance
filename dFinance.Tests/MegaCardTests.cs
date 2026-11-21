@@ -26,9 +26,9 @@ public class MegaCardTests
     {
         var s = Samples.Parse(Sample);
 
-        Assert.Equal(3, s.Transactions.Count(t => t.Kind == "charge"));
-        Assert.Equal(1265.00m, s.Transactions.Where(t => t.Kind == "charge").Sum(t => t.Amount)
-                   + s.Transactions.Where(t => t.Kind == "credit" && !t.Merchant.Contains("繳款")).Sum(t => t.Amount));
+        Assert.Equal(3, s.Transactions.Count(t => t.Amount > 0));
+        Assert.Equal(1265.00m, s.Transactions.Where(t => t.Amount > 0).Sum(t => t.Amount)
+                   + s.Transactions.Where(t => t.Amount < 0 && !t.Merchant.Contains("繳款")).Sum(t => t.Amount));
         var payment = Assert.Single(s.Transactions.Where(t => t.Merchant.Contains("繳款")));
         Assert.Equal(-4534.00m, payment.Amount);
         // 繳款列被认出（匯入端會改記 transfer）：扣掉之後合計就是應繳，不該再報對不上。
@@ -41,7 +41,7 @@ public class MegaCardTests
     {
         var s = Samples.Parse(Sample);
         Assert.DoesNotContain(s.Transactions, t => t.Merchant.Contains("小計") || t.Merchant.Contains("應付帳款"));
-        Assert.All(s.Transactions.Where(t => t.Kind == "charge"), t =>
+        Assert.All(s.Transactions.Where(t => t.Amount > 0), t =>
         {
             Assert.False(string.IsNullOrWhiteSpace(t.Merchant));
             Assert.NotNull(t.PostingDate);   // 消費明細該有消費日+入帳日（其他交易明細只列消費日）
