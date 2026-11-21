@@ -46,9 +46,7 @@
   要顯示就在 UI 從帳單表 UNION 出來。（MMEX 把這類資料放獨立的 `BILLSDEPOSITS_V1`，同樣不進帳本表。）
 - **信用卡保留帳戶層**（`account.type='credit_card'`）：消費 = `expense` 掛在卡帳戶、繳款 = `transfer` 銀行→卡。
   如此「本月支出」的 `SUM(expense)` 剛好等於帳單金額（可對帳），「還沒繳多少」看卡的負餘額。
-  ⚠️ 現況 parser 還沒把明細裡的繳款列拆出來（`ParsedTransaction.Kind` 只有 `charge`/`credit`），
-  所以負額暫時的落庫成 `refund` 並附警告。**在拆出來之前，把繳款列記成 expense 會造成支出雙倍。**
-  `shortcut:` 等 parser 拆出繳款/消費（TODO 2b）後改記 `transfer`，屆時「明細合計 ≠ 應繳」那條警告會自然消失。
+  （繳款列由 `StatementParser.LooksLikePayment` 認，認不出就留 `refund` 加警告 —— 寧可性質錯也不要猜錯帳戶。）
 - **繳費單（電/水/瓦斯/電信/eTag）= 一筆 `expense`**。金額 0 的列直接跳過（計進 `document.skipped_zero`）。
   付款帳戶依 `settings.default_payment_account_id` → 最早的銀行帳戶 → 既有現金帳戶 → 新建現金帳戶（並警告）。
 

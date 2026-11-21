@@ -68,8 +68,20 @@ dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"
 - **重匯時 `edited_at` 有值的列只准更新 `source_raw`/`source_page`**，分類/商家/金額/狀態一個都不動
   （要單欄位重覆蓋得先做欄位級編輯追蹤）。這次沒對到的舊列標 `orphaned_at`，**不准刪**。
 - **同帳期取代與孤兒標記只對信用卡做**（靠 `credit_card_bill` 的 `UNIQUE(card_id, period_end)`）；存款單/繳費單不做取代。
-- **卡帳的「本期應繳」不等於消費合計是常態**（繳款/退款），不准為了湊數字改解析結果。
+- **卡帳對帳用的是「扣掉繳款（轉帳）後的消費合計 ＝ 本期應繳」**（`StatementParser.WarnIfDueMismatch`）：
+  對不上就是漏列，要警告，不准為了湊數字改解析結果。現金回饋不是繳款（它直接抵應繳，要留在消費合計裡）。
 - **解析是座標＋關鍵字式，改版會靜靜漏列**：解析到 0 筆一定要進 `Warnings`，不准把警告拿掉讓測試變綠。
+- **單據種類決定錢的方向**（`StatementImporter`）：存款單（`StatementKind.Deposit`）正數 = `income`、負數 = `expense`；
+  卡帳才是看正負號（負 = `refund`、繳款 = `transfer`）。`source_line_hash` 一律照**單子上的金額**算，
+  不准照存進 DB 的那個（`0009` 改過 kind/正負號，照 DB 算會讓重匯把同一筆插兩份）。
+- **人工輸入的幣別必須等於帳戶幣別**：`InsertManual` 會挡（轉帳的兩個帳戶也要同幣別）。舊庫混進去的外幣列
+  由 `SplitForeignCurrencyEntries()` 搬走：在**一條交易**裡跑，目標帳戶（同幣別、未歸檔）已存在就沿用，不准插同名。
+- **概況（`Totals`）、淨值、分類報表、每月折線是同一把尺**：先照幣別加總、折算只經 `Money.Convert`；
+  完全沒匯率的幣別不計入金額、只報筆數。沒有消費日的列在淨值與折線都要算（当成期初，同一支 `Undated`）。
+- **分類報表「進不進表」看有没有任何一個月有數**（`PivotTree`），不是看整年相加＝0：退款抵掉的月份被藏起来，
+  小計加起来就會跟最下面的總計列對不上（`PivotTreeTests` 鎖住）。
+- **UI 對帳本的寫入一律走 `LedgerTab.Write()`**：批次匯入在背景另一條連線，撞鎖的例外沒接就是整個程式挂掉；
+  失敗要講訊息並重查，不准留一個看起來改好了的格子。
 
 ## UI 現況
 
