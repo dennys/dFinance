@@ -248,24 +248,42 @@ public sealed class LedgerStoreTests : IDisposable
     }
 
     [Fact]
-    public void 分類報表只算基準幣而且未分類另成一列()
+    public void 分類報表把外幣按匯率折進去_完全沒匯率的才跳過()
     {
         var twd = Account("台幣戶", "bank");
         var usd = Account("美元戶", "bank", "USD", 100_000);
+        var jpy = Account("日圓戶", "bank", "JPY", 100_000);
         var cat = _store.AddCategory("餐飲", "expense");
         Entry("expense", twd, 1_000, "2026-11-01", categoryId: cat);
         Entry("expense", twd, 2_000, "2026-11-05", categoryId: cat);
-        Entry("expense", usd, 9_999, "2026-11-02", currency: "USD");              // 非基準幣：没折算就不能進總額
-        Entry("expense", twd, 3_000, null);                      // 沒消費日的列沒有月可以放
-        Entry("expense", twd, 700, "2026-10-31");                // 未分類
+        _store.SetRate("USD", 30m);                                                  // 1 美元 = 30 台幣
+        Entry("expense", usd, 9_999, "2026-11-02", currency: "USD", categoryId: cat); // 99.99 美元
+        Entry("expense", jpy, 5_000, "2026-11-03", currency: "JPY");                 // 日圓沒匯率 → 不計，也不能假設 1:1
+        Entry("expense", twd, 700, "2026-10-31");                                     // 未分類
 
         var pivot = _store.CategoryPivot();
-        Assert.Equal(3_000, pivot.Cells.Single(c => c.CategoryId == cat && c.Month == "2026-11").TotalMinor);
-        Assert.Contains(pivot.Cells, c => c.CategoryId == 0 && c.TotalMinor == 700);   // 未分類那列
-        Assert.Equal(3_700, pivot.Cells.Sum(c => c.TotalMinor));                       // 美元 9,999 和沒日期的 3,000 都不在表裡
-        Assert.Equal(1, pivot.SkippedForeignEntries);                                  // 但要让人看到少了幾筆
-        Assert.Equal(["2026-10", "2026-11"], PivotTree.Months(pivot.Cells));
+        Assert.Equal(3_000 + Money.Convert(9_999, 30m),
+                     pivot.Cells.Single(c => c.CategoryId == cat && c.Month == "2026-11").TotalMinor);
+        Assert.Contains(pivot.Cells, c => c.CategoryId == 0 && c.Month == "2026-10" && c.TotalMinor == 700);
+        Assert.Equal(1, pivot.ConvertedForeignEntries);                               // 美元那筆折了
+        Assert.Equal(1, pivot.SkippedForeignEntries);                                 // 日圓那筆要让人看到
+        Assert.Equal(new[] { "2026-10", "2026-11" }, PivotTree.Months(pivot.Cells));   // 月欄就是這兩個月
         Assert.Equal(0, _store.BaseCurrencyScale);                                     // 種子 TWD scale=0
+    }
+
+    [Fact]
+    public void 總計列是收減支_退款算成錢進來()
+    {
+        var acct = Account("台幣戶", "bank");
+        var cat = _store.AddCategory("餐飲", "expense");
+        Entry("expense", acct, 1_000, "2026-11-01", categoryId: cat);
+        Entry("income", acct, 3_000, "2026-11-05");
+        Entry("refund", acct, -500, "2026-11-06", categoryId: cat);      // 退款存的是負的支出
+
+        var net = _store.CategoryPivot().NetCells;
+        Assert.Single(net);
+        Assert.Equal("2026-11", net[0].Month);
+        Assert.Equal(2_500, net[0].TotalMinor);                          // −1,000 + 3,000 + 500
     }
 
     [Fact]

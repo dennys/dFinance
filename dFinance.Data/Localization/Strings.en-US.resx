@@ -428,15 +428,25 @@ Due date: {3}    Amount due: {4}    Minimum due: {5}    Account: {6}</value>
   <data name="Report_LastMonths" xml:space="preserve">
     <value>Last {0} months</value>
   </data>
-  <data name="Report_AllMonths" xml:space="preserve">
+      <data name="Report_SideExpense" xml:space="preserve">
+    <value>Expenses</value>
+  </data>
+  <data name="Report_SideIncome" xml:space="preserve">
+    <value>Income</value>
+  </data>
+<data name="Report_TotalRow" xml:space="preserve">
+    <value>Net (in − out)</value>
+  </data>
+<data name="Report_AllMonths" xml:space="preserve">
     <value>All months</value>
   </data>
-  <data name="Report_ForeignSkipped" xml:space="preserve">
+    <data name="Report_ForeignConverted" xml:space="preserve">
+    <value>{0} non-base-currency entries are counted in {1} at the current rate</value>
+  </data>
+<data name="Report_ForeignSkipped" xml:space="preserve">
     <value>{0} non-base-currency ({1}) entries are excluded: nothing is counted without a converted rate.</value>
   </data>
-  <data name="Ledger_Col_CategoryPath" xml:space="preserve">
-    <value>Category path</value>
-  </data>
+/data>
   <data name="Ledger_Kpi_Income" xml:space="preserve">
     <value>Income this month</value>
   </data>
@@ -1039,7 +1049,13 @@ Mismatches are usually a missing transaction or a wrong opening balance; recount
     <value>One row has no spend date ({0} {1}); left blank for you to fill in.</value>
   </data>
   <data name="Imp_NegativeRows" xml:space="preserve">
-    <value>Negative rows were booked as refund; some may be payments that should become transfer once the parser splits payment/spend.</value>
+    <value>Negative rows were booked as refund; if one is not a refund, check whether it should be a transfer.</value>
+  </data>
+  <data name="Imp_PaymentTransfer" xml:space="preserve">
+    <value>{0} payment row(s) booked as transfer ({1} → {2}).</value>
+  </data>
+  <data name="Imp_PaymentNoPayer" xml:space="preserve">
+    <value>{0} payment row(s) found, but the paying account is unknown (set the card's autopay account or the default payment account); booked as refund for now.</value>
   </data>
   <data name="Imp_Superseded" xml:space="preserve">
     <value>Replaced {0} older imports of the same statement period</value>

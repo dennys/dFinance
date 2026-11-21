@@ -258,11 +258,13 @@ namespace dFinance
             return new SuggestDialog(new LedgerStore(db)).Rows.Count;
         }
 
-        /// <summary>給 <c>--uismoke</c>：分類報表建起來、展開一個有子類的分類、按欄排序（回傳展開比收合多幾列）。</summary>
-        internal int SmokeCategoryReport()
+        /// <summary>給 <c>--uismoke</c>：在首頁那份 LedgerTab 上開分類報表、展開一個有子類的分類、按欄排序，
+        /// 並量一次展開的時間。用顯示中的那份控制項才量得到人感覺到的慢；另建一個實例的 DataGrid 沒有尺寸，排版根本不會發生。</summary>
+        internal string SmokeCategoryReport()
         {
-            if (_db is not { } db) return -1;
-            return new LedgerTab(db, null, ledgerMode: true).SmokeReportInteract();
+            if (HomeTab.Content is not LedgerTab tab) return "開不起來";
+            var added = tab.SmokeReportInteract();
+            return $"展開多 {added} 列，{tab.SmokeReportTiming}";
         }
 
         internal string SmokeReport()
@@ -547,7 +549,9 @@ namespace dFinance
             var warnings = s.Warnings.ToList();
             if (s.Transactions.Count > 0 && s.TotalDue is not null)
             {
-                var sum = s.Transactions.Sum(t => t.Amount);
+                // 本期應繳只算消費：繳款列不計進去（它是轉帳，不是消費也不是退款），
+                // 不然兆豐那份會永遠報「差 4,396」。
+                var sum = s.Transactions.Where(t => !t.IsPayment).Sum(t => t.Amount);
                 warnings.Add(sum == s.TotalDue
                     ? Loc.F("Import_CheckOk", s.Transactions.Count, Num(sum))
                     : Loc.F("Import_CheckDiff", s.Transactions.Count, Num(sum), Num(s.TotalDue), Num(sum - s.TotalDue)));

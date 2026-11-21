@@ -111,7 +111,18 @@
                   EnableColumnVirtualization="True"
                   VirtualizingPanel.ScrollUnit="Pixel"
                   Sorting="Report_Sorting"
-                  PreviewMouseLeftButtonUp="CategoryReport_CellClick"/>
+                  PreviewMouseLeftButtonUp="CategoryReport_CellClick">
+        <DataGrid.RowStyle>
+          <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding IsSummary}" Value="True">   <!-- 支出/收入那兩塊與最後一列總計 -->
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Background" Value="#F1F1F1"/>
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </DataGrid.RowStyle>
+      </DataGrid>
       </Grid>
     </Border>
 

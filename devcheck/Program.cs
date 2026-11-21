@@ -27,7 +27,12 @@ if (args.Length > 2 && args[2] == "--import")
         ? Directory.GetFiles(args[0], "*.pdf", SearchOption.AllDirectories)
         : [args[0]];
     foreach (var f in files.OrderBy(f => f, StringComparer.Ordinal))
-        try { Console.WriteLine(new StatementImporter(db).ImportPdf(f, passwords).Summary); }
+        try
+        {
+            var r = new StatementImporter(db).ImportPdf(f, passwords);
+            Console.WriteLine(r.Summary);
+            foreach (var w in r.Warnings ?? []) Console.WriteLine("      ! " + w);
+        }
         catch (Exception e) { Console.WriteLine($"{Path.GetFileName(f)}：{e.GetType().Name} {e.Message.Split('\n')[0]}"); }
     return 0;
 }
@@ -95,6 +100,53 @@ if (args.Length > 2 && args[2] == "--autocat")
     return 0;
 }
 
+// 假收入（只給報表的 income 那一側看）：這庫的資料全是支出，報表就沒有 income 列可驗證。
+// 商家名都帶「（假）」，要砍就 DELETE FROM entry WHERE merchant LIKE '%（假）'。
+if (args.Length > 2 && args[2] == "--fakein")
+{
+    using var db = Db.Open();
+    Db.Backup(db);
+    var store = new LedgerStore(db);
+    var leaves = store.Categories("income", leavesOnly: true);
+    if (leaves.Count == 0) { Console.WriteLine("沒有 income 最底層分類（遷移跑過了嗎）"); return 1; }
+    if (Convert.ToInt64(Db.Scalar(db, "SELECT COUNT(*) FROM entry WHERE kind='income' AND deleted_at IS NULL;")!) > 0)
+    { Console.WriteLine("已經有 income 的列了，不重複塞假資料"); return 0; }
+
+    var acct = store.Accounts().FirstOrDefault(a => a.Currency == store.BaseCurrency && a.Type == "bank")
+            ?? store.Accounts().First(a => a.Currency == store.BaseCurrency);
+    var salary = leaves.FirstOrDefault(c => c.Name.Contains('薪')) ?? leaves[0];
+    var other = leaves.FirstOrDefault(c => c.Id != salary.Id) ?? salary;
+    var thisMonth = new DateOnly(DateTime.Today.Year, DateTime.Today.Month, 1);
+
+    for (var back = 11; back >= 0; back--)                       // 近 12 個月各一筆薪水 + 一筆利息
+    {
+        var m = thisMonth.AddMonths(-back);
+        store.InsertManual(new LedgerStore.ManualEntry(acct.Id, "income", 4_500_000, m.ToString("yyyy-MM-dd"), "薪水（假）", salary.Id, Note: "假資料"));
+        store.InsertManual(new LedgerStore.ManualEntry(acct.Id, "income", 1_200 + back * 100, new DateOnly(m.Year, m.Month, 25).ToString("yyyy-MM-dd"), "利息（假）", other.Id, Note: "假資料"));
+    }
+    Console.WriteLine($"塞了 24 筆假收入（{acct.Name}／{store.BaseCurrency}；薪水→{salary.Name}、利息→{other.Name}）");
+    Console.WriteLine("砍掉：DELETE FROM entry WHERE merchant LIKE '%（假）'");
+    return 0;
+}
+
+// 看餘額校驗（單上餘額 vs 交易累加）：dotnet run -c Release -- - - --balances
+if (args.Length > 2 && args[2] == "--balances")
+{
+    using var db = Db.Open();
+    var store = new LedgerStore(db);
+    Console.WriteLine($"data = {Db.DataDirectory}");
+    foreach (var o in Db.Query(db, """
+        SELECT a.name || '　' || ab.as_of || '　' || ab.currency || '　' || ab.balance_minor || '　' || ab.source
+        FROM account_balance ab JOIN account a ON a.id = ab.account_id ORDER BY a.name, ab.as_of;
+        """))
+        Console.WriteLine("  快照  " + o);
+    var bad = store.BalanceMismatches();
+    foreach (var m in bad)
+        Console.WriteLine($"  對不上  {m.Account}　差 {m.DiffMinor}（{m.Source} {m.AsOf}）");
+    Console.WriteLine(bad.Count == 0 ? "  全部對得上" : $"  共 {bad.Count} 個帳戶對不上");
+    return 0;
+}
+
 static string? Str(Microsoft.Data.Sqlite.SqliteDataReader r, int i) => r.IsDBNull(i) ? null : r.GetString(i);
 
 ParsedStatement? statement = null;
@@ -139,6 +191,7 @@ Console.WriteLine($"txns={s.Transactions.Count} sum={s.Transactions.Sum(t => t.A
 Console.WriteLine("byPage: " + string.Join(" ", s.Transactions.GroupBy(t => t.Page).Select(g => $"p{g.Key}={g.Count()}")));
 Console.WriteLine("byCurrency: " + string.Join(" ", s.Transactions.GroupBy(t => t.Currency).Select(g => $"'{g.Key}'={g.Count()}")));
 Console.WriteLine("credits: " + string.Join(" | ", s.Transactions.Where(t => t.Kind == "credit").Select(t => $"{t.Merchant} {t.Amount}")));
+Console.WriteLine("balances: " + string.Join(" | ", s.Balances.Select(b => $"{b.Account} {b.Currency} {b.Amount} @{b.AsOf}")));
 foreach (var w in s.Warnings) Console.WriteLine("WARN: " + w);
 foreach (var t in s.Transactions.Take(5)) Console.WriteLine($"  {t.Date} {t.PostingDate} {t.Merchant} {t.Amount} {t.Currency} card={t.Card} p{t.Page}");
 foreach (var t in s.Transactions.TakeLast(3)) Console.WriteLine($"  ...{t.Date} {t.Merchant} {t.Amount} {t.Kind}");

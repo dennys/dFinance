@@ -1,8 +1,9 @@
 namespace dFinance.Data;
 
 /// <summary>
-/// 分類報表的一列（樹上的一個節點）。UI 直接綁這個：<see cref="Label"/> 是帶縮排與 ▶/▼ 的顯示字，
+/// 分類帳報表的一列（樹上的一個節點）。UI 直接綁這個：<see cref="Label"/> 是帶縮排與 ▶/▼ 的顯示字，
 /// <see cref="Cells"/> 給月欄綁。金額一律 long minor，小計已經在 <see cref="PivotTree.Build"/> 加好了。
+/// Id 是小於 0 的是合成列（支出／收入那兩塊、總計），不是真正的分類：<see cref="IsSummary"/> 給 UI 粗體、不給 drill down。
 /// </summary>
 public sealed class PivotNode
 {
@@ -18,7 +19,8 @@ public sealed class PivotNode
     public long Total { get; set; }
 
     public bool HasChildren => Children.Count > 0;
-    public long Cell(string month) => Cells.TryGetValue(month, out var v) ? v : 0;
+    public bool IsSummary => Id < 0;
+    public long Cell(string month) => Cells.GetValueOrDefault(month);
 
     /// <summary>
     /// 分類欄的顯示字：全形空白縮排 + ▶/▼ + 名稱（跟 <c>CategoryRow.Indented</c> 同一套做法，不用 converter）。
@@ -29,13 +31,21 @@ public sealed class PivotNode
 
 /// <summary>
 /// 把 <see cref="LedgerStore.CategoryPivot"/> 的原料組成樹、算小計、排序、展開成可見列。
-/// 純函式（不碰 WPF），所以這些規則能用測試鎖住 —— 小計或「子項只在自己 parent 底下排」被改壞
-/// 就是 quietly 記錯帳，看不出來。
+/// 純函式（不碰 WPF），所以這些規則能用測試鎖住 —— 小計、「子項只在自己 parent 底下排」、
+/// 「總計是收−支」被改壞就是 quietly 記錯帳，看不出來。
 /// </summary>
 public static class PivotTree
 {
     public const string TotalKey = "total";                       // 合計欄的排序身分（欄頭是給人看的，會翻譯）
     public const string NameKey = "_name";                        // 分類欄：照名稱/路徑排
+
+    // 合成列的 id（0 是「未分類」那棵，真正存在於 category 表以外）：由小到大排就是支出 → 收入。
+    public const long ExpenseSideId = -3;
+    public const long IncomeSideId = -2;
+    public const long TotalRowId = -1;                            // 最下面那列總計（收−支）
+
+    public const string ExpenseSide = "expense";
+    public const string IncomeSide = "income";
 
     /// <summary>有資料的月份，由舊到新（欄位就是這些，需求 1）。</summary>
     public static List<string> Months(IReadOnlyList<LedgerStore.PivotCell> cells)
@@ -43,35 +53,70 @@ public static class PivotTree
 
     /// <summary>
     /// 建樹 + 算小計：一個節點某個月的數字 = 自己的交易 + 整個子樹同月的和（需求 5）；
-    /// 整棵都沒資料的頂層不進表。<paramref name="uncategorizedName"/> 是「未分類」那列的顯示字（要跟著語系）。
+    /// 整棵都沒資料的頂層不進表。最上面固定分兩塊 —— 支出（含未分類）在前、收入在後：
+    /// 兩側同額混排會看不出這筆錢是花掉的還是收進來的，總計也就沒辦法當成「當月賺還是虧」看。
     /// </summary>
     public static List<PivotNode> Build(IReadOnlyList<LedgerStore.PivotCategory> categories,
                                         IReadOnlyList<LedgerStore.PivotCell> cells,
-                                        string uncategorizedName)
+                                        string uncategorizedName, string expenseName, string incomeName)
     {
         var byId = new Dictionary<long, PivotNode>();
-        var roots = new List<PivotNode>();
+        var tops = new List<PivotNode>();
         foreach (var c in categories)                             // SQL 已排過：父一定比子早出現
         {
             var node = new PivotNode { Id = c.Id, Name = c.Name, Path = c.Path, Kind = c.Kind, Depth = c.Depth };
             byId[c.Id] = node;
             if (c.ParentId is { } pid && byId.TryGetValue(pid, out var parent)) parent.Children.Add(node);
-            else roots.Add(node);
+            else tops.Add(node);
         }
         if (cells.Any(c => c.CategoryId == 0))                    // SQL 把 category_id IS NULL 給成 id 0
         {
             var ghost = new PivotNode { Id = 0, Name = uncategorizedName, Path = uncategorizedName, Kind = "" };
             byId[0] = ghost;
-            roots.Add(ghost);
+            tops.Add(ghost);
         }
 
         foreach (var cell in cells)
             if (byId.TryGetValue(cell.CategoryId, out var node)) node.Cells[cell.Month] = cell.TotalMinor;
 
-        foreach (var root in roots) Sum(root);
-        return roots.Where(n => n.Total != 0).ToList();
+        foreach (var top in tops) Sum(top);
+        var alive = tops.Where(n => n.Total != 0).ToList();       // 整棵 0 的不進表
+
+        var sides = new List<PivotNode>();
+        foreach (var (side, id, name) in new[] { (ExpenseSide, ExpenseSideId, expenseName), (IncomeSide, IncomeSideId, incomeName) })
+        {
+            var kids = alive.Where(n => SideOf(n.Kind) == side).ToList();
+            if (kids.Count == 0) continue;                        // 這一側沒資料就不要有標題列
+            var block = new PivotNode { Id = id, Name = name, Path = name, Kind = side };
+            foreach (var k in kids) { BumpDepth(k); block.Children.Add(k); }
+            sides.Add(block);
+            MergeInto(block);                                     // 塊的小計＝這一側全部相加
+        }
+        return sides;
     }
 
+    /// <summary>那一棵算哪一側：未分類（沒有 kind）跟一切非收入的都算支出側。</summary>
+    static string SideOf(string kind) => kind == IncomeSide ? IncomeSide : ExpenseSide;
+
+    static void BumpDepth(PivotNode n)
+    {
+        n.Depth++;
+        foreach (var c in n.Children) BumpDepth(c);
+    }
+
+    /// <summary>
+    /// 把子節點（已經含自己的子樹）的月份數字合進父節點。<see cref="Sum"/> 不能對同一棵跑兩次：
+    /// 它會把子樹的數字合進父節點的 Cells，再跑一次就變成自己加自己（小計偷偷翻倍，看不出來）。
+    /// </summary>
+    static void MergeInto(PivotNode node)
+    {
+        foreach (var child in node.Children)
+            foreach (var (month, value) in child.Cells)
+                node.Cells[month] = node.Cells.TryGetValue(month, out var cur) ? cur + value : value;
+        node.Total = node.Children.Sum(c => c.Total);
+    }
+
+    /// <summary>這一棵的小計：自己的直屬金額 + 整個子樹。</summary>
     static long Sum(PivotNode node)
     {
         var own = node.Cells.Values.Sum();                        // 先存自己那批，下面會被子樹蓋掉
@@ -86,17 +131,42 @@ public static class PivotTree
     }
 
     /// <summary>
+    /// 最下面那列總計：每個月是「收入 − 支出」（負的就是當月虧）。
+    /// 符號由 <see cref="LedgerStore.CategoryPivot"/> 照交易 kind 算好貼過來 —— 分類標錯不會影響這個數。
+    /// 它不受展開與排序影響，永遠在最後一列。
+    /// </summary>
+    public static PivotNode? TotalRow(IReadOnlyList<LedgerStore.PivotCell> netCells, string name)
+    {
+        if (netCells.Count == 0) return null;
+        var row = new PivotNode { Id = TotalRowId, Name = name, Path = name, Kind = "" };
+        foreach (var c in netCells) row.Cells[c.Month] = c.TotalMinor;
+        row.Total = netCells.Sum(c => c.TotalMinor);
+        return row;
+    }
+
+    /// <summary>一節點的所有子孫（收合時要把它們從可見列拿掉）。</summary>
+    public static IEnumerable<PivotNode> Descendants(PivotNode n)
+    {
+        foreach (var c in n.Children) { yield return c; foreach (var d in Descendants(c)) yield return d; }
+    }
+
+    /// <summary>
     /// 排這一層，再遞迴排每一層的子節點 —— 所以子項只在自己 parent 底下排序（需求 3），
     /// 父項帶著它的子項一起移動（需求 2）。同額就照名稱比，結果可預期。
+    /// 支出／收入那兩塊的先後是固定的（先看花費、再看收入）：按金額排不會把收入搬到支出上面。
     /// </summary>
     public static void Sort(List<PivotNode> nodes, string key, bool descending)
     {
-        Comparison<PivotNode> byValue = key == NameKey
-            ? (a, b) => string.CompareOrdinal(a.Path, b.Path)
-            : (a, b) => a.Cell(key) == b.Cell(key)
-                ? string.CompareOrdinal(a.Path, b.Path)
-                : a.Cell(key).CompareTo(b.Cell(key));
-        nodes.Sort(descending ? (a, b) => byValue(b, a) : byValue);
+        if (nodes.Any(n => n.IsSummary)) nodes.Sort((a, b) => a.Id.CompareTo(b.Id));
+        else
+        {
+            Comparison<PivotNode> byValue = key == NameKey
+                ? (a, b) => string.CompareOrdinal(a.Path, b.Path)
+                : (a, b) => a.Cell(key) == b.Cell(key)
+                    ? string.CompareOrdinal(a.Path, b.Path)
+                    : a.Cell(key).CompareTo(b.Cell(key));
+            nodes.Sort(descending ? (a, b) => byValue(b, a) : byValue);
+        }
         foreach (var n in nodes) Sort(n.Children, key, descending);
     }
 

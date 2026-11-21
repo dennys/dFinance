@@ -269,6 +269,9 @@ public sealed class LedgerStore
     /// 餘額快照（account_balance，含人工盤點）只拿來當校驗，對不上就在警示列講，不覆蓋這個數字。
     /// foreign_rows = 幣別跟帳戶不一樣的列有幾筆（王道那類：台幣帳戶裡混了美金列），
     /// 那些金額是照帳戶幣別算進餘額的，所以要在總表上讲明白，别让人当准数。
+    /// <c>{f}</c> 是給 entry 的額外條件：全部交易填 <c>1=1</c>，「只算到某一天」填日期條件。
+    /// 餘額校驗要用後者 —— 單子上印的是「那天結算的數」（兆豐 10 月的單印 115/09 月底餘額），
+    /// 拿之後的交易一起加會讓期初快照天天誤報。口徑只能有一個，所以兩邊走同一支。
     /// </summary>
     const string DerivedBalancesCore = """
         SELECT a.id, a.name, a.type, a.currency, a.is_archived, a.opening_balance_minor, a.opening_date,
@@ -278,12 +281,12 @@ public sealed class LedgerStore
         LEFT JOIN currency cc ON cc.code = a.currency
         LEFT JOIN (
             SELECT account_id, SUM(CASE WHEN kind IN ('income','adjustment') THEN amount_minor ELSE -amount_minor END) AS delta
-            FROM entry WHERE deleted_at IS NULL AND status IN ('cleared','imported')
+            FROM entry WHERE deleted_at IS NULL AND status IN ('cleared','imported') AND {f}
             GROUP BY account_id
         ) s ON s.account_id = a.id
         LEFT JOIN (
             SELECT to_account_id AS account_id, SUM(amount_minor) AS in_minor
-            FROM entry WHERE kind = 'transfer' AND deleted_at IS NULL AND status IN ('cleared','imported')
+            FROM entry WHERE kind = 'transfer' AND deleted_at IS NULL AND status IN ('cleared','imported') AND {f}
             GROUP BY to_account_id
         ) t ON t.account_id = a.id
         LEFT JOIN (
@@ -294,9 +297,15 @@ public sealed class LedgerStore
         ) f ON f.account_id = a.id
         """;
 
-    const string DerivedBalances = $"""
+    /// <summary>單子上沒日期的列（txn_date NULL）当成「早就在帳上」，不然會從快照裡漏算。</summary>
+    const string Undated = "1970-01-01";
+
+    /// <summary>derived 算式加上 entry 的額外條件（口徑只准這一支在拼）。</summary>
+    static string DerivedCore(string entryFilter) => DerivedBalancesCore.Replace("{f}", entryFilter);
+
+    static readonly string DerivedBalances = $"""
         SELECT id, name, type, currency, bal, foreign_rows, scale
-        FROM ({DerivedBalancesCore}) WHERE is_archived = 0 ORDER BY type, name
+        FROM ({DerivedCore("1=1")}) WHERE is_archived = 0 ORDER BY type, name
         """;
 
     /// <summary>基準幣（報表與匯率的「對照幣」）。存在 settings，改它不用清匯率。</summary>
@@ -650,25 +659,37 @@ public sealed class LedgerStore
     /// 餘額快照 vs 交易累加對不上的帳戶（parser 漏列的自動校驗，比「解析到 0 筆才警告」強）。
     /// 快照有兩種來源：存款單解析出來的（statement）與人工盤點（manual）—— 每個帳戶只看最近那一次，
     /// 同一天有雨者時以盤點為準（人當場數的比單子新）。
+    /// 比的是「as_of 那天（含）以前的交易累加」：單子上印的是那天結算的數（兆豐 10 月的單印 115/09 月底餘額），
+    /// 把之後的交易也算進來會讓期初快照天天誤報。
     /// </summary>
     public List<(string Account, long DiffMinor, string Source, string AsOf)> BalanceMismatches()
     {
         var list = new List<(string, long, string, string)>();
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = $"""
-            SELECT v.name, ab.balance_minor - v.bal, ab.source, ab.as_of
-            FROM (
-                SELECT account_id, as_of, currency, balance_minor, source FROM (
-                    SELECT account_id, as_of, currency, balance_minor, source,
-                           ROW_NUMBER() OVER (PARTITION BY account_id
-                                              ORDER BY as_of DESC, (source = 'manual') DESC) rn
-                    FROM account_balance) WHERE rn = 1
-            ) ab
-            JOIN ({DerivedBalances}) v ON v.id = ab.account_id
-            WHERE ab.currency = v.currency AND ab.balance_minor <> v.bal;
-            """;
-        using var r = cmd.ExecuteReader();
-        while (r.Read()) list.Add((r.GetString(0), r.GetInt64(1), r.GetString(2), r.GetString(3)));
+        var snapshots = new List<(long Id, string Name, long Balance, string Source, string AsOf)>();
+        using (var cmd = _db.CreateCommand())
+        {
+            cmd.CommandText = $"""
+                SELECT ab.account_id, v.name, ab.balance_minor, ab.source, ab.as_of
+                FROM (
+                    SELECT account_id, as_of, currency, balance_minor, source FROM (
+                        SELECT account_id, as_of, currency, balance_minor, source,
+                               ROW_NUMBER() OVER (PARTITION BY account_id
+                                                  ORDER BY as_of DESC, (source = 'manual') DESC) rn
+                        FROM account_balance) WHERE rn = 1
+                ) ab
+                JOIN ({DerivedBalances}) v ON v.id = ab.account_id
+                WHERE ab.currency = v.currency;
+                """;
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) snapshots.Add((r.GetInt64(0), r.GetString(1), r.GetInt64(2), r.GetString(3), r.GetString(4)));
+        }
+
+        // 只算到 as_of 當天（含）；日期不明的当成早就在帳上，不然會從快照裡漏算。
+        var through = $"(CASE WHEN txn_date IS NOT NULL THEN txn_date ELSE ifnull(posting_date,'{Undated}') END) <= $asof";
+        foreach (var (id, name, balance, source, asOf) in snapshots)
+            if (Db.Scalar(_db, $"SELECT bal FROM ({DerivedCore(through)}) WHERE id=$id;",
+                          ("$asof", asOf), ("$id", id)) is long derived && derived != balance)
+                list.Add((name, balance - derived, source, asOf));
         return list;
     }
 
@@ -850,10 +871,10 @@ public sealed class LedgerStore
                                  + (IsArchived ? Loc.T("Store_ArchivedSuffix") : "");
     }
 
-    const string AccountsAllSql = $"""
+    static readonly string AccountsAllSql = $"""
         SELECT a.id, a.name, a.type, a.currency, a.issuer, a.mask, a.opening_balance_minor, a.opening_date,
                a.is_archived, k.credit_limit_minor, k.autopay_account_id, v.bal, mb.balance_minor, mb.as_of, v.scale
-        FROM ({DerivedBalancesCore}) v
+        FROM ({DerivedCore("1=1")}) v
         JOIN account a ON a.id = v.id
         LEFT JOIN card k ON k.id = (SELECT MIN(id) FROM card c2 WHERE c2.account_id = a.id)
         LEFT JOIN (
@@ -889,14 +910,18 @@ public sealed class LedgerStore
     /// <summary>分類樹的一列：Depth 0 = 頂層（收支那一層是 <c>kind</c>，不是節點），1 = 明細層。</summary>
     public sealed record PivotCategory(long Id, long? ParentId, string Kind, int Depth, string Name, string Path);
 
-    /// <summary>報表原料：整棵分類樹（含沒資料的）＋有資料的格子＋沒計進來的非基準幣筆數。</summary>
-    public sealed record PivotData(List<PivotCategory> Categories, List<PivotCell> Cells,
-                                   long SkippedForeignEntries, string BaseCurrency);
+    /// <summary>報表原料：整棵分類樹（含沒資料的）＋有資料的格子＋換算狀況（折算了幾筆、沒匯率跳過幾筆）。</summary>
+    /// <summary>每個月「收−支」的數（CategoryId 一律 0，只看 Month/TotalMinor）：給報表最下面那列總計。</summary>
+    public sealed record PivotData(List<PivotCategory> Categories, List<PivotCell> Cells, List<PivotCell> NetCells,
+                                   long SkippedForeignEntries, long ConvertedForeignEntries, string BaseCurrency);
 
     /// <summary>
-    /// 分類 × 月 的原料（僅 <see cref="Live"/>，只算基準幣）。小計不在 SQL 加（要就多一整段遞迴 UNION），
+    /// 分類 × 月 的原料（僅 <see cref="Live"/>）。小計不在 SQL 加（要就多一整段遞迴 UNION），
     /// 交給 <see cref="PivotTree.Build"/>，小計規則才能用測試鎖住。
-    /// 非基準幣的筆數回傳給 UI 當警示：沒有折算就不進總額，也不准假設 1:1。
+    /// 非基準幣照「對基準幣现有的匯率」折進去（同一把尺：跟淨值用同一份 <see cref="RatesTo"/>，
+    /// 同一天 manual 優先），完全沒匯率的才跳過並回報筆數 —— 不准假設 1:1。
+    /// shortcut: 換算是照现有最新匯率，不是照該月当天的匯率；等匯率資料夠密（有歷史）再改成按月挑，
+    ///           到時這裡要補一個「同一幣對不同月用不同rate」的測試。
     /// 沒有消費日的列不會進表（它沒有月可以放）。
     /// </summary>
     public PivotData CategoryPivot(string? from = null, string? to = null, long? accountId = null)
@@ -926,31 +951,48 @@ public sealed class LedgerStore
                 categories.Add(new PivotCategory(r.GetInt64(0), NullableLong(r, 1), r.GetString(2), r.GetInt32(3), r.GetString(4), r.GetString(5)));
         }
 
-        var cells = new List<PivotCell>();
+        var baseCcy = Db.BaseCurrency(_db);
+        // 先照（分類, 月, 幣別）加總，外幣那一批才折算：乘匯率只准經 Money.Convert（SQL 裡乘 REAL 會飄），
+        // 所以这一步在 C# 做，也才能用測試鎖住折算的數學。
+        var groups = new List<(long Cid, string Month, string Ccy, long Minor, long Count, bool Inflow)>();
         using (var cmd = _db.CreateCommand())
         {
             // category_id IS NULL 的列歸到 id 0（未分類）：報表上就是一列「未分類」，不會憑空消失。
             cmd.CommandText = $"""
-                SELECT COALESCE(e.category_id, 0), substr(e.txn_date, 1, 7), SUM(e.amount_minor)
-                FROM entry e WHERE {scope} AND e.currency = $base
-                GROUP BY 1, 2 ORDER BY 1, 2;
+                SELECT COALESCE(e.category_id, 0), substr(e.txn_date, 1, 7), e.currency, SUM(e.amount_minor), COUNT(*),
+                       CASE WHEN e.kind = 'income' THEN 1 ELSE 0 END
+                FROM entry e WHERE {scope}
+                GROUP BY 1, 2, 3, 6 ORDER BY 1, 2, 3;
                 """;
-            cmd.Parameters.AddWithValue("$base", Db.BaseCurrency(_db));
             foreach (var (n, v) in ps) cmd.Parameters.AddWithValue(n, v ?? DBNull.Value);
             using var r = cmd.ExecuteReader();
-            while (r.Read()) cells.Add(new PivotCell(r.GetInt64(0), r.GetString(1), r.GetInt64(2)));
+            while (r.Read()) groups.Add((r.GetInt64(0), r.GetString(1), Db.NormalizeCurrencyCode(r.GetString(2)),
+                                          r.GetInt64(3), r.GetInt64(4), r.GetInt32(5) == 1));
         }
 
-        long skipped;
-        using (var cmd = _db.CreateCommand())
+        var rates = RatesTo(baseCcy);
+        var merged = new Dictionary<(long Cid, string Month), long>();
+        var net = new Dictionary<string, long>();
+        long skipped = 0, converted = 0;
+        foreach (var g in groups)
         {
-            cmd.CommandText = $"SELECT COUNT(*) FROM entry e WHERE {scope} AND e.currency <> $base;";
-            cmd.Parameters.AddWithValue("$base", Db.BaseCurrency(_db));
-            foreach (var (n, v) in ps) cmd.Parameters.AddWithValue(n, v ?? DBNull.Value);
-            skipped = Convert.ToInt64(cmd.ExecuteScalar()!);
+            var minor = g.Minor;
+            if (!string.Equals(g.Ccy, baseCcy, StringComparison.Ordinal))
+            {
+                if (rates.TryGetValue(g.Ccy, out var rate)) minor = Money.Convert(minor, rate);
+                else { skipped += g.Count; continue; }           // 沒匯率就寧可不計，也不要 1:1
+                converted += g.Count;
+            }
+            merged[(g.Cid, g.Month)] = merged.GetValueOrDefault((g.Cid, g.Month)) + minor;
+            // 收−支照交易 kind 判，不靠分類：退款是负的支出（負負得正，錢進來），分類標錯也不會把這個數算錯。
+            net[g.Month] = net.GetValueOrDefault(g.Month) + (g.Inflow ? minor : -minor);
         }
+        var cells = merged.Select(kv => new PivotCell(kv.Key.Cid, kv.Key.Month, kv.Value))
+                          .OrderBy(c => c.CategoryId).ThenBy(c => c.Month, StringComparer.Ordinal).ToList();
 
-        return new PivotData(categories, cells, skipped, Db.BaseCurrency(_db));
+        var netCells = net.Select(kv => new PivotCell(0, kv.Key, kv.Value))
+                           .OrderBy(c => c.Month, StringComparer.Ordinal).ToList();
+        return new PivotData(categories, cells, netCells, skipped, converted, baseCcy);
     }
 
     /// <summary>報表金額欄要顯示幾位小數（讀 <c>currency.scale</c>：美金 2、台幣 0）。加總一律用 minor，不用這個。</summary>
@@ -963,7 +1005,7 @@ public sealed class LedgerStore
 
     /// <summary>交易推出來的餘額（已歸檔的也算，盘點跟對帳要看得到）。</summary>
     public long DerivedBalance(long accountId)
-        => Db.Scalar(_db, $"SELECT bal FROM ({DerivedBalancesCore}) WHERE id=$id;", ("$id", accountId)) is long v ? v : 0;
+        => Db.Scalar(_db, $"SELECT bal FROM ({DerivedCore("1=1")}) WHERE id=$id;", ("$id", accountId)) is long v ? v : 0;
 
     /// <summary>
     /// 驗證帳戶欄位。

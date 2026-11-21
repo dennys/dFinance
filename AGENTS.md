@@ -10,6 +10,8 @@ dotnet build dFinance.sln -c Release
 dotnet test dFinance.Tests -c Release
 dotnet run --project devcheck -c Release -- "<pdf>" - --rows      # dump 文字層（--words 帶座標）
 dotnet run --project devcheck -c Release -- - - --rates [proxy]   # 抓 Yahoo 匯率寫進庫（這台機器要給 proxy）
+dotnet run --project devcheck -c Release -- - - --autocat   # 假分類：把沒標/標在父類的列輪流塞到最底層（測報表用）
+dotnet run --project devcheck -c Release -- - - --fakein    # 假收入 24 筆（報表 income 那一側）；砍：DELETE FROM entry WHERE merchant LIKE '%（假）'
 dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"   # 不用人按的 UI 驗證
 ```
 
@@ -107,5 +109,7 @@ dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"
 - `--uismoke` 已經把「幣別…」視窗也建一次（不 Show、不打網路），改那個視窗壞了會被抓到。
 - `--uismoke` 也會建「建議分類」視窗並跑一次分類報表的展開/排序（`SmokeOpenSuggestDialog`、`SmokeCategoryReport`），壞了會被抓到。
 - **分類帳報表**＝分類樹（列）× 月（欄）：樹、小計、排序、展開的規則都在 `dFinance.Data/PivotTree`（純函式，`PivotTreeTests` 鎖住），
-  `LedgerTab` 只負責欄位、點擊展開、drill down；資料口徑只有一個：`LedgerStore.CategoryPivot`（只算基準幣，非基準幣另警示）。欄位排序是 UI 自己排的
+  `LedgerTab` 只負責欄位、點擊展開、drill down；資料口徑只有一個：`LedgerStore.CategoryPivot`。欄位排序是 UI 自己排的
   （`e.Handled = true`），因為內建排序不會讓父列帶著子列走。
+  版面固定三塊：支出塊 → 收入塊（兩塊的先後不受排序影響）→ 最後一列**總計＝收−支**（負的月份就是虧）；
+  收−支的符號在 `CategoryPivot` 裡照交易 `kind` 算（退款是負的支出，負負得正），不靠分類標記。非基準幣按現有匯率折算，完全沒匯率的才跳過並警示。

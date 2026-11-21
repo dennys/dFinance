@@ -428,15 +428,25 @@
   <data name="Report_LastMonths" xml:space="preserve">
     <value>近 {0} 個月</value>
   </data>
-  <data name="Report_AllMonths" xml:space="preserve">
+      <data name="Report_SideExpense" xml:space="preserve">
+    <value>支出</value>
+  </data>
+  <data name="Report_SideIncome" xml:space="preserve">
+    <value>收入</value>
+  </data>
+<data name="Report_TotalRow" xml:space="preserve">
+    <value>總計（收−支）</value>
+  </data>
+<data name="Report_AllMonths" xml:space="preserve">
     <value>全部月份</value>
   </data>
-  <data name="Report_ForeignSkipped" xml:space="preserve">
+    <data name="Report_ForeignConverted" xml:space="preserve">
+    <value>另有 {0} 筆非基準幣已按現有匯率折算成 {1}</value>
+  </data>
+<data name="Report_ForeignSkipped" xml:space="preserve">
     <value>另有 {0} 筆非基準幣（{1}）未計入：沒有折算就不進總額</value>
   </data>
-  <data name="Ledger_Col_CategoryPath" xml:space="preserve">
-    <value>分類路徑</value>
-  </data>
+/data>
   <data name="Ledger_Kpi_Income" xml:space="preserve">
     <value>本月收入</value>
   </data>
@@ -1039,7 +1049,13 @@
     <value>有一筆拿不到消費日（{0} {1}），先留空等人補。</value>
   </data>
   <data name="Imp_NegativeRows" xml:space="preserve">
-    <value>有負額列先當 refund；其中可能是繳款列，要等 parser 拆出「繳款/消費」後改記 transfer。</value>
+    <value>有負額列先當 refund；若不是退款，請確認是不是該記成轉帳。</value>
+  </data>
+  <data name="Imp_PaymentTransfer" xml:space="preserve">
+    <value>明細含 {0} 筆繳款，已記成轉帳（{1} → {2}）。</value>
+  </data>
+  <data name="Imp_PaymentNoPayer" xml:space="preserve">
+    <value>明細含 {0} 筆繳款，但不知道從那個帳戶扣款（到「帳戶…」設自動扣繳帳戶，或設預設付款帳戶），先當 refund 記入。</value>
   </data>
   <data name="Imp_Superseded" xml:space="preserve">
     <value>取代 {0} 份舊的同帳期匯入</value>

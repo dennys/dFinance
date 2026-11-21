@@ -428,15 +428,25 @@
   <data name="Report_LastMonths" xml:space="preserve">
     <value>直近 {0} カ月</value>
   </data>
-  <data name="Report_AllMonths" xml:space="preserve">
+      <data name="Report_SideExpense" xml:space="preserve">
+    <value>支出</value>
+  </data>
+  <data name="Report_SideIncome" xml:space="preserve">
+    <value>収入</value>
+  </data>
+<data name="Report_TotalRow" xml:space="preserve">
+    <value>収支（収入−支出）</value>
+  </data>
+<data name="Report_AllMonths" xml:space="preserve">
     <value>全期間</value>
   </data>
-  <data name="Report_ForeignSkipped" xml:space="preserve">
+    <data name="Report_ForeignConverted" xml:space="preserve">
+    <value>基準通貨以外の {0} 件は現行レートで {1} に換算して合計に含めています</value>
+  </data>
+<data name="Report_ForeignSkipped" xml:space="preserve">
     <value>基準通貨以外（{1}）の {0} 件は換算前のため合計に含みません。</value>
   </data>
-  <data name="Ledger_Col_CategoryPath" xml:space="preserve">
-    <value>分類パス</value>
-  </data>
+/data>
   <data name="Ledger_Kpi_Income" xml:space="preserve">
     <value>今月の収入</value>
   </data>
@@ -1039,7 +1049,13 @@
     <value>1 件利用日が取得できません（{0} {1}）。空で保存、後で補ってください。</value>
   </data>
   <data name="Imp_NegativeRows" xml:space="preserve">
-    <value>負額の行は当面 refund として計上。納付行の可能性があり、parser が「納付／利用」を区別でき次第 transfer に変更します。</value>
+    <value>負額の行は当面 refund として計上。返金でなければ振替にすべきか確認してください。</value>
+  </data>
+  <data name="Imp_PaymentTransfer" xml:space="preserve">
+    <value>明細に納付が {0} 件、振替として計上しました（{1} → {2}）。</value>
+  </data>
+  <data name="Imp_PaymentNoPayer" xml:space="preserve">
+    <value>明細に納付が {0} 件ありますが、引落口座が不明です（「口座…」で自動引落口座または既定の支払口座を設定）。当面 refund として計上。</value>
   </data>
   <data name="Imp_Superseded" xml:space="preserve">
     <value>同一帳期の旧インポート {0} 件を置き換えました</value>

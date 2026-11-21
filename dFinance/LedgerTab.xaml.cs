@@ -27,9 +27,10 @@ public partial class LedgerTab : UserControl
     bool _showingReport;
     long _reportVersion = -1;    bool _loadingFilter;                          // 灌篩選選項時別跟著重查
 
-    readonly ObservableCollection<PivotNode> _pivotRows = [];
+    readonly ObservableCollection<PivotNode> _pivotRows = [];   // 綁在 Grid 上不動：展開/收合只動差額，才不會每次重生成整張表
     List<PivotNode> _pivotRoots = [];
     List<string> _pivotMonths = [];
+    List<LedgerStore.PivotCell> _pivotNet = [];               // 每月「收−支」，給總計列
     readonly HashSet<long> _pivotExpanded = [];
     string _pivotSortKey = PivotTree.TotalKey;
     bool _pivotDesc = true;                       // 第一次點某欄都是由大到小：先看花費最多的那項
@@ -88,6 +89,9 @@ public partial class LedgerTab : UserControl
     /// <summary>給 --uismoke 看的：首頁淨值表載入幾個帳戶（首頁沒有帳本清單，RowCount 永遠是 0）。</summary>
     public int HomeAccountCount => HomeNetWorthGrid.Items.Count;
 
+    /// <summary>給 --uismoke：展開一次花多久（模型 vs DataGrid 排版），用來抓「只有幾十列卻要半秒」那種慢。</summary>
+    public string SmokeReportTiming = "";
+
     /// <summary>
     /// 給 <c>--uismoke</c>：開報表 → 展開第一個有子類的分類 → 按最後一個月欄排序 → 收合。
     /// 展開沒多列、或排序後空了，就是展開/排序壞了（這兩條路只有 UI 模得到）。
@@ -95,23 +99,73 @@ public partial class LedgerTab : UserControl
     public int SmokeReportInteract()
     {
         ShowCategoryReport();
-        var parent = _pivotRoots.FirstOrDefault(n => n.HasChildren);
-        if (parent is null) return 0;
-        _pivotExpanded.Add(parent.Id);
-        RebuildPivotRows();
-        var expandedCount = _pivotRows.Count;
-        _pivotSortKey = _pivotMonths.Count > 0 ? _pivotMonths[^1] : PivotTree.TotalKey;
+        var side = _pivotRoots.FirstOrDefault(n => n.HasChildren);
+        if (side is null) return 0;
+
+        var expandedCount = _pivotRows.Count;                       // 支/收兩塊預設是展開的
+        TogglePivotBranch(side);                                    // 人點「分類」欄那一格走的就是這一支
+        var collapsedCount = _pivotRows.Count;
+        if (collapsedCount >= expandedCount)
+            throw new InvalidOperationException($"收合「{side.Name}」後列數沒減少（{expandedCount} → {collapsedCount}）");
+        if (collapsedCount == 0) throw new InvalidOperationException("收合後報表空了");
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        CategoryReportGrid.UpdateLayout();                          // 強迫 DataGrid 真的生成列，才看得出是不是排版慢
+        var firstMs = sw.ElapsedMilliseconds;
+        for (var i = 0; i < 5; i++)                                 // 收合/展開各 5 次：人是連點好幾下，第一次含 JIT
+        {
+            TogglePivotBranch(side);
+            CategoryReportGrid.UpdateLayout();
+            TogglePivotBranch(side);
+            CategoryReportGrid.UpdateLayout();
+        }
+        var noopMark = sw.ElapsedMilliseconds;
+        for (var i = 0; i < 5; i++) CategoryReportGrid.UpdateLayout();   // 什麼都不改：這是「整個視窗排一次版」的底價
+        SmokeReportTiming = $"每次 {(sw.ElapsedMilliseconds - firstMs) / 10:F1}ms（首次 {firstMs}ms）/ 空排版 {sw.ElapsedMilliseconds - noopMark}ms/5 次 / {expandedCount} 列 × {_pivotMonths.Count + 2} 欄";
+
+        // 讀一格真的畫出來的文字：綁定路徑寫錯只會靜靜變空白（出過一次包），不看視覺樹抓不到。
+        var sample = SmokeMonthCellSample();
+        if (string.IsNullOrWhiteSpace(sample)) throw new InvalidOperationException("月欄全是空白：綁定沒綁到數字");
+        SmokeReportTiming += $" / 月欄樣本 {sample}";
+
+        _pivotSortKey = _pivotMonths.Count > 0 ? _pivotMonths[^1] : PivotTree.TotalKey;   // 按最後一個月欄排
         _pivotDesc = true;
         RebuildPivotRows();
-        _pivotExpanded.Clear();
-        RebuildPivotRows();
-        if (expandedCount <= _pivotRows.Count)
-            throw new InvalidOperationException($"展開「{parent.Name}」後列數沒增加（{expandedCount} → {_pivotRows.Count}）");
         if (_pivotRows.Count == 0) throw new InvalidOperationException("排序後報表空了");
-        return expandedCount - _pivotRows.Count;
+        if (_pivotRoots.Count < 2 || _pivotRows.ToList().FindIndex(n => n.Id == PivotTree.IncomeSideId) < _pivotRows.ToList().FindIndex(n => n.Id == PivotTree.ExpenseSideId))
+            throw new InvalidOperationException("按金額排之後，收入塊跑到支出塊上面了");
+        if (_pivotRows[^1].Id != PivotTree.TotalRowId) throw new InvalidOperationException("總計列不在最下面");
+        SmokeReportTiming += $" / 收支→收支 {collapsedCount} 列 / 總計 {Money.Format(_pivotRows[^1].Total, _store!.BaseCurrencyScale)}";
+
+        _pivotSpan = 0;                                             // 最寬情境：全部月份都開出來
+        ShowCategoryReport();
+        CategoryReportGrid.UpdateLayout();
+        var nameWidth = CategoryReportGrid.Columns[0].ActualWidth;
+        if (nameWidth < PivotNameMinWidth - 0.5)
+            throw new InvalidOperationException($"月份一多，分類欄被壓到 {nameWidth:F0}px（下限 {PivotNameMinWidth}）");
+        SmokeReportTiming += $" / 全部 {_pivotMonths.Count} 月時分類欄 {nameWidth:F0}px";
+        _pivotSpan = 12;
+
+        return expandedCount - collapsedCount;
     }
 
-    /// <summary>匯入完或外部改過資料時叫這個（當前分頁馬上更新，沒顯示的分頁等切過去再說）。</summary>
+    /// <summary>從視覺樹撈第一個月欄的字串，取第一個非空的。空字串 = 那一欄根本沒綁到數字。</summary>
+    string SmokeMonthCellSample()
+    {
+        var monthCol = CategoryReportGrid.Columns.Count > 1 ? CategoryReportGrid.Columns[1] : null;
+        var texts = new List<string>();
+        void Walk(System.Windows.DependencyObject d)
+        {
+            if (d is DataGridCell c && ReferenceEquals(c.Column, monthCol) && c.Content is System.Windows.Controls.TextBlock t)
+                texts.Add(t.Text);
+            for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(d); i++)
+                Walk(System.Windows.Media.VisualTreeHelper.GetChild(d, i));
+        }
+        Walk(CategoryReportGrid);
+        return texts.FirstOrDefault(t => !string.IsNullOrWhiteSpace(t)) ?? "";
+    }
+
+    /// <summary>排序、換月份範圍、換資料才整份重建（ Clear + Add ）。</summary>
     public void RefreshNow()
     {
         if (_store is null) return;
@@ -295,14 +349,6 @@ public partial class LedgerTab : UserControl
                                      (mine.CountedInNet ? "" : Loc.F("Ledger_AccountUnconverted", mine.Currency, nw.BaseCurrency));
     }
 
-    /// <summary>帳單繳清了就地標已繳（不標就會永遠算在「卡未繳」與「未來帳單」裡）。</summary>
-    void MarkPaid_Click(object sender, RoutedEventArgs e)
-    {
-        if (_store is not { } s || (sender as FrameworkElement)?.DataContext is not LedgerStore.UpcomingItem { BillId: { } billId }) return;
-        s.MarkBillPaid(billId);
-        Reload();                                   // 重查：卡未繳 KPI 與未來帳單都要跟著變
-    }
-
     /// <summary>首頁：淨值明細分組（銀行→信用卡→其它）＋每月總資產折線＋未來帳單。</summary>
     void ShowHome(LedgerStore.NetWorthReport nw, LedgerStore s)
     {
@@ -331,9 +377,12 @@ public partial class LedgerTab : UserControl
         NetWorthPlot.Refresh();
     }
 
+    /// <summary>分類帳報表：分類（列）× 月（欄）透視表，最後一欄為該分類合計；僅顯示報表本身。</summary>
+
     /// <summary>
-    /// 分類帳報表：分類樹（列）× 月（欄）的透視表。預設只顯示頂層，點「分類」欄那一列就展開它的子類；
-    /// 點月欄或合計欄還是 drill down（舊行為）。格子裡是 long minor，顯示才格式化，所以欄排序比的是數值。
+    /// 分類帳報表：分類樹（列）× 月（欄）。上面固定支出／收入兩塊（各自可展開），最後一列是當月「收−支」。
+    /// 塊預設展開；點「分類」欄那一格就展開/收合它，點月欄或合計欄還是 drill down（舊行為）。
+    /// 格子裡是 long minor，顯示才格式化，所以欄排序比的是數值。
     /// </summary>
     public void ShowCategoryReport()
     {
@@ -347,28 +396,37 @@ public partial class LedgerTab : UserControl
             : new DateOnly(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(1 - _pivotSpan).ToString("yyyy-MM-dd");
         var pivot = s.CategoryPivot(from, null, _accountId);
         _pivotMonths = PivotTree.Months(pivot.Cells);
-        _pivotRoots = PivotTree.Build(pivot.Categories, pivot.Cells, Loc.T("Ledger_Uncategorized"));
+        _pivotRoots = PivotTree.Build(pivot.Categories, pivot.Cells, Loc.T("Ledger_Uncategorized"),
+                                      Loc.T("Report_SideExpense"), Loc.T("Report_SideIncome"));
+        _pivotNet = pivot.NetCells;                             // 最下面那列總計（收−支）的原料
+        _pivotExpanded.Clear();
+        foreach (var side in _pivotRoots) _pivotExpanded.Add(side.Id);   // 兩塊預設展開：收合起來只剩三列，沒人會去點開
         ReportNote.Text = pivot.SkippedForeignEntries > 0
             ? Loc.F("Report_ForeignSkipped", pivot.SkippedForeignEntries, pivot.BaseCurrency) : "";
+        if (pivot.ConvertedForeignEntries > 0)          // 折過的要講：不然人會以為美金那幾筆是原幣金額
+            ReportNote.Text += (ReportNote.Text.Length > 0 ? "；" : "") + Loc.F("Report_ForeignConverted", pivot.ConvertedForeignEntries, pivot.BaseCurrency);
 
         BuildPivotColumns(s);
         RebuildPivotRows();
     }
 
-    /// <summary>月欄跟著資料走（需求 1）：有資料的月才一欄，最後一欄是合計。</summary>
+    /// <summary>月欄跟著資料走：有資料的月才一欄，最後一欄是合計。</summary>
     void BuildPivotColumns(LedgerStore s)
     {
         var format = new CellFormat(s.BaseCurrencyScale);
         CategoryReportGrid.Columns.Clear();
         CategoryReportGrid.Columns.Add(new DataGridTextColumn
         {
-            Header = Loc.T("Ledger_Col_CategoryPath"),
+            Header = Loc.T("Common_Category"),                  // 這欄是樹（縮排 + ▶/▼），不是「餐飲／外食」那種路徑字串
             Binding = new Binding(nameof(PivotNode.Label)),
-            SortMemberPath = PivotTree.NameKey,               // 這一欄的同時是「展開/收合」的身分標記
+            SortMemberPath = PivotTree.NameKey,                 // 這一欄同时也是「展開/收合」的身分標記
             Width = new DataGridLength(3, DataGridLengthUnitType.Star),
+            MinWidth = PivotNameMinWidth,                       // 24 個月時 star 會被月欄壓到只剩箭頭，這是下限
         });
-        foreach (var m in _pivotMonths) CategoryReportGrid.Columns.Add(ReportColumn(m, m, m, DataGridLength.Auto, format));
-        CategoryReportGrid.Columns.Add(ReportColumn(Loc.T("Common_Total"), nameof(PivotNode.Total), PivotTree.TotalKey, DataGridLength.Auto, format));
+        // 月欄綁整列（"."）再照欄的月份取值：綁 "2026-11" 這種路徑 WPF 解析不了，會靜靜綁不到（整片空白）。
+        foreach (var m in _pivotMonths) CategoryReportGrid.Columns.Add(ReportColumn(m, ".", m, MonthWidth, new MonthCell(m, s.BaseCurrencyScale)));
+        CategoryReportGrid.Columns.Add(ReportColumn(Loc.T("Common_Total"), nameof(PivotNode.Total), PivotTree.TotalKey, MonthWidth, format));
+        CategoryReportGrid.FrozenColumnCount = 1;               // 24 個月要横向捲：分類欄留著，不然捲過去不知道這列是什麼
         CategoryReportGrid.ItemsSource = _pivotRows;
     }
 
@@ -381,22 +439,43 @@ public partial class LedgerTab : UserControl
             new RangePick(24, Loc.F("Report_LastMonths", 24)),
             new RangePick(0, Loc.T("Report_AllMonths")),
         };
-        ReportRangeBox.SelectedIndex = 1;                     // 預設近 12 個月
+        ReportRangeBox.SelectedIndex = 1;                       // 預設近 12 個月
     }
 
     void ReportRange_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (ReportRangeBox.SelectedItem is not RangePick pick || pick.Span == _pivotSpan) return;
         _pivotSpan = pick.Span;
-        if (_showingReport) ShowCategoryReport();             // 沒開報表就不查庫
+        if (_showingReport) ShowCategoryReport();               // 沒開報表就不查庫
     }
 
-    /// <summary>排一次，再把展開節點的子列插回可見列。列數就幾百，重建整份清單比做增量通知划算。</summary>
+    /// <summary>
+    /// 展開/收合一條分支。只動差額：整份重灌會讓 DataGrid 把每一列、每一格都重新生成一次
+    /// （量過：15 列 × 11 欄約 100ms 起，人感覺到的半秒就是這個），而展開其實只多出幾列。
+    /// </summary>
+    void TogglePivotBranch(PivotNode node)
+    {
+        var at = _pivotRows.IndexOf(node);
+        if (at < 0) { RebuildPivotRows(); return; }                   // 不在可見列上（被篩掉了）：退回整份重建
+        if (_pivotExpanded.Remove(node.Id))
+        {
+            foreach (var d in PivotTree.Descendants(node)) _pivotRows.Remove(d);
+        }
+        else
+        {
+            _pivotExpanded.Add(node.Id);
+            var rows = PivotTree.Visible(node.Children, _pivotExpanded);   // 更深層如果也展開過，一併帶出來
+            for (var i = 0; i < rows.Count; i++) _pivotRows.Insert(at + 1 + i, rows[i]);
+        }
+    }
+
+    /// <summary>排序、換月份範圍、換資料才整份重建（Clear + Add）；展開/收合走 <see cref="TogglePivotBranch"/>。</summary>
     void RebuildPivotRows()
     {
         PivotTree.Sort(_pivotRoots, _pivotSortKey, _pivotDesc);
         _pivotRows.Clear();
         foreach (var row in PivotTree.Visible(_pivotRoots, _pivotExpanded)) _pivotRows.Add(row);
+        if (PivotTree.TotalRow(_pivotNet, Loc.T("Report_TotalRow")) is { } sum) _pivotRows.Add(sum);      // 最下面一列：當月收−支
     }
 
     /// <summary>
@@ -414,6 +493,11 @@ public partial class LedgerTab : UserControl
         RebuildPivotRows();
     }
 
+    /// <summary>欄寬固定：<c>DataGridLength.Auto</c> 會讓 DataGrid 為了量寬把每一列都生成一次，
+    /// 而且只要有一欄是 Auto，欄虛擬化就直接失效 —— 14 列 11 欄也會量到 200ms 以上。</summary>
+    static readonly DataGridLength MonthWidth = new(92);
+    const double PivotNameMinWidth = 200;
+
     static DataGridTextColumn ReportColumn(string header, string path, string sortKey, DataGridLength width, IValueConverter format) => new()
     {
         Header = header,
@@ -423,6 +507,15 @@ public partial class LedgerTab : UserControl
         IsReadOnly = true,
         ElementStyle = NumberCellStyle,
     };
+
+    /// <summary>月欄的格子：拿到整列（PivotNode）再取這個月的數字。0 也顯示出來，免得被當成「沒綁到」。</summary>
+    sealed class MonthCell(string month, int scale) : IValueConverter
+    {
+        public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+            => value is PivotNode n ? Money.Format(n.Cells.GetValueOrDefault(month), scale) : "";
+        public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
 
     /// <summary>格子裡的 long minor → 顯示字；小數位跟著基準幣的 <c>currency.scale</c>（美金不會被顯示成整數）。</summary>
     sealed class CellFormat(int scale) : IValueConverter
@@ -448,10 +541,10 @@ public partial class LedgerTab : UserControl
         if (key == PivotTree.NameKey)                         // 點「分類」欄 = 展開/收合（需求 4）
         {
             if (!node.HasChildren) return;
-            if (!_pivotExpanded.Remove(node.Id)) _pivotExpanded.Add(node.Id);
-            RebuildPivotRows();
+            TogglePivotBranch(node);
             return;
         }
+        if (node.IsSummary) return;                               // 支出/收入那兩塊與總計列不是一個分類，drill down 沒有意義
         if (key == PivotTree.TotalKey) { DrillDownRequested?.Invoke(node.Path, null, null); return; }
 
         var first = DateOnly.ParseExact(key, "yyyy-MM", CultureInfo.InvariantCulture);
@@ -508,6 +601,14 @@ public partial class LedgerTab : UserControl
 
     void Orphan_Click(object sender, RoutedEventArgs e) => StatusBox.SelectedItem = FindStatus("orphan");
     void Duplicate_Click(object sender, RoutedEventArgs e) => StatusBox.SelectedItem = FindStatus("dupgroup");
+
+    /// <summary>帳單繳清了就地標已繳（不標就會永遠算在「卡未繳」與「未來帳單」裡）。</summary>
+    void MarkPaid_Click(object sender, RoutedEventArgs e)
+    {
+        if (_store is not { } s || (sender as FrameworkElement)?.DataContext is not LedgerStore.UpcomingItem { BillId: { } billId }) return;
+        s.MarkBillPaid(billId);
+        Reload();                                   // 重查：卡未繳 KPI 與未來帳單都要跟著變
+    }
 
     void Balance_Click(object sender, RoutedEventArgs e)
     {
