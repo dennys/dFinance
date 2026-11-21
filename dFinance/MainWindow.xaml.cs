@@ -261,6 +261,20 @@ namespace dFinance
             return new SuggestDialog(new LedgerStore(db)).Rows.Count;
         }
 
+        /// <summary>給 <c>--uismoke</c>：記一筆開得來、帳戶下拉也有東西可選。
+        /// 下拉是空的就等于按下去什麼都選不了 —— 那種「開得來但用不了」就是甤別視窗那次漏驗的形狀。</summary>
+        /// <summary>給 <c>--uismoke</c>：帳本的 id 欄在不在、綁不綁到真的 entry id。</summary>
+        internal string SmokeLedgerIdColumn() => (HomeTab.Content as LedgerTab)?.SmokeLedgerIdColumn() ?? "-1";
+
+        internal int SmokeOpenAddEntry()
+        {
+            if (_db is not { } db) return -1;
+            var dlg = new AddEntryDialog(new LedgerStore(db), (HomeTab.Content as LedgerTab)?.TabAccountId);
+            var n = dlg.AccountCount;
+            dlg.Close();
+            return n;
+        }
+
         /// <summary>給 <c>--uismoke</c>：在首頁那份 LedgerTab 上開分類報表、展開一個有子類的分類、按欄排序，
         /// 並量一次展開的時間。用顯示中的那份控制項才量得到人感覺到的慢；另建一個實例的 DataGrid 沒有尺寸，排版根本不會發生。</summary>
         internal string SmokeCategoryReport()
@@ -390,6 +404,18 @@ namespace dFinance
         void CategoryReport_Click(object sender, RoutedEventArgs e)
         {
             if (_categoryTab is not null) Tabs.SelectedItem = _categoryTab;
+        }
+
+        /// <summary>記一筆的全域入口：任何分頁都能按（首頁没有 Action 列，現金/錢包又只有這個入口）。
+        /// 預設帳戶跟着目前分頁走；寫完讓首頁與帳戶分頁都重灌（不然左側淨值/概況是旧的）。</summary>
+        void AddEntry_Click(object sender, RoutedEventArgs e)
+        {
+            if (_db is not { } db) return;
+            var current = (Tabs.SelectedItem as TabItem)?.Content as LedgerTab ?? HomeTab.Content as LedgerTab;
+            var dialog = new AddEntryDialog(new LedgerStore(db), current?.TabAccountId) { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+            (HomeTab.Content as LedgerTab)?.RefreshIfStale();
+            foreach (var tab in _accountTabs.Values) (tab.Content as LedgerTab)?.RefreshIfStale();
         }
 
         /// <summary>依帳期彙總：跟分類帳同一種開法 —— 常駐分頁，再按選單只是换 SelectedItem。</summary>

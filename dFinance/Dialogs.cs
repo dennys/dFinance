@@ -15,6 +15,8 @@ public sealed class AddEntryDialog : Window
     readonly DatePicker _date = new() { SelectedDate = DateTime.Today };
     readonly ComboBox _kind = new();
     readonly ComboBox _account = new();
+    /// <summary>給 <c>--uismoke</c>：帳戶下拉有沒有東西可選（空下拉就是開得來但用不了）。</summary>
+    internal int AccountCount => _account.Items.Count;
     readonly ComboBox _toAccount = new();
     readonly ComboBox _category = new();
     readonly TextBox _merchant = new();

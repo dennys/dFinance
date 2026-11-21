@@ -22,6 +22,8 @@ public partial class LedgerTab : UserControl
 {
     readonly LedgerStore? _store;
     readonly long? _accountId;
+    /// <summary>這一頁是哪個帳戶（功能表的「記一筆」拿它当預設，换分頁就换預設）。</summary>
+    internal long? TabAccountId => _accountId;
     readonly bool _homeMode;
     long _loadedVersion = -1;
     bool _showingReport;
@@ -701,6 +703,7 @@ public partial class LedgerTab : UserControl
     {
         if (LedgerGrid.SelectedItem is not LedgerStore.Row r) { LineageBox.Text = ""; return; }
         LineageBox.Text =
+            Loc.F("Ledger_Lineage_Id", r.Id) + "\n" +                 // 人要講同一筆時指得出来（帳本那欄也是這個數）
             Loc.F("Ledger_Lineage_Merchant", r.Merchant) + "\n" +
             // 血統要看見存進去的每個位（儲存是 1/100）：照顯示小數位會把台幣的美分、美金的零頭四捨五入掉。
             Loc.F("Ledger_Lineage_Amount", Money.Format(r.AmountMinor, 2), r.Currency) + (r.OrigCurrency is null ? "" : Loc.F("Ledger_Lineage_Orig", r.OrigCurrency)) + "\n" +
@@ -711,6 +714,17 @@ public partial class LedgerTab : UserControl
             $"parser    {r.Parser}\n" +
             Loc.F("Ledger_Lineage_Archived", r.ArchivedPath ?? Loc.T("Common_None")) + "\n\n" +
             Loc.F("Ledger_Lineage_Raw", r.SourceRaw);
+    }
+
+    /// <summary>給 <c>--uismoke</c>：帳本要有 id 欄而且綁得到真的 entry id（那是人講「第 4317 筆」用的）。
+    /// 首頁不查帳本，所以照 store 再跑一次拿 id（不靠哪個分頁正好開著）。</summary>
+    internal string SmokeLedgerIdColumn()
+    {
+        if (LedgerGrid.Columns.FirstOrDefault(c => c.Header as string == Loc.T("Ledger_Col_Id")) is null)
+            throw new InvalidOperationException("帳本沒有 id 欄");
+        var first = _store!.List(new LedgerStore.Filter()).FirstOrDefault();
+        if (first is null || first.Id <= 0) throw new InvalidOperationException("帳本列沒有可用的 id");
+        return first.Id.ToString();
     }
 
     void Grid_CellEditEnding(object? sender, DataGridCellEditEndingEventArgs e)

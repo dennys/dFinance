@@ -520,6 +520,12 @@
   <data name="Ledger_MismatchTitle" xml:space="preserve">
     <value>餘額快照 vs 交易累加</value>
   </data>
+  <data name="Ledger_Col_Id" xml:space="preserve">
+    <value>＃id</value>
+  </data>
+  <data name="Ledger_Lineage_Id" xml:space="preserve">
+    <value>id        {0}</value>
+  </data>
   <data name="Ledger_Lineage_Merchant" xml:space="preserve">
     <value>商家      {0}</value>
   </data>

@@ -520,6 +520,12 @@ Mismatches are usually a missing transaction or a wrong opening balance; recount
   <data name="Ledger_MismatchTitle" xml:space="preserve">
     <value>Balance snapshot vs running total</value>
   </data>
+  <data name="Ledger_Col_Id" xml:space="preserve">
+    <value>id</value>
+  </data>
+  <data name="Ledger_Lineage_Id" xml:space="preserve">
+    <value>id        {0}</value>
+  </data>
   <data name="Ledger_Lineage_Merchant" xml:space="preserve">
     <value>Merchant   {0}</value>
   </data>

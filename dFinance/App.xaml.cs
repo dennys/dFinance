@@ -56,9 +56,13 @@ namespace dFinance
                 if (LocalizationManager.MissingKeys.Count > 0)
                     throw new InvalidOperationException("找不到這些語系 key：" + string.Join(", ", LocalizationManager.MissingKeys.Keys));
                 w.SmokeSwitchLanguage(LocalizationManager.DefaultCulture);
+                var entryAccounts = w.SmokeOpenAddEntry();
+                if (entryAccounts == 0) throw new InvalidOperationException("記一筆的帳戶下拉是空的（開得來但選不了帳戶）");
                 var line = "OK  " + w.SmokeReport() + $"，帳戶管理開得來（{w.SmokeOpenAccountsDialog()} 個帳戶）"
                          + $"，幣別/匯率開得來（{w.SmokeOpenCurrencyDialog()} 種幣別）"
                          + $"，建議分類開得來（{w.SmokeOpenSuggestDialog()} 個商家）"
+                         + $"，記一筆開得來（{entryAccounts} 個帳戶可選）"
+                         + $"，帳本有 id 欄（#{w.SmokeLedgerIdColumn()}）"
                          + $"，分類報表展開/排序得動（{w.SmokeCategoryReport()}）"
                          + $"，依帳期彙總開得來（{w.SmokeBillPeriodTab()}）"
                          + $"，語系換得過去（{before} → {string.Join(" / ", swapped)}）";

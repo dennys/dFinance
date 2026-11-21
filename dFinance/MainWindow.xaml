@@ -14,6 +14,9 @@
     <Separator/>
     <MenuItem Header="{Binding [Menu_Exit], Source={StaticResource Loc}}" Click="Exit_Click"/>
   </MenuItem>
+  <!-- 記一筆：全域入口。首頁把 Action 列收起來了（現金/錢包只有這個入口），只在帳戶分頁有按鈕不够。 -->
+  <MenuItem Header="{Binding [Ledger_AddEntry], Source={StaticResource Loc}}" Click="AddEntry_Click"
+            ToolTip="{Binding [Ledger_AddEntryHint], Source={StaticResource Loc}}"/>
   <MenuItem Header="{Binding [Menu_Reports], Source={StaticResource Loc}}">
     <MenuItem Header="{Binding [Menu_CategoryReport], Source={StaticResource Loc}}" Click="CategoryReport_Click"/>
     <MenuItem Header="{Binding [Menu_BillPeriods], Source={StaticResource Loc}}" Click="BillPeriods_Click"/>

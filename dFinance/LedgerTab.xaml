@@ -156,6 +156,9 @@
         <DataGrid.Columns>
           <DataGridTextColumn Binding="{Binding Dot}" Width="22" IsReadOnly="True"
                               ElementStyle="{StaticResource DateCell}"/>
+          <!-- entry id：人講「第 4317 筆」要有得指。只讀、不准編輯（改了也沒意義，那是主鍵）。 -->
+          <DataGridTextColumn Header="{Binding [Ledger_Col_Id], Source={StaticResource Loc}}" Binding="{Binding Id}" Width="56"
+                              IsReadOnly="True" ElementStyle="{StaticResource DateCell}"/>
           <DataGridTextColumn x:Name="DateCol" Header="{Binding [Import_Col_SpendDate], Source={StaticResource Loc}}" Binding="{Binding Date}" Width="92"
                               ElementStyle="{StaticResource DateCell}" EditingElementStyle="{StaticResource DateCell}"/>
           <DataGridTextColumn x:Name="MerchantCol" Header="{Binding [Common_Merchant], Source={StaticResource Loc}}" Binding="{Binding Merchant}" Width="2*"/>
