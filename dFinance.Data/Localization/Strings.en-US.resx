@@ -428,6 +428,15 @@ Due date: {3}    Amount due: {4}    Minimum due: {5}    Account: {6}</value>
   <data name="Report_LastMonths" xml:space="preserve">
     <value>Last {0} months</value>
   </data>
+      <data name="Report_ModeAmount" xml:space="preserve">
+    <value>Amount</value>
+  </data>
+      <data name="Report_ModePercent" xml:space="preserve">
+    <value>Percent</value>
+  </data>
+      <data name="Report_ModeTip" xml:space="preserve">
+    <value>Percent is the share of the same-side block (expenses / income); a block of 0 shows —, refunds are negative</value>
+  </data>
       <data name="Report_SideExpense" xml:space="preserve">
     <value>Expenses</value>
   </data>

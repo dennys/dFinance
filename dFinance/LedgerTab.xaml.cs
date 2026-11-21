@@ -35,11 +35,13 @@ public partial class LedgerTab : UserControl
     string _pivotSortKey = PivotTree.TotalKey;
     bool _pivotDesc = true;                       // 第一次點某欄都是由大到小：先看花費最多的那項
     int _pivotSpan = 12;                          // 報表月欄：近 N 個月，0 = 全部
+    bool _pivotPercent;                           // 顯示模式：false = 金額、true = 佔同側塊的百分比
 
     record AccountPick(long? Id, string Label);
     record CategoryPick(long? Id, string Label, bool Uncategorized);
     record StatusPick(string Mode, string Label);
     record RangePick(int Span, string Label);
+    record ModePick(bool Percent, string Label);
     record DatePreset(string Mode, string Label);          // 顯示文字會跟著語系變，判斷一律看 Mode
 
     /// <summary>使用者要把某個帳戶再開一個分頁（由 MainWindow 接手）。</summary>
@@ -57,6 +59,7 @@ public partial class LedgerTab : UserControl
         _homeMode = accountId is null && !ledgerMode;
         BuildFilterOptions();
         BuildReportRange();
+        BuildReportMode();
 
         if (_accountId is not null)
         {
@@ -127,6 +130,14 @@ public partial class LedgerTab : UserControl
         var sample = SmokeMonthCellSample();
         if (string.IsNullOrWhiteSpace(sample)) throw new InvalidOperationException("月欄全是空白：綁定沒綁到數字");
         SmokeReportTiming += $" / 月欄樣本 {sample}";
+
+        // 切百分比模式：converter 換錯、塊拿不到都會靜靜變空白，所以也讀一格真的畫出來的文字。
+        SetPivotMode(true);
+        CategoryReportGrid.UpdateLayout();
+        var pct = SmokeMonthCellSample();
+        if (!pct.Contains('%')) throw new InvalidOperationException($"切到百分比後月欄不是百分比（{pct}）");
+        SmokeReportTiming += $" / 百分比 {pct}";
+        SetPivotMode(false);
 
         _pivotSortKey = _pivotMonths.Count > 0 ? _pivotMonths[^1] : PivotTree.TotalKey;   // 按最後一個月欄排
         _pivotDesc = true;
@@ -427,10 +438,38 @@ public partial class LedgerTab : UserControl
             MinWidth = PivotNameMinWidth,                       // 24 個月時 star 會被月欄壓到只剩箭頭，這是下限
         });
         // 月欄綁整列（"."）再照欄的月份取值：綁 "2026-11" 這種路徑 WPF 解析不了，會靜靜綁不到（整片空白）。
-        foreach (var m in _pivotMonths) CategoryReportGrid.Columns.Add(ReportColumn(m, ".", m, MonthWidth, new MonthCell(m, s.BaseCurrencyScale)));
-        CategoryReportGrid.Columns.Add(ReportColumn(Loc.T("Common_Total"), nameof(PivotNode.Total), PivotTree.TotalKey, MonthWidth, format));
+        // 百分比模式只是換 converter：格子裡還是 long minor、排序還是照數值（切模式不會改變順序）。
+        foreach (var m in _pivotMonths)
+            CategoryReportGrid.Columns.Add(ReportColumn(m, ".", m, MonthWidth,
+                _pivotPercent ? (IValueConverter)new PercentCell(m, this) : new MonthCell(m, s.BaseCurrencyScale)));
+        CategoryReportGrid.Columns.Add(ReportColumn(Loc.T("Common_Total"), nameof(PivotNode.Total), PivotTree.TotalKey, MonthWidth,
+            _pivotPercent ? (IValueConverter)new PercentCell(PivotTree.TotalKey, this) : format));
         CategoryReportGrid.FrozenColumnCount = 1;               // 24 個月要横向捲：分類欄留著，不然捲過去不知道這列是什麼
         CategoryReportGrid.ItemsSource = _pivotRows;
+    }
+
+    /// <summary>金額 / 百分比兩種顯示（占比的分母是「同側塊」，算法在 <see cref="PivotTree.PercentOf"/>）。</summary>
+    void BuildReportMode()
+    {
+        ReportModeBox.ItemsSource = new[]
+        {
+            new ModePick(false, Loc.T("Report_ModeAmount")),
+            new ModePick(true, Loc.T("Report_ModePercent")),
+        };
+        ReportModeBox.SelectedIndex = 0;                          // 預設仍是金額：占比是外加的一種看法，不搶預設
+    }
+
+    void ReportMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ReportModeBox.SelectedItem is not ModePick pick || pick.Percent == _pivotPercent) return;
+        SetPivotMode(pick.Percent);
+    }
+
+    /// <summary>換顯示模式只重灌欄位（換掉綁定的 converter）：資料、展開、排序照舊，不重查庫。</summary>
+    void SetPivotMode(bool percent)
+    {
+        _pivotPercent = percent;
+        if (_store is { } s) BuildPivotColumns(s);
     }
 
     void BuildReportRange()
@@ -516,6 +555,16 @@ public partial class LedgerTab : UserControl
     {
         public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
             => value is PivotNode n ? Money.Format(n.Cells.GetValueOrDefault(month), scale) : "";
+        public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>百分比模式的格子：這一列佔「同側塊」該月多少。分母、0 → «—»、負號、小數位這些規則全在
+    /// <see cref="PivotTree.PercentOf"/>（用測試鎖得住），UI 只做綁定。</summary>
+    sealed class PercentCell(string column, LedgerTab tab) : IValueConverter
+    {
+        public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+            => value is PivotNode n ? PivotTree.PercentOf(n, tab._pivotRoots, column) : "";
         public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
             => throw new NotSupportedException();
     }

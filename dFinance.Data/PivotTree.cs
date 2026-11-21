@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace dFinance.Data;
 
 /// <summary>
@@ -145,6 +147,47 @@ public static class PivotTree
         foreach (var c in netCells) row.Cells[c.Month] = c.TotalMinor;
         row.Total = netCells.Sum(c => c.TotalMinor);
         return row;
+    }
+
+    /// <summary>
+    /// 百分比模式的格子文字：這一列估「同側塊」（支出塊／收入塊）該月多少。
+    /// <para>分母是<b>塊</b>而不是最下面那列「收−支」：收−支会被收入抵掉，同一筆消費的占比就會跟著
+    /// 當月有沒有收入而變 —— 那是「相對盈虧」不是占比（块小計因此恒為 100%）。</para>
+    /// <para>分母取絕對值、符號由分子決定：退款（負的支出）就是負的百分比，不會因為整塊被退款抵成
+    /// 負數而翻正。塊自己固定 100.0%（那個月的塊被抵成負數也不會顯示 −100.0%）。</para>
+    /// <para>塊該月是 0 → <see cref="PercentNa"/>，不是 0%：0 是「沒有」，這裡是「除不出來」。
+    /// 最下面那列總計（收−支）不適用占比 → 空白。</para>
+    /// 小數位固定 1、格式 InvariantCulture：介面可以换語系，數字的寫法不跟著换（跟 Money.Format 同一條規則）。
+    /// </summary>
+    public const string PercentNa = "—";
+
+    /// <param name="column">欄的身分（月 <c>yyyy-MM</c> 或 <see cref="TotalKey"/>）；用欄而不是欄頭文字，
+    /// 因為欄頭會翻译。</param>
+    public static string PercentOf(PivotNode node, IReadOnlyList<PivotNode> roots, string column)
+    {
+        var block = BlockOf(node, roots);
+        if (block is null) return "";                                  // 總計列：收−支没有「占比」這回事
+        bool total = column == TotalKey;
+        long denom = System.Math.Abs(total ? block.Total : block.Cell(column));
+        if (denom == 0) return PercentNa;
+        if (ReferenceEquals(node, block)) return "100.0%";
+        var value = total ? node.Total : node.Cell(column);
+        var pct = System.Math.Round(value * 100m / denom, 1, MidpointRounding.AwayFromZero);
+        return pct.ToString("0.0", CultureInfo.InvariantCulture) + "%";
+    }
+
+    /// <summary>這一列所屬的塊（樹最上面那层）。不在這棵樹上（總計列）就回 null。</summary>
+    static PivotNode? BlockOf(PivotNode node, IReadOnlyList<PivotNode> roots)
+    {
+        foreach (var root in roots) if (Contains(root, node)) return root;
+        return null;
+    }
+
+    static bool Contains(PivotNode node, PivotNode target)
+    {
+        if (ReferenceEquals(node, target)) return true;
+        foreach (var k in node.Children) if (Contains(k, target)) return true;
+        return false;
     }
 
     /// <summary>一節點的所有子孫（收合時要把它們從可見列拿掉）。</summary>

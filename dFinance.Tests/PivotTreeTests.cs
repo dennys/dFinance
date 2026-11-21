@@ -46,6 +46,51 @@ public static class PivotTreeTests
     }
 
     [Fact]
+    public static void 百分比的分母是同側塊不是收支相抵後的數()
+    {
+        // 支出塊 1,000（外食 700 + 外送 300）、收入塊 6,300 → 收−支 +5,300。
+        // 拿收−支當分母，同一筆外食的占比會跟著當月有沒有薪資而變 —— 那就不是占比了。
+        var blocks = Build(Cell(2, "2026-01", 700), Cell(3, "2026-01", 300), Cell(6, "2026-01", 6_300));
+        var 外食 = blocks[0].Children.Single().Children.Single(c => c.Id == 2);
+        Assert.Equal("70.0%", PivotTree.PercentOf(外食, blocks, "2026-01"));
+        Assert.Equal("70.0%", PivotTree.PercentOf(外食, blocks, PivotTree.TotalKey));      // 合計欄：分母是塊的合計
+        Assert.Equal("100.0%", PivotTree.PercentOf(blocks[0], blocks, "2026-01"));      // 塊自己恒 100%
+        Assert.Equal("100.0%", PivotTree.PercentOf(blocks[1], blocks, "2026-01"));
+    }
+
+    [Fact]
+    public static void 塊該月為零不給百分比_不是零百分比也不會炸()
+    {
+        // 2 月刷 1,000 又全額退款：塊那個月是 0，除不出來（顯示 «—» 而不是 0%，0 代筆是「沒有」）。
+        var blocks = Build(Cell(2, "2026-01", 1_000), Cell(2, "2026-02", 1_000), Cell(3, "2026-02", -1_000));
+        var 外食 = blocks[0].Children.Single().Children.Single(c => c.Id == 2);
+        Assert.Equal("100.0%", PivotTree.PercentOf(外食, blocks, "2026-01"));
+        Assert.Equal(PivotTree.PercentNa, PivotTree.PercentOf(外食, blocks, "2026-02"));
+    }
+
+    [Fact]
+    public static void 退款是負的百分比也保留負號()
+    {
+        // 支出塊 = 餐飲(1,000 − 200) + 交通(200) = 1,000；分母取絕對值，符號由分子決定。
+        var blocks = Build(Cell(2, "2026-01", 1_000), Cell(3, "2026-01", -200), Cell(5, "2026-01", 200));
+        var 餐飲 = blocks[0].Children.Single(c => c.Id == 1);
+        var 外送 = 餐飲.Children.Single(c => c.Id == 3);
+        Assert.Equal("80.0%", PivotTree.PercentOf(餐飲, blocks, "2026-01"));
+        Assert.Equal("-20.0%", PivotTree.PercentOf(外送, blocks, "2026-01"));
+        Assert.Equal("100.0%", PivotTree.PercentOf(blocks[0], blocks, "2026-01"));      // 塊自己不會變 −100%
+    }
+
+    [Fact]
+    public static void 總計列收支不給百分比()
+    {
+        var cells = new[] { Cell(2, "2026-01", 700), Cell(6, "2026-01", 6_300) };
+        var blocks = Build(cells);
+        var sum = PivotTree.TotalRow(cells, "總計")!;
+        Assert.Equal("", PivotTree.PercentOf(sum, blocks, "2026-01"));      // 收−支不是任何塊的一部分
+        Assert.Equal("", PivotTree.PercentOf(sum, blocks, PivotTree.TotalKey));
+    }
+
+    [Fact]
     public static void 整年加起來是零但每月有數的還是要進表()
     {
         // 1 月刷 1,000、2 月全額退款（退款是負的支出）：整棵相加是 0，但兩個月都有數。

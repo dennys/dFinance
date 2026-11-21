@@ -428,6 +428,15 @@
   <data name="Report_LastMonths" xml:space="preserve">
     <value>直近 {0} カ月</value>
   </data>
+      <data name="Report_ModeAmount" xml:space="preserve">
+    <value>金額</value>
+  </data>
+      <data name="Report_ModePercent" xml:space="preserve">
+    <value>パーセント</value>
+  </data>
+      <data name="Report_ModeTip" xml:space="preserve">
+    <value>パーセントは同じ側ブロック（支出ブロック／収入ブロック）を分母にします。当月のブロックが 0 は —、返金は負の値</value>
+  </data>
       <data name="Report_SideExpense" xml:space="preserve">
     <value>支出</value>
   </data>

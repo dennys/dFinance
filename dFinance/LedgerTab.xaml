@@ -99,6 +99,9 @@
         </Grid.RowDefinitions>
         <DockPanel Grid.Row="0" Margin="4,0">
           <ComboBox x:Name="ReportRangeBox" Width="110" DockPanel.Dock="Left" SelectionChanged="ReportRange_SelectionChanged"/>
+          <ComboBox x:Name="ReportModeBox" Width="92" DockPanel.Dock="Left" Margin="8,0,0,0"
+                    SelectionChanged="ReportMode_SelectionChanged"
+                    ToolTip="{Binding [Report_ModeTip], Source={StaticResource Loc}}"/>
           <TextBlock x:Name="ReportNote" Foreground="#B00000" VerticalAlignment="Center" Margin="10,0,0,0" TextWrapping="Wrap"/>
         </DockPanel>
         <DataGrid x:Name="CategoryReportGrid" Grid.Row="1"

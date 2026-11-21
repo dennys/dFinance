@@ -428,6 +428,15 @@
   <data name="Report_LastMonths" xml:space="preserve">
     <value>近 {0} 個月</value>
   </data>
+      <data name="Report_ModeAmount" xml:space="preserve">
+    <value>金額</value>
+  </data>
+      <data name="Report_ModePercent" xml:space="preserve">
+    <value>百分比</value>
+  </data>
+      <data name="Report_ModeTip" xml:space="preserve">
+    <value>百分比是以「同側塊」（支出塊／收入塊）當分母；該月塊為 0 顯示 —，退款是負的百分比</value>
+  </data>
       <data name="Report_SideExpense" xml:space="preserve">
     <value>支出</value>
   </data>
