@@ -60,11 +60,14 @@ public sealed class CurrencyDialog : Window
 
     readonly StackPanel _baseRow = new() { Orientation = Orientation.Horizontal };
 
+    bool _loading;                        // Reload 期間的選取不是人在選：不然一開視窗就會把基準幣改掉（uismoke 抓過）
+
     void BuildBaseRow()
     {
         // 選一選就套用：基準幣只是報表口徑，不會弄髒匯率，不需要額外的確認按鈕。
         _base.SelectionChanged += (_, _) =>
         {
+            if (_loading) return;                                         // 灌資料時的選取不准寫設定
             if (_base.SelectedItem as string is not string ccy || ccy == _store.BaseCurrency) return;
             _store.SetBaseCurrency(ccy);
             Reload();                                       // 匯率表讀的是「對基準幣」那一側，要整張重讀
@@ -220,6 +223,16 @@ public sealed class CurrencyDialog : Window
     // ----------------------------------------------------------------
 
     void Reload()
+    {
+        _loading = true;                                                  // 下面都是程式在選，不是人在選
+        try
+        {
+            ReloadData();
+        }
+        finally { _loading = false; }
+    }
+
+    void ReloadData()
     {
         var codes = _store.CurrencyList().Select(c => c.Code).ToList();
         foreach (var c in _store.CurrenciesWithoutDictEntry().Where(c => !codes.Contains(c)))

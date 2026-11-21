@@ -100,6 +100,10 @@ dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"
   首頁沒有帳本清單與篩選列。
 - **帳戶分頁**：同一支 `LedgerTab`（傳 `accountId`），有篩選、可編輯格子、來源血統；「帳戶」欄只是 hide
   （留著給未來全部帳戶的檢視用）。
+- **帳本第一欄是 entry id**（唯讀，血統那块也寫 id）：那是人跟人對帳時的共同座標（「第 4317 筆」），
+  拿掉就回頭用「那筆 4,534 的」這種講法。
+- **期間只有一組選項、一支 `LedgerTab.RangeStart`**：每月總資產圖與分類帳共用（近 N 個月一律從這個月往回推，
+  0 = 全部，YTD 就是同一個算法算到 1 月）。兩處各寫一套就會變兩把尺。
 - 換資料庫走 `MainWindow.OpenDatabasePath`：新庫開成功才關舊連線；開檔前用唯讀連線確認是 dFinance 的庫。
 - **工具 → 幣別…**（`CurrencyDialog`，純 code-behind 視窗）：基準幣、幣別字典（scale/別名）、匯率表、
   人工填/抓匯率/測試連線/proxy、把幣別不符的列拆到對的帳戶。只有人按按鈕才會連網。
@@ -108,6 +112,9 @@ dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"
 - 文案、註解用繁體中文，跟現有程式一致；給使用者看的文字一律走 `dFinance.Data/Localization/Strings*.resx`
   （XAML `{Binding [Key], Source={StaticResource Loc}}`、code 用 `Loc.T`/`Loc.F`），**不准用 `{x:Static}` 取字串**，
   也別在 code 裡硬編中文 —— 那等於又寫死一個語系。規則與坑寫在 `LOCALIZATION.md`。
+- **code-behind 建的視窗，灌資料時的選取不准寫設定**：`Reload()` 裡 `_combo.ItemsSource`/`SelectedItem` 指派也會觸發
+  `SelectionChanged`，不護起來就會一開視窗就把設定改掉（實測：「工具→幣別…」一開來基準幣就变了，
+  報表數字跟著整個跑）。要嘛用 `_loading` 旗子，要嘛改成只在人真的按過才套用。
 - 換語系不重開程式：XAML 宣告的文字靠綁定自己換，**code 裡一次指派出去的（DataGrid 欄頭、下拉、圖表標題）不會**，
   靠 `MainWindow.RebuildForCulture` 重建分頁；新增這類控件時要嘛走綁定，要嘛掛進重建路徑。
 

@@ -38,6 +38,7 @@ namespace dFinance
             try
             {
                 var w = new MainWindow();
+                var base0 = w.SmokeBaseCurrency();          // 开个視窗就把基準幣改掉是 bug（跑完要比一次）
                 w.Show();
                 w.SmokeOpenFirstAccountTab();
                 var before = w.SmokeLanguageMenuHeader();
@@ -68,6 +69,8 @@ namespace dFinance
                          + $"，分類報表展開/排序得動（{w.SmokeCategoryReport()}）"
                          + $"，依帳期彙總開得來（{w.SmokeBillPeriodTab()}）"
                          + $"，語系換得過去（{before} → {string.Join(" / ", swapped)}）";
+                if (w.SmokeBaseCurrency() != base0)
+                    throw new InvalidOperationException($"跑 smoke 期間基準幣被改了（{base0} → {w.SmokeBaseCurrency()}）");
                 w.Close();
                 File.WriteAllText(report, line + "  data=" + Db.DataDirectory);
                 Shutdown(0);

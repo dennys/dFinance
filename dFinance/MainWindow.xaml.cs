@@ -266,6 +266,9 @@ namespace dFinance
 
         /// <summary>給 <c>--uismoke</c>：記一筆開得來、帳戶下拉也有東西可選。
         /// 下拉是空的就等于按下去什麼都選不了 —— 那種「開得來但用不了」就是甤別視窗那次漏驗的形狀。</summary>
+        /// <summary>給 <c>--uismoke</c>：目前的基準幣（用來確認跑煙霧測試的過程不会把設定改掉）。</summary>
+        internal string SmokeBaseCurrency() => _db is { } db ? new LedgerStore(db).BaseCurrency : "";
+
         /// <summary>給 <c>--uismoke</c>：分類管理開得來、分類讀得到（那个視窗是 code-behind 建的，排版壞了要有東西抓）。</summary>
         internal int SmokeOpenCategoryManager()
         {
