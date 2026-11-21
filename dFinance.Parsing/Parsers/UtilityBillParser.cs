@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace dFinance.Parsing;
@@ -34,16 +35,59 @@ public sealed class UtilityBillParser : IStatementParser
 
     public ParsedStatement Parse(PageData data) => Match(data) switch
     {
-        Bill.Electric => Single("台灣電力公司", "電費", data, "應繳總金額", null),
-        Bill.Water => Single("台灣自來水公司", "水費", data, "水費項目小計", "扣繳日期"),
-        Bill.Telecom => Single("中華電信", "電信費", data, "應繳總金額", "繳費期限"),
-        Bill.Gas => Single("台灣中油（天然氣）", "天然氣費", data, "扣繳總金額", "代繳帳號"),
+        Bill.Electric => Single(Bill.Electric, "台灣電力公司", "電費", data, "應繳總金額", null),
+        Bill.Water => Single(Bill.Water, "台灣自來水公司", "水費", data, "水費項目小計", "扣繳日期"),
+        Bill.Telecom => Single(Bill.Telecom, "中華電信", "電信費", data, "應繳總金額", "繳費期限"),
+        Bill.Gas => Single(Bill.Gas, "台灣中油（天然氣）", "天然氣費", data, "扣繳總金額", "代繳帳號"),
         Bill.Etag => Etag(data),
         _ => new ParsedStatement { Issuer = "", RawText = data.RawText, Warnings = { "這份單子沒有適用的解析器。" } },
     };
 
+    // 單子的「誰的帳」（台電用戶編號 / 自來水水號 / 中華電信用戶號碼）。匯入端把它放進去重哈希，
+    // 這樣同一戶的同一張單第二次取得（網銀重下載/補發，PDF 是即席產生的、bytes 不一樣）才會被認成同一筆，
+    // 而兩戶同月同額的單子又不會被合成一筆。
+    // 只能挑「跨期不變」的：通知單號/單據號碼/通知單流水號/列印日期一律不能用 —— 用錯會讓每次重匯都認不出來。
+    static readonly Regex ElectricAccount = new(@"(?<!\d)(\d{2}-\d{2}-\d{4}-\d{2}-\d)(?!\d)", RegexOptions.Compiled);
+    // 中華電信用戶號碼是 7~10 碼；同列的營運處代號（35）重複三次也才 6 碼，下限钉在 7 才不會拿錯。
+    // （真拿到 6 碼的戶號就只會退回「只在同一份檔案內比」，宁願重複也不吃資料。）
+    static readonly Regex DigitRun = new(@"\d{7,15}", RegexOptions.Compiled);
+
+    static string? Identity(PageData data, Bill bill) => bill switch
+    {
+        // 台電沒有標籤，用戶編號只認這個形狀（06-22-1330-57-1）。
+        Bill.Electric => ElectricAccount.Match(data.RawText) is { Success: true } m ? m.Value : null,
+        // 自來水把水號切成「31 13131740 5」，要捿標籤後面連續的純數字欄位再拼回去。
+        Bill.Water => JoinDigits(WordsAfterLabel(data, "水號")),
+        // 中華電信的用戶號碼在「用戶號碼」表頭那一列的下一列，而且那份 PDF 會把同一字串重複三次。
+        Bill.Telecom => WordsAfterLabel(data, "用戶號碼").Select(w => DigitRun.Match(w)).FirstOrDefault(m => m.Success) is { Success: true } x ? Unfold(x.Value) : null,
+        _ => null,
+    };
+
+    static string? JoinDigits(IEnumerable<string> words)
+    {
+        var sb = new StringBuilder();
+        foreach (var w in words)
+        {
+            if (w.Length == 0 || !w.All(char.IsDigit)) break;
+            sb.Append(w);
+        }
+        return sb.Length >= 6 ? sb.ToString() : null;
+    }
+
+    /// <summary>把被重複 k 次的數字折回一份（中華電信那份 PDF 把每個字串印三次）。</summary>
+    static string Unfold(string digits)
+    {
+        for (int k = 3; k >= 2; k--)
+        {
+            if (digits.Length % k != 0) continue;
+            var unit = digits[..(digits.Length / k)];
+            if (string.Concat(Enumerable.Repeat(unit, k)) == digits) return unit;
+        }
+        return digits;
+    }
+
     /// <summary>整份單子只有一筆應繳金額：金額/日期都用「標籤後面第一個數字/日期」找。</summary>
-    static ParsedStatement Single(string issuer, string item, PageData data, string amountLabel, string? dateLabel)
+    static ParsedStatement Single(Bill bill, string issuer, string item, PageData data, string amountLabel, string? dateLabel)
     {
         var amount = AmountAfter(data, amountLabel);
         var due = dateLabel is null ? RowDate(data) : DateAfter(data, dateLabel);
@@ -56,6 +100,7 @@ public sealed class UtilityBillParser : IStatementParser
         {
             Issuer = issuer,
             RawText = data.RawText,
+            AccountMask = Identity(data, bill) ?? "",        // 沒抓到就留空：匯入端會退回「只在同一份檔案內比」，宁可存兩份也不吃一筆
             TotalDue = amount,
             DueDate = due,
             Transactions =

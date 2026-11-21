@@ -103,5 +103,13 @@ public sealed class HsbcCardParser : IStatementParser
         s.StatementStartDate = s.Transactions.Min(t => t.Date);
         if (s.Transactions.Any(t => t.Merchant.Length == 0))
             s.Warnings.Add("有些列的商家是圖片但 OCR 沒讀出來，商家留空。");
+
+        // 跟富邦同個坑：金額是台幣欄、幣別是「消費地/外幣金額」那段的最後一個三字母碼。
+        // 海外消費沒有樣本可驗（見 TODO），先報警，不要讓「外幣幣別 × 台幣金額」靜靜進淨值。
+        var foreign = s.Transactions.Select(t => t.Currency).Where(c => c.Length == 3 && c != "TWD").Distinct().ToList();
+        if (foreign.Count > 0)
+            s.Warnings.Add($"看起來有外幣消費（{string.Join("、", foreign)}），但海外消費還沒有樣本驗證過：金額是台幣欄的換算額、幣別卻是原幣，"
+                         + "直接入帳會讓淨值被匯率重算一次。請先人工核對（或補一份有海外消費的樣本）。"
+                         + "正解是金額留台幣入帳額、原幣進 orig_amount_minor/orig_currency（尚未實作）。");
     }
 }

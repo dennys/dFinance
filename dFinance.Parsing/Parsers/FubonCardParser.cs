@@ -89,5 +89,13 @@ public sealed class FubonCardParser : IStatementParser
         int payments = s.Transactions.Count(t => t.Amount < 0);
         if (payments > 0 && s.Transactions.Sum(t => t.Amount) != s.TotalDue)
             s.Warnings.Add($"明細含 {payments} 筆繳款/退款（負數），應繳金額只算本期消費，所以合計不會等於應繳。");
+
+        // 海外消費目前沒有樣本可驗（見 TODO）：金額取自「台幣金額」欄、幣別取自「外幣折算日/幣別」欄，
+        // 兩者混在一起會變成「外幣幣別 × 台幣金額」入帳（淨值會被匯率重算）。寧可報警也不要靜靜的。
+        int foreign = s.Transactions.Count(t => t.Currency.Length > 0 && !t.Currency.Contains("TWD") && !t.Currency.Contains("台"));
+        if (foreign > 0)
+            s.Warnings.Add($"有 {foreign} 列看起來是外幣消費，但海外消費還沒有樣本驗證過：金額是台幣欄的換算額、幣別卻是原幣，"
+                         + "直接入帳會讓淨值被匯率重算一次。請先人工核對（或補一份有海外消費的樣本）。"
+                         + "正解是金額留台幣入帳額、原幣進 orig_amount_minor/orig_currency（尚未實作）。");
     }
 }

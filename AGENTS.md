@@ -57,6 +57,15 @@ dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"
 - 遷移檔只能新增（下一支是 `0006_*.sql`），已套用的不要改 —— `migration` 表只記 version/name/applied_at，
   改了內容不會被發現，只會讓既有庫跟新開的庫長得不一樣。
 - 帳本 UI 的金額唯讀；要調帳記一筆 `adjustment`。
+- **去重的比對範圍由「有沒有可靠身份」決定**（`StatementImporter.FindExisting` 的 `crossFile`）：
+  卡號/帳號/繳費戶號進得了哈希才准跳檔案比；身份為空就只在同一份檔案內比。
+  跳檔案判到重複是**不插入**（不是標記），判錯就是悄悄少一筆；「疑似重複」（`LedgerStore.DuplicateGroupKey`）才是只做標記，
+  而且只算信用卡。繳費單的戶號由 `UtilityBillParser.Identity` 抽（只能抽**跨期不變**的：通知單號/單據號碼/列印日期不准用）。
+- **重匯時 `edited_at` 有值的列只准更新 `source_raw`/`source_page`**，分類/商家/金額/狀態一個都不動
+  （要單欄位重覆蓋得先做欄位級編輯追蹤）。這次沒對到的舊列標 `orphaned_at`，**不准刪**。
+- **同帳期取代與孤兒標記只對信用卡做**（靠 `credit_card_bill` 的 `UNIQUE(card_id, period_end)`）；存款單/繳費單不做取代。
+- **卡帳的「本期應繳」不等於消費合計是常態**（繳款/退款），不准為了湊數字改解析結果。
+- **解析是座標＋關鍵字式，改版會靜靜漏列**：解析到 0 筆一定要進 `Warnings`，不准把警告拿掉讓測試變綠。
 
 ## UI 現況
 

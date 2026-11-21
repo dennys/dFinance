@@ -192,6 +192,49 @@ public sealed class ImportTests : IDisposable
         Assert.Contains(r.Warnings!, w => w.Contains("現金"));
     }
 
+    // -------------------------------------------------- 繳費單的重匯範圍（戶號就是可靠身份）
+
+    static ParsedStatement PowerBill(string accountMask) => new()
+    {
+        Issuer = "台灣電力公司", Parser = "UtilityBillParser", AccountMask = accountMask,
+        DueDate = new DateOnly(2026, 12, 5), StatementEndDate = new DateOnly(2026, 11, 30), TotalDue = 3229m,
+        Transactions = { new ParsedTransaction { Date = new DateOnly(2026, 12, 5), Merchant = "電費", Amount = 3229m, Currency = "TWD", Page = 1 } },
+    };
+
+    [Fact]
+    public void 同一張繳費單從網銀重下載不會記兩次()
+    {
+        var importer = new StatementImporter(_db, _docsDir);
+        // 電子繳費單是伺服器即席產生的（自來水那份的 Producer 是 HTML→PDF 轉換器、檔名還帶 UUID），
+        // 所以「重下載/補發」给的是不同 bytes → 檔案級的 sha256 擋不住，只能靠列級哈希裡的戶號。
+        importer.Import(PowerBill("06-22-1330-57-1"), "台電11月.pdf", sha256: "sha-a");
+        var again = importer.Import(PowerBill("06-22-1330-57-1"), "台電11月-重下載.pdf", sha256: "sha-b");
+
+        Assert.Equal(1, Count());
+        Assert.Equal(0, again.Inserted);
+        Assert.Equal(1, again.Updated);
+    }
+
+    [Fact]
+    public void 同月同額的兩張不同戶號繳費單要各存一筆()
+    {
+        var importer = new StatementImporter(_db, _docsDir);
+        importer.Import(PowerBill("06-22-1330-57-1"), "自己家.pdf", sha256: "sha-a");
+        importer.Import(PowerBill("06-22-9999-99-9"), "幫房客繳的.pdf", sha256: "sha-b");      // 同月同額、同一個付款帳戶
+
+        Assert.Equal(2, Count());
+    }
+
+    [Fact]
+    public void 抽不到戶號的繳費單宁願存兩份也不吃一筆()
+    {
+        var importer = new StatementImporter(_db, _docsDir);
+        importer.Import(PowerBill(""), "沒印戶號的單子.pdf", sha256: "sha-a");
+        importer.Import(PowerBill(""), "同一份的第二份.pdf", sha256: "sha-b");
+
+        Assert.Equal(2, Count());                    // 沒身份 → 退回只在同一份檔案內比（跳檔案判重是「不插入」，比較嚴重）
+    }
+
     [Fact]
     public void 同天同額的兩筆不會被當成重複()
     {

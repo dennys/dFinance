@@ -6,6 +6,10 @@
 ## 未發布
 
 ### 新增
+- **繳費單現在會抽「誰的帳」**（台電用戶編號 / 自來水水號 / 中華電信用戶號碼）放進 `AccountMask`，
+  去重的穩定鍵（`source_line_hash`）因此有可靠身份：同一張單子從網銀**重下載/補發**（這些電子單子是伺服器即席產生的，
+  同樣內容也會给不同 bytes）不會再被記兩次；同月同額的兩張不同戶號單子（幫房客繳的那种）仍然各存一筆。
+  抽不到戶號就退回「只在同一份檔案內比」—— 宁願存兩份，也不要悄悄吃掉一筆。
 - **四種語言、執行期切換**（繁體中文／English／简体中文／日本語）：「工具 → 語言…」點選立刻換，
   不用重開程式、不用重建視窗。介面文字全進 `dFinance.Data/Localization/Strings*.resx`（345+ 條 × 4 語），
   選好的語言存 `settings.ui_language`（跟資料庫走，不寫 AppData）。規則與驗收方式見 [LOCALIZATION.md](LOCALIZATION.md)。
@@ -20,6 +24,9 @@
   以前全 repo 沒有任何地方寫 `credit_card_bill.paid_at`，「卡未繳」與「未來帳單」只會一直累積，繳完也不會消失。
 
 ### 修改
+- **文件分工**：`AGENTS.md`「不能破壞的規則」收了 5 條原本只在 TODO「要留意的限制」裡的鐵律
+  （去重範圍要看身份、重匯時 `edited_at` 有值只准更新 `source_raw`、取代/孤兒只對信用卡、
+  本期應繳≠消費合計不准湊數字、解析到 0 筆一定要警告）；`TODO.md` 第 3 節只剩產品定位的限制。
 - **金額與日期格式不再跟著語系走**：`Money.Format` 改用固定（invariant）格式，帳本裡幾處自己 `ToString("N0")`
   的改走 `Money.Format`。換語言只換文字，`1,250,000` 不會因為切成 de-DE 就變成 `1.250.000`。
 - `CategoryManagerDialog.cs`、`SuggestDialog.xaml.cs`、`MerchantClassifier.cs` 從 Big5 存成 UTF-8（之前是靠編譯器退回系統 ANSI 語系碼才沒變亂碼）。
@@ -66,11 +73,19 @@
 - 匯入進度訊息「辨識中：…」進語系檔（`Imp_Identifying`），原本是在 `dFinance.Data` 裡硬編碼繁中。
 - `IStatementParser` 的註解把工廠類別名改對（`StatementParserFactory` → `ParserFactory`）。
 
+### 修復
+- 存款單/繳費單的**跳檔案去重**不再一律關死：`StatementImporter.FindExisting` 改成看「哈希裡有沒有可靠身份」
+  （`crossFile`）決定範圍 —— 卡號/帳號/戶號有其一就跳檔案比，都沒就只在同一份檔案內比。
+- **海外消費現在會警告**（富邦/匯豐）：兩者的金額取自「台幣金額」欄、幣別取自外幣欄，海外消費又還沒有樣本可驗，
+  直接入帳會變成「外幣幣別 × 台幣金額」（淨值可能被匯率重算）。`orig_amount_minor`/`orig_currency` 明確標成未實作。
+
 ### 移除
 - 沒人在用的東西：`WordBox.X`、`PageData.PageCount`、`Money.AssetScale`/`ToAssetUnits`/`FromAssetUnits`
   （只有它自己的測試在驗它；投資三表還在 TODO，要時再補，`dFinance-db-design.md` 已標「尚未實作」）。
 
 ### 測試
+- 繳費單身份與重匯範圍：`NoticeBillTests.繳費單要抓到戶號當作可靠身份`（三份真實單子）、
+  `ImportTests` 新增「同一張繳費單重下載不會記兩次 / 同月同額不同戶號各存一筆 / 抽不到戶號宁願存兩份」。
 - **測試不會再「空白通過」**：`dFinance.Tests` 升到 xunit v3（4.0.3），樣本找不到改成 `Assert.Skip(原因)`，
   OCR 模型沒放走 `Samples.RequireOcr()` 跳過。之前是 `if (s is null) return;`（49 處）—— 樣本被改名/搬走時
   測試全部變成綠燈等於沒測（2026-11-19 樣本搬到 `statement_old` 就燒過一次，當時 40 多個測試是空的）。

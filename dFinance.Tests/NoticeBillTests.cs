@@ -49,6 +49,15 @@ public class NoticeBillTests
             Assert.Contains(s.Warnings, w => w.Contains("0 元"));
     }
 
+    [Theory]
+    // 戶號是繳費單唯一「跨期不變」的身份：匯入端靠它決定要不要跳檔案去重（抽不到就只在同一份檔案內比，宁願重複不吃資料）。
+    // 只能抽跨期不變的欄位：通知單號/單據號碼/列印日期用錯會讓每次重匯都認不出來。
+    [InlineData("062213305711151205C.pdf", "06-22-1330-57-1")]                                    // 台電：沒有標籤，只認這個形狀
+    [InlineData("31131317405(11510).72F78ECF-6DAA-47F8-85C1-1777136DE3EB.pdf", "31131317405")]     // 自來水：水號被切成「31 13131740 5」
+    [InlineData("35-0920236528_11511_notification.pdf", "0920236528")]                             // 中華電信：那份 PDF 每個字串重複三次
+    public void 繳費單要抓到戶號當作可靠身份(string file, string expected)
+        => Assert.Equal(expected, Samples.Parse(file).AccountMask);
+
     [Fact]
     public void Electricity_amount_and_due_date()
     {

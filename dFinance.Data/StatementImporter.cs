@@ -114,14 +114,17 @@ public sealed class StatementImporter
 
             var lineKind = minor < 0 ? "refund" : "expense";
             var baseHash = BaseHash(s, t, minor, currency);
+            // 跳檔案比的資格只看有沒有可靠身份（不是看單據類型）：缴費單現在會抽戶號，抽不到就退回檔案內比。
+            bool crossFile = kind != StatementKind.Unknown &&
+                             !(string.IsNullOrWhiteSpace(t.Account) && string.IsNullOrWhiteSpace(s.AccountMask));
             int n = occurrences.TryGetValue(baseHash, out var c) ? c + 1 : 1;
             occurrences[baseHash] = n;
             var hash = n == 1 ? baseHash : $"{baseHash}#{n}";
 
-            var existing = FindExisting(hash, account, docId, kind);
+            var existing = FindExisting(hash, account, docId, crossFile);
             if (existing is not null && touched.Contains(existing.Value))      // 保底：同一筆不准被兩列同時認領
             {
-                hash = NextFreeHash(hash, account, docId, kind);
+                hash = NextFreeHash(hash, account, docId, crossFile);
                 existing = null;
             }
 
@@ -448,29 +451,29 @@ public sealed class StatementImporter
                t.PostingDate?.ToString("yyyyMMdd") ?? "", minor, currency, t.Page)));
 
     /// <summary>
-    /// 哈希比對的範圍。信用卡可以跳檔案比（卡＋帳期＋金額＋日期就是同一筆的身份，重掃/重匯要能對回去）；
-    /// 存款單與繳費單只在同一份檔案內比 —— 它們沒有可靠身份（戶號/繳費編號現在只在 raw_text 裡），
-    /// 跳檔案比會把「同一天同額的兩張不同戶號繳費單」合成一筆：第二筆根本不會被插入，比較嚴重。
+    /// 哈希比對的範圍。要能跳檔案比，前提是哈希裡有**可靠身份**（卡號/帳號/缴費戶號，<see cref="ParsedStatement.AccountMask"/>
+    /// 或列上的 <see cref="ParsedTransaction.Account"/>）：卡靠卡＋帳期＋金額＋日期，存款靠帳號，缴費單靠戶號。
+    /// 身份拿不出來就退回只在同一份檔案內比 —— 宁願存兩份，也不要悄悄吃掉一筆（跳檔案判到重覆是**不插入**，不是標記）。
     /// 跳檔案的「疑似重複」已由 <see cref="LedgerStore"/> 的 DuplicateGroupKey 只做標記（也只算信用卡）。
-    /// 已知代價：同一份存款/繳費單第二次取得（網銀重新下載/補發 —— 這些單子是伺服器即席產生的 PDF，bytes 可能不同）
+    /// 已知代價：身份為空時，同一份單子第二次取得（網銀重下載/補發 —— 這些 PDF 是伺服器即席產生的，bytes 可能不同）
     /// 會整份存兩份、無警告（細部見 dFinance-db-design.md）。
     /// </summary>
-    long? FindExisting(string hash, long accountId, long docId, StatementKind kind)
+    long? FindExisting(string hash, long accountId, long docId, bool crossFile)
     {
         var ps = new List<(string, object?)> { ("$h", hash), ("$a", accountId) };
         var scope = "";
-        if (kind != StatementKind.Card) { scope = " AND source_document_id=$doc"; ps.Add(("$doc", docId)); }
+        if (!crossFile) { scope = " AND source_document_id=$doc"; ps.Add(("$doc", docId)); }
         return Db.Scalar(_db,
             "SELECT id FROM entry WHERE source_line_hash=$h AND account_id=$a AND deleted_at IS NULL" + scope + " ORDER BY id LIMIT 1;",
             [.. ps]) is long id ? id : (long?)null;
     }
 
     /// <summary>同一個範圍已有一模一樣的鍵 → 加出現次數後綴，讓「同天同店刷兩次同額」能存成兩筆。</summary>
-    string NextFreeHash(string hash, long accountId, long docId, StatementKind kind)
+    string NextFreeHash(string hash, long accountId, long docId, bool crossFile)
     {
-        if (FindExisting(hash, accountId, docId, kind) is null) return hash;
+        if (FindExisting(hash, accountId, docId, crossFile) is null) return hash;
         for (int n = 2; n <= 50; n++)
-            if (FindExisting($"{hash}#{n}", accountId, docId, kind) is null) return $"{hash}#{n}";
+            if (FindExisting($"{hash}#{n}", accountId, docId, crossFile) is null) return $"{hash}#{n}";
         return $"{hash}#many-{Guid.NewGuid():N}";              // 同一鍵超過 50 筆不會發生，保底不卡在迴圈
     }
 

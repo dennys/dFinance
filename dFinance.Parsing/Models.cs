@@ -44,6 +44,12 @@ public class ParsedTransaction
     /// </summary>
     public string Kind { get; set; } = "charge";
 
+    /// <summary>
+    /// <b> Amount 那個金額的幣別</b>（不是「這筆原來的幣別」）。存款單就是列上的幣別；
+    /// 台幣卡帳的消費要填 TWD（金額取「台幣金額」欄），海外消費的原幣屬於
+    /// <c>entry.orig_currency</c>/orig_amount_minor（尚未實作，見 TODO：富邦/匯豐在這裡會警告）。
+    /// 照單子上的原文交（「美金」），對成代碼是匯入端靠 <c>currency.aliases</c> 做的事。
+    /// </summary>
     public string Currency { get; set; } = "";
 
     public string Card { get; set; } = "";
