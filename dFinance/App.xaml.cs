@@ -60,6 +60,7 @@ namespace dFinance
                          + $"，幣別/匯率開得來（{w.SmokeOpenCurrencyDialog()} 種幣別）"
                          + $"，建議分類開得來（{w.SmokeOpenSuggestDialog()} 個商家）"
                          + $"，分類報表展開/排序得動（{w.SmokeCategoryReport()}）"
+                         + $"，依帳期彙總開得來（{w.SmokeBillPeriodTab()}）"
                          + $"，語系換得過去（{before} → {string.Join(" / ", swapped)}）";
                 w.Close();
                 File.WriteAllText(report, line + "  data=" + Db.DataDirectory);

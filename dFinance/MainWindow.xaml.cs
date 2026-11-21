@@ -17,6 +17,7 @@ namespace dFinance
         private readonly Dictionary<long, TabItem> _accountTabs = [];
         private readonly List<TabItem> _drillDownTabs = [];
         private TabItem? _categoryTab;
+        private TabItem? _billPeriodTab;
 
         public MainWindow()
         {
@@ -68,6 +69,7 @@ namespace dFinance
 
             HomeTab.Content = NewLedger(null, Loc.T("Tab_Home"));
             BuildCategoryTab();
+            BuildBillPeriodTab();
             foreach (var id in open)
             {
                 var name = Db.Scalar(db, "SELECT name FROM account WHERE id=$i;", ("$i", id)) as string ?? id.ToString();
@@ -109,6 +111,7 @@ namespace dFinance
                 new LedgerStore(db).PromoteCategorizedImports();
                 HomeTab.Content = NewLedger(null, Loc.T("Tab_Home"));
                 BuildCategoryTab();
+                BuildBillPeriodTab();
                 Tabs.SelectedItem = HomeTab;
                 previous?.Dispose();
 
@@ -267,6 +270,13 @@ namespace dFinance
             return $"展開多 {added} 列，{tab.SmokeReportTiming}";
         }
 
+        /// <summary>給 <c>--uismoke</c>：依帳期彙總那頁建得出來、查得到東西、「只看對不上的」也動得了。</summary>
+        internal string SmokeBillPeriodTab()
+        {
+            if (_billPeriodTab?.Content is not BillPeriodTab tab) throw new InvalidOperationException("依帳期彙總分頁沒建起來");
+            return tab.SmokeSummary();
+        }
+
         internal string SmokeReport()
         {
             var home = HomeTab.Content as LedgerTab;
@@ -380,6 +390,31 @@ namespace dFinance
         void CategoryReport_Click(object sender, RoutedEventArgs e)
         {
             if (_categoryTab is not null) Tabs.SelectedItem = _categoryTab;
+        }
+
+        /// <summary>依帳期彙總：跟分類帳同一種開法 —— 常駐分頁，再按選單只是换 SelectedItem。</summary>
+        void BuildBillPeriodTab()
+        {
+            if (_billPeriodTab is not null) Tabs.Items.Remove(_billPeriodTab);
+            _billPeriodTab = null;
+            if (_db is not { } db) return;
+
+            var tab = new BillPeriodTab(db);
+            // 點一列 → 開那張卡的帳戶分頁，並把該期的日期範圍套上去（帳本清單能筛的就是帳戶/日期/分類）。
+            tab.DrillRequested += (accountId, name, from, to) =>
+            {
+                OpenAccountTab(accountId, name);
+                if (_accountTabs.TryGetValue(accountId, out var item) && item.Content is LedgerTab ledger)
+                    ledger.ApplyDrillDown("", from, to);
+            };
+            _billPeriodTab = new TabItem { Header = Loc.T("Menu_BillPeriods"), Content = tab };
+            var after = _categoryTab is not null ? Tabs.Items.IndexOf(_categoryTab) + 1 : Tabs.Items.IndexOf(HomeTab) + 1;
+            Tabs.Items.Insert(after, _billPeriodTab);            // 帳戶分頁之後、「匯入 PDF」之前（那一頁永遠留最後）
+        }
+
+        void BillPeriods_Click(object sender, RoutedEventArgs e)
+        {
+            if (_billPeriodTab is not null) Tabs.SelectedItem = _billPeriodTab;
         }
 
         void RebuildRecentMenu()

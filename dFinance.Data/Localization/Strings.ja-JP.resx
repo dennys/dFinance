@@ -1120,4 +1120,64 @@
   <data name="Imp_Identifying" xml:space="preserve">
     <value>認識中：{0}</value>
   </data>
+  <data name="Menu_BillPeriods" xml:space="preserve">
+    <value>明細書別集計</value>
+  </data>
+  <data name="Bill_Col_Period" xml:space="preserve">
+    <value>明細期間</value>
+  </data>
+  <data name="Bill_Col_DueDate" xml:space="preserve">
+    <value>支払期限</value>
+  </data>
+  <data name="Bill_Col_Entries" xml:space="preserve">
+    <value>件数</value>
+  </data>
+  <data name="Bill_Col_Spend" xml:space="preserve">
+    <value>利用合計</value>
+  </data>
+  <data name="Bill_Col_Due" xml:space="preserve">
+    <value>支払額</value>
+  </data>
+  <data name="Bill_Col_Diff" xml:space="preserve">
+    <value>差額</value>
+  </data>
+  <data name="Bill_Col_Transfer" xml:space="preserve">
+    <value>支払</value>
+  </data>
+  <data name="Bill_Col_Paid" xml:space="preserve">
+    <value>納付</value>
+  </data>
+  <data name="Bill_OnlyMismatch" xml:space="preserve">
+    <value>不一致のみ</value>
+  </data>
+  <data name="Bill_LastPeriods" xml:space="preserve">
+    <value>直近 {0} 明細</value>
+  </data>
+  <data name="Bill_AllPeriods" xml:space="preserve">
+    <value>全期間</value>
+  </data>
+  <data name="Bill_Totals" xml:space="preserve">
+    <value>合計（{0} に換算）：利用 {1}｜支払額 {2}｜差額 {3}</value>
+  </data>
+  <data name="Bill_Unconverted" xml:space="preserve">
+    <value>{0} 明細は為替レートがないため合計に含めません</value>
+  </data>
+  <data name="Bill_Unmapped" xml:space="preserve">
+    <value>{0} 件のカード取引がどの明細にも紐付きません</value>
+  </data>
+  <data name="Bill_ClickTip" xml:space="preserve">
+    <value>行をクリック = そのカードの帳簿（該当期間）を開く。「納付」欄をクリック = 支払済/未払を切り替えます</value>
+  </data>
+  <data name="Bill_NoPeriod" xml:space="preserve">
+    <value>（明細なし）</value>
+  </data>
+  <data name="Bill_WarnUnmapped" xml:space="preserve">
+    <value>明細なし</value>
+  </data>
+  <data name="Bill_WarnRate" xml:space="preserve">
+    <value>為替レートなし</value>
+  </data>
+  <data name="Bill_WarnDiff" xml:space="preserve">
+    <value>差額</value>
+  </data>
 </root>

@@ -766,6 +766,150 @@ public sealed class LedgerStore
         return list;
     }
 
+    // ---------------------------------------------------------------- 依帳期彙總（信用卡）
+
+    /// <summary>
+    /// 一張列 = 一份信用卡帳單 × 那期裡的一個幣別（混幣別的期拆成兩列：把日圓與美金加在同一列
+    /// 就是憑空多出一種錢）。金額一律<b>照單上的幣別</b>，因為這張表是用來跟紙本帳單對帳的；
+    /// 只有合計列折成基準幣（<see cref="BillPeriodReport.BaseCurrency"/>）。
+    /// </summary>
+    public sealed record BillPeriod(long BillId, long AccountId, string AccountName, string Currency, int Scale,
+                                    string? PeriodStart, string PeriodEnd, string? DueDate,
+                                    int Entries, long SpendMinor, long? TotalDueMinor, long? DiffMinor,
+                                    long TransferMinor, string? PaidAt, bool Converted)
+    {
+        public bool Paid => PaidAt is not null;
+        /// <summary>挂不上任何帳單的卡帳列（卡號拿不到時 <c>bill_id</c> 会是 NULL）：不静靜吃掉。</summary>
+        public bool Unmapped => BillId == 0;
+        /// <summary>消費合計與單上應繳對不上。應繳 NULL 時沒得比 → 不算對不上（也不給差額）。</summary>
+        public bool Mismatch => DiffMinor is { } d && d != 0;
+        /// <summary>這個幣別完全沒匯率 → 這一期的金額不進合計列，列上要標 ⚠。</summary>
+        public bool NeedsRate => !Converted;
+        public string PeriodText => Unmapped ? Loc.T("Bill_NoPeriod")
+                                           : string.IsNullOrEmpty(PeriodStart) ? PeriodEnd : $"{PeriodStart} ~ {PeriodEnd}";
+        public string SpendText => Money.Format(SpendMinor, Scale);
+        public string TransferText => TransferMinor == 0 ? "" : Money.Format(TransferMinor, Scale);
+        public string DueText => TotalDueMinor is { } v ? Money.Format(v, Scale) : "";
+        /// <summary>0 顯示 «—»（對上了，不是少一筆）；NULL 留白（單上沒印應繳，沒得比）。</summary>
+        public string DiffText => DiffMinor is not { } v ? "" : v == 0 ? "—" : Money.Format(v, Scale);
+        public string PaidText => PaidAt is null ? "" : PaidAt[..10];
+        /// <summary>⚠ 那一欄（只靠顏色看不夠）。三種不一樣的「不對」要分得開：
+        /// 對不上（漏解析的候選）、缺匯率（比不了）、挂不上帳期（沒單可對）。</summary>
+        public string MarkText => Unmapped ? "⚠ " + Loc.T("Bill_WarnUnmapped")
+                             : NeedsRate ? "⚠ " + Loc.T("Bill_WarnRate")
+                             : Mismatch ? "⚠ " + Loc.T("Bill_WarnDiff") : "";
+    }
+
+    /// <param name="UnmappedEntries">卡帳但挂不上任何帳單的列數（要講、不能静靜吃掉）。</param>
+    /// <param name="UnconvertedBills">因為完全沒匯率而沒算進合計列的期數。</param>
+    public sealed record BillPeriodReport(IReadOnlyList<BillPeriod> Rows,
+                                          long TotalSpendMinor, long TotalDueMinor, long TotalDiffMinor,
+                                          int UnmappedEntries, int UnmappedBills,
+                                          int UnconvertedBills, string BaseCurrency, int BaseScale)
+    {
+        public string SpendText => Money.Format(TotalSpendMinor, BaseScale);
+        public string DueText => Money.Format(TotalDueMinor, BaseScale);
+        public string DiffText => TotalDiffMinor == 0 ? "—" : Money.Format(TotalDiffMinor, BaseScale);
+    }
+
+    /// <summary>
+    /// 依帳期彙總：拿「明細合計」跟「單上應繳」對帳，對不上的那幾期就是 parser 漏列的候選。
+    /// <para>歸期靠 <c>entry.bill_id</b>（外鍵），<b>不用日期區間</b>：跨期消費與 <c>txn_date</c> 為 NULL 的列
+    /// 會被日期區間漏掉。原料由匯入端寫（<c>bill_id</c>/<c>card_id</c>），这张表不建 rollup。</para>
+    /// <para>消費合計 = <see cref="Live"/> 且 <c>kind ≠ 'transfer'</c> 的金額直接相加：pending/deleted 不計，
+    /// 繳款（轉帳）不算消費（另進「繳款」欄，否則支出會 double count），退款在 DB 裡是負的所以直接加
+    /// 就是淨消費。差額 = 消費合計 − 單上應繳；應繳 NULL → 差額也 NULL（不准當 0）。</para>
+    /// <para>只有信用卡：存款單/繳費單沒有「帳期」這個概念，不進這張表。</para>
+    /// </summary>
+    /// <param name="periodsPerCard">每張卡只留最近 N 期（0 = 全部）。視窗函数照 <c>period_end</c> 排。</param>
+    /// <param name="onlyMismatched">只留對不上的期（含缺匯率的）。</param>
+    public BillPeriodReport BillPeriods(int periodsPerCard = 12, bool onlyMismatched = false)
+    {
+        var baseCcy = BaseCurrency;
+        var baseScale = BaseCurrencyScale;
+        var rates = RatesTo(baseCcy);
+        var rows = new List<BillPeriod>();
+        long totalSpend = 0, totalDue = 0, totalDiff = 0;
+        int unconverted = 0;
+
+        using (var cmd = _db.CreateCommand())
+        {
+            cmd.CommandText = $"""
+                SELECT b.id, k.account_id, a.name, a.currency,
+                       b.period_start, b.period_end, b.due_date, b.total_due_minor, b.paid_at,
+                       ifnull(g.currency, a.currency),
+                       COALESCE(g.spend, 0), COALESCE(g.transfers, 0), COALESCE(g.n, 0)
+                FROM (SELECT id, card_id, period_start, period_end, due_date, total_due_minor, paid_at,
+                             ROW_NUMBER() OVER (PARTITION BY card_id ORDER BY period_end DESC) rn
+                      FROM credit_card_bill) b
+                JOIN card k ON k.id = b.card_id
+                JOIN account a ON a.id = k.account_id
+                LEFT JOIN (SELECT e.bill_id, e.currency,
+                                  SUM(CASE WHEN e.kind <> 'transfer' THEN e.amount_minor ELSE 0 END) AS spend,
+                                  SUM(CASE WHEN e.kind = 'transfer'  THEN e.amount_minor ELSE 0 END) AS transfers,
+                                  COUNT(CASE WHEN e.kind <> 'transfer' THEN 1 END) AS n
+                           FROM entry e WHERE {Live} AND e.bill_id IS NOT NULL
+                           GROUP BY e.bill_id, e.currency) g ON g.bill_id = b.id
+                WHERE a.is_archived = 0 AND ($n = 0 OR b.rn <= $n)
+                ORDER BY b.period_end DESC, a.name, ifnull(g.currency, a.currency);
+                """;
+            cmd.Parameters.AddWithValue("$n", periodsPerCard <= 0 ? 0 : periodsPerCard);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                var ccy = Db.NormalizeCurrencyCode(Str(r, 9)!);
+                var scale = ScaleOf(ccy);
+                var spend = Lang(r, 10);
+                var transfers = Lang(r, 11);
+                var due = r.IsDBNull(7) ? (long?)null : Lang(r, 7);
+                var diff = due is null ? (long?)null : spend - due.Value;
+                var converted = ccy.Equals(baseCcy, StringComparison.Ordinal) || rates.ContainsKey(ccy);
+                var row = new BillPeriod(r.GetInt64(0), r.GetInt64(1), r.GetString(2), ccy, scale,
+                                         Str(r, 4), Str(r, 5)!, Str(r, 6), (int)Lang(r, 12),
+                                         spend, due, diff, transfers, Str(r, 8), converted);
+                if (onlyMismatched && !row.Mismatch && !row.NeedsRate) continue;
+                rows.Add(row);
+                if (!converted) { unconverted++; continue; }                 // 没匯率就是不知道，不准假設 1:1
+                var factor = ccy.Equals(baseCcy, StringComparison.Ordinal) ? 1m : rates[ccy];
+                totalSpend += Money.Convert(spend, factor);
+                totalDue += Money.Convert(due ?? 0, factor);
+                totalDiff += Money.Convert(diff ?? 0, factor);
+            }
+        }
+
+        // 挂不上帳單的卡帳列（卡號被遮、或尚未歸檔的舊列）：footer 要報數，按下去才會把這幾期攤開。
+        var unmapped = new List<BillPeriod>();
+        int unmappedEntries = 0;
+        using (var cmd = _db.CreateCommand())
+        {
+            cmd.CommandText = $"""
+                SELECT e.account_id, a.name, e.currency,
+                       SUM(CASE WHEN e.kind <> 'transfer' THEN e.amount_minor ELSE 0 END) AS spend,
+                       SUM(CASE WHEN e.kind = 'transfer'  THEN e.amount_minor ELSE 0 END) AS transfers,
+                       COUNT(CASE WHEN e.kind <> 'transfer' THEN 1 END) AS n
+                FROM entry e JOIN account a ON a.id = e.account_id
+                WHERE {Live} AND e.bill_id IS NULL AND a.type = 'credit_card' AND a.is_archived = 0
+                GROUP BY e.account_id, e.currency
+                ORDER BY a.name, e.currency;
+                """;
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                var ccy = Db.NormalizeCurrencyCode(Str(r, 2)!);
+                var row = new BillPeriod(0, r.GetInt64(0), r.GetString(1), ccy, ScaleOf(ccy),
+                                         null, "", null, (int)Lang(r, 5), Lang(r, 3), null, null, Lang(r, 4), null,
+                                         ccy.Equals(baseCcy, StringComparison.Ordinal) || rates.ContainsKey(ccy));
+                unmapped.Add(row);
+                unmappedEntries += row.Entries;
+                if (onlyMismatched) continue;
+                rows.Add(row);                                                // 只加进列，不進合計（沒有單可對）
+                if (!row.Converted) unconverted++;
+            }
+        }
+        return new BillPeriodReport(rows, totalSpend, totalDue, totalDiff,
+                                    unmappedEntries, unmapped.Count, unconverted, baseCcy, baseScale);
+    }
+
     // ---------------------------------------------------------------- 下拉的資料
 
     public sealed record Option(long Id, string Name);

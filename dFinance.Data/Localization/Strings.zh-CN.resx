@@ -1120,4 +1120,64 @@
   <data name="Imp_Identifying" xml:space="preserve">
     <value>辨识中：{0}</value>
   </data>
+  <data name="Menu_BillPeriods" xml:space="preserve">
+    <value>依账期汇总</value>
+  </data>
+  <data name="Bill_Col_Period" xml:space="preserve">
+    <value>账期</value>
+  </data>
+  <data name="Bill_Col_DueDate" xml:space="preserve">
+    <value>缴费截止日</value>
+  </data>
+  <data name="Bill_Col_Entries" xml:space="preserve">
+    <value>笔数</value>
+  </data>
+  <data name="Bill_Col_Spend" xml:space="preserve">
+    <value>消费合计</value>
+  </data>
+  <data name="Bill_Col_Due" xml:space="preserve">
+    <value>本期应缴</value>
+  </data>
+  <data name="Bill_Col_Diff" xml:space="preserve">
+    <value>差额</value>
+  </data>
+  <data name="Bill_Col_Transfer" xml:space="preserve">
+    <value>缴费</value>
+  </data>
+  <data name="Bill_Col_Paid" xml:space="preserve">
+    <value>缴销</value>
+  </data>
+  <data name="Bill_OnlyMismatch" xml:space="preserve">
+    <value>只看对不上的</value>
+  </data>
+  <data name="Bill_LastPeriods" xml:space="preserve">
+    <value>近 {0} 期</value>
+  </data>
+  <data name="Bill_AllPeriods" xml:space="preserve">
+    <value>全部账期</value>
+  </data>
+  <data name="Bill_Totals" xml:space="preserve">
+    <value>合计（已折算为 {0}）：消费 {1}｜应缴 {2}｜差额 {3}</value>
+  </data>
+  <data name="Bill_Unconverted" xml:space="preserve">
+    <value>{0} 期因为没有汇率，未计入合计</value>
+  </data>
+  <data name="Bill_Unmapped" xml:space="preserve">
+    <value>{0} 行卡账挂不上任何账期</value>
+  </data>
+  <data name="Bill_ClickTip" xml:space="preserve">
+    <value>点一行 = 打开该卡的账本（该期范围）；点“缴销”那格 = 标记已缴/未缴</value>
+  </data>
+  <data name="Bill_NoPeriod" xml:space="preserve">
+    <value>（无账期）</value>
+  </data>
+  <data name="Bill_WarnUnmapped" xml:space="preserve">
+    <value>无账期</value>
+  </data>
+  <data name="Bill_WarnRate" xml:space="preserve">
+    <value>无汇率</value>
+  </data>
+  <data name="Bill_WarnDiff" xml:space="preserve">
+    <value>差额</value>
+  </data>
 </root>

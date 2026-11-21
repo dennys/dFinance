@@ -80,6 +80,9 @@ dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"
   完全沒匯率的幣別不計入金額、只報筆數。沒有消費日的列在淨值與折線都要算（当成期初，同一支 `Undated`）。
 - **分類報表「進不進表」看有没有任何一個月有數**（`PivotTree`），不是看整年相加＝0：退款抵掉的月份被藏起来，
   小計加起来就會跟最下面的總計列對不上（`PivotTreeTests` 鎖住）。
+- **依帳期彙總**（`LedgerStore.BillPeriods`）歸期只靠 `entry.bill_id`，**不准改用日期區間**（跨期消費與 `txn_date` 為 NULL 的列會跑掉）；
+  消費合計排除 `transfer`（繳款不是消費，加進去會 double count）、退款照負的直接加；**列照單上幣別**（這張表要跟紙本對帳）、
+  只有合計折算基準幣，缺匯率的期不進合計但要計數；`bill_id IS NULL` 的卡帳列以「（無帳期）」呈現，不准静靜吃掉。
 - **UI 對帳本的寫入一律走 `LedgerTab.Write()`**：批次匯入在背景另一條連線，撞鎖的例外沒接就是整個程式挂掉；
   失敗要講訊息並重查，不准留一個看起來改好了的格子。
 

@@ -16,6 +16,7 @@
   </MenuItem>
   <MenuItem Header="{Binding [Menu_Reports], Source={StaticResource Loc}}">
     <MenuItem Header="{Binding [Menu_CategoryReport], Source={StaticResource Loc}}" Click="CategoryReport_Click"/>
+    <MenuItem Header="{Binding [Menu_BillPeriods], Source={StaticResource Loc}}" Click="BillPeriods_Click"/>
   </MenuItem>
   <MenuItem Header="{Binding [Menu_Tools], Source={StaticResource Loc}}">
     <MenuItem Header="{Binding [Menu_CategoryManager], Source={StaticResource Loc}}" Click="CategoryManager_Click"/>

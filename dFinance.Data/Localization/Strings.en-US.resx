@@ -1120,4 +1120,64 @@ Mismatches are usually a missing transaction or a wrong opening balance; recount
   <data name="Imp_Identifying" xml:space="preserve">
     <value>Recognising: {0}</value>
   </data>
+  <data name="Menu_BillPeriods" xml:space="preserve">
+    <value>By statement period</value>
+  </data>
+  <data name="Bill_Col_Period" xml:space="preserve">
+    <value>Statement period</value>
+  </data>
+  <data name="Bill_Col_DueDate" xml:space="preserve">
+    <value>Payment due</value>
+  </data>
+  <data name="Bill_Col_Entries" xml:space="preserve">
+    <value>Entries</value>
+  </data>
+  <data name="Bill_Col_Spend" xml:space="preserve">
+    <value>Spending</value>
+  </data>
+  <data name="Bill_Col_Due" xml:space="preserve">
+    <value>Amount due</value>
+  </data>
+  <data name="Bill_Col_Diff" xml:space="preserve">
+    <value>Difference</value>
+  </data>
+  <data name="Bill_Col_Transfer" xml:space="preserve">
+    <value>Payments</value>
+  </data>
+  <data name="Bill_Col_Paid" xml:space="preserve">
+    <value>Paid</value>
+  </data>
+  <data name="Bill_OnlyMismatch" xml:space="preserve">
+    <value>Only mismatches</value>
+  </data>
+  <data name="Bill_LastPeriods" xml:space="preserve">
+    <value>Last {0} statements</value>
+  </data>
+  <data name="Bill_AllPeriods" xml:space="preserve">
+    <value>All statements</value>
+  </data>
+  <data name="Bill_Totals" xml:space="preserve">
+    <value>Total (converted to {0}): spending {1} | due {2} | difference {3}</value>
+  </data>
+  <data name="Bill_Unconverted" xml:space="preserve">
+    <value>{0} statements left out of the total (no exchange rate)</value>
+  </data>
+  <data name="Bill_Unmapped" xml:space="preserve">
+    <value>{0} card entries are not linked to any statement</value>
+  </data>
+  <data name="Bill_ClickTip" xml:space="preserve">
+    <value>Click a row = open that card's ledger for the period; click the Paid cell = mark paid / unpaid</value>
+  </data>
+  <data name="Bill_NoPeriod" xml:space="preserve">
+    <value>(no statement)</value>
+  </data>
+  <data name="Bill_WarnUnmapped" xml:space="preserve">
+    <value>no statement</value>
+  </data>
+  <data name="Bill_WarnRate" xml:space="preserve">
+    <value>no rate</value>
+  </data>
+  <data name="Bill_WarnDiff" xml:space="preserve">
+    <value>difference</value>
+  </data>
 </root>
