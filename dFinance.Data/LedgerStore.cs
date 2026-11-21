@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using dFinance.Data.Localization;
 using System.Runtime.CompilerServices;
 using Microsoft.Data.Sqlite;
 
@@ -53,7 +54,9 @@ public sealed class LedgerStore
         public long? CategoryId
         {
             get => _categoryId;
-            set { Set(ref _categoryId, value); Raise(nameof(Category)); }
+            // 只存 Id；顯示文字是另一個欄位 Category，要由編輯端一起換（見 LedgerTab 的分類欄），
+            // 否則格子裡還是舊字串，看起來像沒儲存。
+            set => Set(ref _categoryId, value);
         }
         public string? Category { get => _category; set => Set(ref _category, value); }
         public long AmountMinor { get; init; }
@@ -90,8 +93,8 @@ public sealed class LedgerStore
         public string DateText => Date ?? "?";
         public string StatusText => Status switch
         {
-            "cleared" => "核銷", "imported" => "待補", "pending" => "未發生",
-            "ignored" => "忽略", "duplicate" => "重複", _ => Status,
+            "cleared" => Loc.T("Store_Status_Settled"), "imported" => Loc.T("Store_Status_Pending"), "pending" => Loc.T("Store_Status_NotYet"),
+            "ignored" => Loc.T("Store_Status_Ignored"), "duplicate" => Loc.T("Store_Status_Duplicate"), _ => Status,
         };
     }
 
@@ -157,8 +160,8 @@ public sealed class LedgerStore
             """;
 
         var rows = new List<Row>();
-        var expenseCats = Categories("expense");
-        var incomeCats = Categories("income");
+        var expenseCats = Categories("expense", leavesOnly: true);
+        var incomeCats = Categories("income", leavesOnly: true);
         using (var cmd = _db.CreateCommand())
         {
             cmd.CommandText = sql;
@@ -210,15 +213,18 @@ public sealed class LedgerStore
     /// <summary>本月收支。加總把 transfer 排除：繳款列若算成支出會_double count_（見 db-design）。</summary>
     public Kpi Totals(string? from, string? to, long? accountId)
     {
+        // 金額只加有日期、落在區間內的列；但「待分類」要跟清單看到的一樣（清單刻意保留無日期的列），
+        // 否則會出現「待分類 0 筆」而下面躺著幾列紅色 ? 等補日期。
+        const string range = "(($from IS NULL OR e.txn_date >= $from) AND ($to IS NULL OR e.txn_date <= $to))";
         var sql = $"""
-            SELECT SUM(CASE WHEN e.kind = 'income' THEN e.amount_minor END),
-                   SUM(CASE WHEN e.kind = 'expense' THEN e.amount_minor END),
-                   SUM(CASE WHEN e.kind IN ('income','adjustment') THEN e.amount_minor ELSE -e.amount_minor END),
+            SELECT SUM(CASE WHEN {range} AND e.kind = 'income' THEN e.amount_minor END),
+                   SUM(CASE WHEN {range} AND e.kind = 'expense' THEN e.amount_minor END),
+                   SUM(CASE WHEN {range} AND e.kind IN ('income','adjustment') THEN e.amount_minor ELSE -e.amount_minor END),
                    SUM(CASE WHEN e.category_id IS NULL AND e.kind NOT IN ('transfer','refund') THEN 1 ELSE 0 END),
                    SUM(CASE WHEN e.category_id IS NULL AND e.kind NOT IN ('transfer','refund') THEN e.amount_minor ELSE 0 END)
             FROM entry e
             WHERE {Live} AND e.kind <> 'transfer'
-              AND ($from IS NULL OR e.txn_date >= $from) AND ($to IS NULL OR e.txn_date <= $to)
+              AND (e.txn_date IS NULL OR {range})
               AND ($acct IS NULL OR e.account_id = $acct);
             """;
         using var cmd = _db.CreateCommand();
@@ -240,12 +246,12 @@ public sealed class LedgerStore
         public string BalanceText => Money.Format(BalanceMinor, Scale);          // 帳戶幣別的小數位
         public string ConvertedText => CountedInNet ? Money.Format(ConvertedMinor, BaseScale) : "—";   // 基準幣的小數位
         public string CountedText => ForeignEntries > 0
-            ? $"{(CountedInNet ? "✓" : "未折算")}　⚠ 含 {ForeignEntries} 筆幣別不符的列（已按帳戶幣別算）"
+            ? (CountedInNet ? "✓" : Loc.T("Store_NotConvertedShort")) + Loc.F("Store_BalanceForeign", ForeignEntries)
             : CountedInNet ? (Currency == BaseCcy ? "✓" : $"✓（{Currency} → {BaseCcy} × {Rate:0.####}）")
-                           : $"未折算（{Currency} → {BaseCcy} 沒有匯率）";
+                           : Loc.F("Store_Unconverted", Currency, BaseCcy);
         /// <summary>首頁淨值表的分組：銀行 → 信用卡 → 其它。</summary>
         public int GroupOrder => Type switch { "bank" => 0, "credit_card" => 1, _ => 2 };
-        public string Group => Type switch { "bank" => "銀行", "credit_card" => "信用卡", _ => "其它" };
+        public string Group => Type switch { "bank" => Loc.T("Store_Group_Bank"), "credit_card" => Loc.T("Store_Group_Card"), _ => Loc.T("Store_Group_Other") };
     }
     /// <summary>淨值報告。所有金額都以 <paramref name="BaseCurrency"/> 表達；
     /// <paramref name="UnconvertedAccounts"/> 大於 0 代表這個數字不完整（寧可不計也不瞎算 1:1）。</summary>
@@ -283,7 +289,7 @@ public sealed class LedgerStore
         LEFT JOIN (
             SELECT e.account_id, COUNT(*) AS n
             FROM entry e JOIN account a2 ON a2.id = e.account_id
-            WHERE e.deleted_at IS NULL AND e.currency <> a2.currency
+            WHERE e.deleted_at IS NULL AND e.status IN ('cleared','imported') AND e.currency <> a2.currency
             GROUP BY e.account_id
         ) f ON f.account_id = a.id
         """;
@@ -333,8 +339,8 @@ public sealed class LedgerStore
     public void SaveCurrency(string code, string name, int scale, string? aliases, string? oldCode = null)
     {
         code = Db.NormalizeCurrencyCode(code);
-        if (code.Length != 3 || !code.All(c => c >= 'A' && c <= 'Z')) throw new ArgumentException("代碼要用三個英文大寫字母（例 USD）。", nameof(code));
-        if (scale is < 0 or > 4) throw new ArgumentOutOfRangeException(nameof(scale), "顯示小數位只能 0–4。");
+        if (code.Length != 3 || !code.All(c => c >= 'A' && c <= 'Z')) throw new ArgumentException(Loc.T("Store_BadCurrencyCode"), nameof(code));
+        if (scale is < 0 or > 4) throw new ArgumentOutOfRangeException(nameof(scale), Loc.T("Store_BadScale"));
         name = string.IsNullOrWhiteSpace(name) ? code : name.Trim();
         aliases = string.IsNullOrWhiteSpace(aliases) ? null : aliases.Trim();
 
@@ -394,7 +400,7 @@ public sealed class LedgerStore
         /// <summary>超過 <see cref="LedgerStore.StaleAfterDays"/> 沒更新就要標出來，否則人不知道這數字是多久以前的。</summary>
         public bool IsStale => DateOnly.TryParseExact(RateDate, "yyyy-MM-dd", out var d)
                             && DateOnly.FromDateTime(DateTime.Today).DayNumber - d.DayNumber > StaleAfterDays;
-        public string StaleText => IsStale ? $"⚠ 超過 {StaleAfterDays} 天沒更新" : "";
+        public string StaleText => IsStale ? Loc.F("Store_Stale", StaleAfterDays) : "";
         public const int StaleAfterDays = 3;
     }
 
@@ -587,32 +593,45 @@ public sealed class LedgerStore
     }
 
     /// <summary>首頁右下角的未來帳單：還沒到的 entry ＋ 未繳且未到期的信用卡帳單。</summary>
-    public sealed record UpcomingItem(string Date, string Label, decimal Amount);
+    /// <param name="BillId">有值 = 這是一張信用卡帳單（不是 entry），界面上才能按「已繳」。</param>
+    public sealed record UpcomingItem(string Date, string Label, decimal Amount, long? BillId = null)
+    { public bool IsBill => BillId is not null; }
 
     public List<UpcomingItem> Upcoming()
     {
         var list = new List<UpcomingItem>();
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            SELECT due, label, amount_minor FROM (
+            SELECT due, label, amount_minor, bill_id FROM (
                 SELECT e.txn_date AS due,
-                       COALESCE(e.merchant, '(未命名)') || '（' || a.name || '）' AS label,
-                       e.amount_minor AS amount_minor
+                       COALESCE(e.merchant, $unnamed) || '（' || a.name || '）' AS label,
+                       e.amount_minor AS amount_minor, NULL AS bill_id
                 FROM entry e JOIN account a ON a.id = e.account_id
                 WHERE e.deleted_at IS NULL AND e.status IN ('cleared','imported','pending')
                   AND e.txn_date > $today
                 UNION ALL
-                SELECT b.due_date, '信用卡帳單 ' || a.name, b.total_due_minor
+                SELECT b.due_date, $cardBill || ' ' || a.name, b.total_due_minor, b.id
                 FROM credit_card_bill b JOIN card k ON k.id = b.card_id JOIN account a ON a.id = k.account_id
                 WHERE b.paid_at IS NULL AND b.due_date >= $today AND b.total_due_minor IS NOT NULL
                   AND a.is_archived = 0
             ) ORDER BY due LIMIT 50;
             """;
         cmd.Parameters.AddWithValue("$today", Db.Today());
+        cmd.Parameters.AddWithValue("$unnamed", Loc.T("Store_Unnamed"));
+        cmd.Parameters.AddWithValue("$cardBill", Loc.T("Home_CardBillLabel"));   // 「信用卡帳單」是介面字，不能燒在 SQL 裡
         using var r = cmd.ExecuteReader();
-        while (r.Read()) list.Add(new UpcomingItem(r.GetString(0), r.GetString(1), Money.FromMinor(r.GetInt64(2))));
+        while (r.Read()) list.Add(new UpcomingItem(r.GetString(0), r.GetString(1), Money.FromMinor(r.GetInt64(2)), NullableLong(r, 3)));
         return list;
     }
+
+    /// <summary>
+    /// 標一張信用卡帳單為已繳（預設繳清）。「卡未繳」與「未來帳單」都只看 <c>paid_at</c>，
+    /// 沒有這個動作它們就只增不減 —— 繳完帳也不會消失。
+    /// </summary>
+    public void MarkBillPaid(long billId, bool paid = true)
+        => Write(paid ? "UPDATE credit_card_bill SET paid_at=$at, paid_minor=total_due_minor WHERE id=$id;"
+                      : "UPDATE credit_card_bill SET paid_at=NULL, paid_minor=NULL WHERE id=$id;",
+                 ("$at", Db.Now()), ("$id", billId));
 
     /// <summary>卡未繳：帳單口徑，查 <c>credit_card_bill</c>，不從 entry 推（尚未發生的款項不進帳本表）。</summary>
     public long CardUnpaidMinor()
@@ -657,12 +676,12 @@ public sealed class LedgerStore
 
     public sealed record Option(long Id, string Name);
 
-    List<(string Kind, List<Option> Items)> _categoryCache = [];
+    List<(string Kind, bool Leaves, List<Option> Items)> _categoryCache = [];
 
     /// <summary>分類下拉。只給方向對的那組：expense 列選不到 income 分類（靠 CHECK 會炸，不如不給選）。</summary>
-    public List<Option> Categories(string kind)
+    public List<Option> Categories(string kind, bool leavesOnly = false)
     {
-        var hit = _categoryCache.FirstOrDefault(c => c.Kind == kind);
+        var hit = _categoryCache.FirstOrDefault(c => c.Kind == kind && c.Leaves == leavesOnly);
         if (hit.Items is not null) return hit.Items;
         var items = new List<Option>();
         using (var cmd = _db.CreateCommand())
@@ -680,7 +699,11 @@ public sealed class LedgerStore
             using var r = cmd.ExecuteReader();
             while (r.Read()) items.Add(new Option(r.GetInt64(0), r.GetString(1)));
         }
-        _categoryCache.Add((kind, items));
+        // 只留最底層：下拉裡「餐飲」下面一定有「餐飲／⋯」這種路徑，有子類的就不是 leaf。
+        // shortcut: 靠路徑字串判，跟 CategoryRow.Indented 同一個假設（分類名不准含全形斜線），要改兩处。
+        if (leavesOnly)
+            items = items.Where(c => !items.Any(ch => ch.Name.StartsWith(c.Name + '／', StringComparison.Ordinal))).ToList();
+        _categoryCache.Add((kind, leavesOnly, items));
         return items;
     }
 
@@ -708,7 +731,7 @@ public sealed class LedgerStore
     {
         name = name.Trim();
         if (parentId is { } pid && Db.Scalar(_db, "SELECT id FROM category WHERE id = $i AND kind = $k;", ("$i", pid), ("$k", kind)) is null)
-            throw new ArgumentException("父分類必須是同方向的既有分類。");
+            throw new ArgumentException(Loc.T("Store_BadParent"));
         var parent = (object?)parentId ?? DBNull.Value;
         var existing = Db.Scalar(_db, "SELECT id FROM category WHERE name=$n AND kind=$k AND COALESCE(parent_id, 0) = COALESCE($p, 0);", ("$n", name), ("$k", kind), ("$p", parent));
         if (existing is long id) return id;
@@ -754,11 +777,11 @@ public sealed class LedgerStore
     public void RenameCategory(long id, string name)
     {
         name = name.Trim();
-        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("分類要取名字。");
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException(Loc.T("Store_NeedCategoryName"));
         var kind = Db.Scalar(_db, "SELECT kind FROM category WHERE id=$i;", ("$i", id)) as string
-                   ?? throw new ArgumentException("找不到這個分類。");
+                   ?? throw new ArgumentException(Loc.T("Store_CategoryNotFound"));
         if (Db.Scalar(_db, "SELECT id FROM category WHERE name=$n AND kind=$k AND id <> $i;", ("$n", name), ("$k", kind), ("$i", id)) is long)
-            throw new ArgumentException($"已經有叫「{name}」的{(kind == "income" ? "收入" : "支出")}分類了。");
+            throw new ArgumentException(Loc.F("Store_DuplicateCategory", name, kind == "income" ? Loc.T("Entry_Kind_Income") : Loc.T("Entry_Kind_Expense")));
         Write("UPDATE category SET name=$n WHERE id=$i;", ("$n", name), ("$i", id));
         _categoryCache = [];
     }
@@ -769,15 +792,18 @@ public sealed class LedgerStore
         var list = new List<(string, int)>();
         using var cmd = _db.CreateCommand();
         cmd.CommandText = $"""
-            SELECT COALESCE(e.merchant, '(未命名)'), COUNT(*)
+            SELECT COALESCE(e.merchant, $unnamed), COUNT(*)
             FROM entry e
             WHERE {Live} AND e.category_id IS NULL AND e.kind NOT IN ('transfer','refund')
+              AND ($acct IS NULL OR e.account_id = $acct)
               AND (e.txn_date IS NULL OR $from IS NULL OR e.txn_date >= $from) AND (e.txn_date IS NULL OR $to IS NULL OR e.txn_date <= $to)
+            GROUP BY 1
             ORDER BY COUNT(*) DESC, 1;
             """;
         cmd.Parameters.AddWithValue("$from", (object?)from ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$to", (object?)to ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$acct", (object?)accountId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$unnamed", Loc.T("Store_Unnamed"));
         using var r = cmd.ExecuteReader();
         while (r.Read()) list.Add((r.GetString(0), (int)r.GetInt64(1)));
         return list;
@@ -799,11 +825,12 @@ public sealed class LedgerStore
 
     // ---------------------------------------------------------------- 帳戶管理
 
-    /// <summary>帳戶型別：CHECK 認得的就這八個。UI 下拉直接用這個，不准自己加（加了存下去會被擋）。</summary>
-    public static readonly (string Value, string Label)[] AccountTypes =
+    /// <summary>帳戶型別：CHECK 認得的就這八個。UI 下拉直接用這個，不准自己加（加了存下去會被擋）。
+    /// 刻意是 property 不是欄位：寫成 static readonly 會把標籤固定在第一次取用的語系上。</summary>
+    public static (string Value, string Label)[] AccountTypes =>
     [
-        ("cash", "現金"), ("bank", "銀行"), ("wallet", "錢包"), ("credit_card", "信用卡"),
-        ("term_deposit", "定存"), ("investment", "投資"), ("loan", "貸款"), ("asset", "資產"),
+        ("cash", Loc.T("Store_Type_Cash")), ("bank", Loc.T("Store_Type_Bank")), ("wallet", Loc.T("Store_Type_Wallet")), ("credit_card", Loc.T("Store_Type_Card")),
+        ("term_deposit", Loc.T("Store_Type_Deposit")), ("investment", Loc.T("Store_Type_Investment")), ("loan", Loc.T("Store_Type_Loan")), ("asset", Loc.T("Store_Type_Asset")),
     ];
 
     public static string TypeLabel(string type) => AccountTypes.FirstOrDefault(t => t.Value == type).Label ?? type;
@@ -820,7 +847,7 @@ public sealed class LedgerStore
     {
         /// <summary>帳戶管理左側清單那一行。</summary>
         public string ListLabel => $"{Name}　{(Currency == BaseCcy ? "" : Currency + " ")}{Money.Format(BalanceMinor, Scale)}"
-                                 + (IsArchived ? "　（已歸檔）" : "");
+                                 + (IsArchived ? Loc.T("Store_ArchivedSuffix") : "");
     }
 
     const string AccountsAllSql = $"""
@@ -856,77 +883,78 @@ public sealed class LedgerStore
     /// <summary>帳戶管理表单用：账户就那十幾個，直接从清单里找，不另拼一份 SQL。</summary>
     public AccountEdit? GetAccount(long id) => AccountsAll().FirstOrDefault(a => a.Id == id);
 
-    /// <summary>
-    /// 查月分類總計：縱軸=分類（可 parent/child 展開），橫軸=月，最後一欄為該分類總計。
-    /// </summary>
-    public sealed record CatMonthTotal(string CategoryPath, string Month, long TotalMinor, bool IsRollup = false);
+    /// <summary>分類 × 月 透視表的一格。金額留 long（排序要比數值），顯示由 UI 決定。</summary>
+    public sealed record PivotCell(long CategoryId, string Month, long TotalMinor);
+
+    /// <summary>分類樹的一列：Depth 0 = 頂層（收支那一層是 <c>kind</c>，不是節點），1 = 明細層。</summary>
+    public sealed record PivotCategory(long Id, long? ParentId, string Kind, int Depth, string Name, string Path);
+
+    /// <summary>報表原料：整棵分類樹（含沒資料的）＋有資料的格子＋沒計進來的非基準幣筆數。</summary>
+    public sealed record PivotData(List<PivotCategory> Categories, List<PivotCell> Cells,
+                                   long SkippedForeignEntries, string BaseCurrency);
 
     /// <summary>
-    /// 取得分類 × 月 透視報表（僅 Live 交易，不含 pending/ignored/duplicate）。
-    /// 回傳的 CategoryPath 為「父類／子類」連續斜線，如「餐飲／午餐」。
+    /// 分類 × 月 的原料（僅 <see cref="Live"/>，只算基準幣）。小計不在 SQL 加（要就多一整段遞迴 UNION），
+    /// 交給 <see cref="PivotTree.Build"/>，小計規則才能用測試鎖住。
+    /// 非基準幣的筆數回傳給 UI 當警示：沒有折算就不進總額，也不准假設 1:1。
+    /// 沒有消費日的列不會進表（它沒有月可以放）。
     /// </summary>
-    public List<CatMonthTotal> CatMonthTotals(string? from = null, string? to = null, long? accountId = null)
+    public PivotData CategoryPivot(string? from = null, string? to = null, long? accountId = null)
     {
-        var live = LedgerStore.Live;
-        var fromWhere = (from is not null ? " AND e.txn_date >= $from" : "")
-                        + (to is not null ? " AND e.txn_date <= $to" : "")
-                        + (accountId.HasValue ? " AND e.account_id = $acct" : "");
-        var where = $"({live}){fromWhere}";
+        var filters = (from is not null ? " AND e.txn_date >= $from" : "")
+                    + (to is not null ? " AND e.txn_date <= $to" : "")
+                    + (accountId.HasValue ? " AND e.account_id = $acct" : "");
+        var scope = $"({LedgerStore.Live}){filters} AND e.kind <> 'transfer' AND e.txn_date IS NOT NULL";
         var ps = new List<(string, object?)> { ("$from", (object?)from), ("$to", (object?)to) };
-        if (accountId.HasValue) { ps.Add(("$acct", accountId.Value)); }
+        if (accountId.HasValue) ps.Add(("$acct", accountId.Value));
 
-        // 遞迴 CTE 建立分類完整路徑：parent/id/name，最後接子類別名。
-        // 有子分類的父類另加一列「合計」（IsRollup）：自己的交易＋所有子類，給人看整體。
-        var sql = $"""
-            WITH RECURSIVE cat_path(id, path) AS (
-                SELECT id, CAST(name AS TEXT) FROM category WHERE parent_id IS NULL
-                UNION ALL
-                SELECT c.id, ca.path || '／' || c.name
-                FROM category c JOIN cat_path ca ON c.parent_id = ca.id
-            ),
-            anc(leaf, anc_id) AS (
-                SELECT id, id FROM category
-                UNION ALL
-                SELECT a.leaf, c.parent_id FROM anc a JOIN category c ON c.id = a.anc_id WHERE c.parent_id IS NOT NULL
-            )
-            SELECT * FROM (
-            SELECT COALESCE(cp.path, c.name, '未分類') AS CategoryPath,
-                   substr(e.txn_date, 1, 7) AS Month,
-                   SUM(e.amount_minor) AS TotalMinor,
-                   0 AS IsRollup,
-                   COALESCE(cp.path, '') AS SortKey,
-                   c.sort_order AS LeafSort
-            FROM entry e
-            LEFT JOIN category c ON c.id = e.category_id
-            LEFT JOIN cat_path cp ON cp.id = c.id
-            WHERE {where}
-            GROUP BY COALESCE(c.id, 0), Month
-            UNION ALL
-            SELECT cp.path, substr(e.txn_date, 1, 7) AS Month, SUM(e.amount_minor), 1,
-                   cp.path, -1
-            FROM entry e
-            JOIN anc a ON a.leaf = e.category_id
-            JOIN cat_path cp ON cp.id = a.anc_id
-            WHERE {where} AND a.anc_id IN (SELECT parent_id FROM category WHERE parent_id IS NOT NULL)
-            GROUP BY a.anc_id, Month
-            )
-            ORDER BY SortKey, IsRollup DESC, LeafSort, Month
-            """;
-
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = sql;
-        foreach (var (n, v) in ps) cmd.Parameters.AddWithValue(n, v ?? DBNull.Value);
-        var list = new List<CatMonthTotal>();
-        using var r = cmd.ExecuteReader();
-        while (r.Read())
+        var categories = new List<PivotCategory>();
+        using (var cmd = _db.CreateCommand())
         {
-            var path = r.GetString(0);
-            var month = r.GetString(1);
-            var total = r.GetInt64(2);
-            list.Add(new CatMonthTotal(path, month, total, r.GetInt64(3) == 1));
+            cmd.CommandText = """
+                WITH RECURSIVE cp(id, path, depth) AS (
+                    SELECT id, CAST(name AS TEXT), 0 FROM category WHERE parent_id IS NULL
+                    UNION ALL
+                    SELECT c.id, cp.path || '／' || c.name, cp.depth + 1
+                    FROM category c JOIN cp ON c.parent_id = cp.id)
+                SELECT c.id, c.parent_id, c.kind, cp.depth, c.name, cp.path
+                FROM category c JOIN cp ON cp.id = c.id
+                ORDER BY c.kind, c.sort_order, cp.path;
+                """;
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                categories.Add(new PivotCategory(r.GetInt64(0), NullableLong(r, 1), r.GetString(2), r.GetInt32(3), r.GetString(4), r.GetString(5)));
         }
-        return list;
+
+        var cells = new List<PivotCell>();
+        using (var cmd = _db.CreateCommand())
+        {
+            // category_id IS NULL 的列歸到 id 0（未分類）：報表上就是一列「未分類」，不會憑空消失。
+            cmd.CommandText = $"""
+                SELECT COALESCE(e.category_id, 0), substr(e.txn_date, 1, 7), SUM(e.amount_minor)
+                FROM entry e WHERE {scope} AND e.currency = $base
+                GROUP BY 1, 2 ORDER BY 1, 2;
+                """;
+            cmd.Parameters.AddWithValue("$base", Db.BaseCurrency(_db));
+            foreach (var (n, v) in ps) cmd.Parameters.AddWithValue(n, v ?? DBNull.Value);
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) cells.Add(new PivotCell(r.GetInt64(0), r.GetString(1), r.GetInt64(2)));
+        }
+
+        long skipped;
+        using (var cmd = _db.CreateCommand())
+        {
+            cmd.CommandText = $"SELECT COUNT(*) FROM entry e WHERE {scope} AND e.currency <> $base;";
+            cmd.Parameters.AddWithValue("$base", Db.BaseCurrency(_db));
+            foreach (var (n, v) in ps) cmd.Parameters.AddWithValue(n, v ?? DBNull.Value);
+            skipped = Convert.ToInt64(cmd.ExecuteScalar()!);
+        }
+
+        return new PivotData(categories, cells, skipped, Db.BaseCurrency(_db));
     }
+
+    /// <summary>報表金額欄要顯示幾位小數（讀 <c>currency.scale</c>：美金 2、台幣 0）。加總一律用 minor，不用這個。</summary>
+    public int BaseCurrencyScale => Db.Scalar(_db, "SELECT scale FROM currency WHERE code=$c;", ("$c", Db.BaseCurrency(_db))) is long s ? (int)s : 2;
 
     /// <summary>
     /// 單筆分類的明細交易（可用於 drill down 點擊）。
@@ -937,21 +965,35 @@ public sealed class LedgerStore
     public long DerivedBalance(long accountId)
         => Db.Scalar(_db, $"SELECT bal FROM ({DerivedBalancesCore}) WHERE id=$id;", ("$id", accountId)) is long v ? v : 0;
 
+    /// <summary>
+    /// 驗證帳戶欄位。
+    /// 已有交易的帳戶不准改幣別/類型：餘額是按「帳戶幣別 × 匯率」折算的，台幣帳戶改成 USD
+    /// 會讓既有交易被當成美金再乘一次匯率（淨值瞬間幾十倍），而且看不出是何時開始錯的。
+    /// </summary>
     void ValidateAccount(AccountEdit e)
     {
-        if (string.IsNullOrWhiteSpace(e.Name)) throw new ArgumentException("帳戶要取名字。");
-        if (!AccountTypes.Any(t => t.Value == e.Type)) throw new ArgumentException($"不認識的帳戶型別：{e.Type}");
-        if (string.IsNullOrWhiteSpace(e.Currency)) throw new ArgumentException("要選幣別。");
-        if (e.OpeningDate is not null && !TryDate(e.OpeningDate, out _)) throw new ArgumentException("期初日期要用 yyyy/MM/dd。");
+        if (string.IsNullOrWhiteSpace(e.Name)) throw new ArgumentException(Loc.T("Store_NeedAccountName"));
+        if (!AccountTypes.Any(t => t.Value == e.Type)) throw new ArgumentException(Loc.F("Store_UnknownType", e.Type));
+        if (string.IsNullOrWhiteSpace(e.Currency)) throw new ArgumentException(Loc.T("Store_NeedCurrency"));
+        if (e.OpeningDate is not null && !TryDate(e.OpeningDate, out _)) throw new ArgumentException(Loc.T("Store_BadOpeningDate"));
         if (e.AutopayAccountId is { } ap && (ap == e.Id || Db.Scalar(_db, "SELECT 1 FROM account WHERE id=$i;", ("$i", ap)) is null))
-            throw new ArgumentException("自動扣繳帳戶不存在（也不能是自己）。");
+            throw new ArgumentException(Loc.T("Store_BadAutoPay"));
+
+        if (e.Id <= 0) return;
+        var rows = Db.Scalar(_db, "SELECT COUNT(*) FROM entry WHERE account_id=$id;", ("$id", e.Id)) is long n ? n : 0;
+        if (rows == 0 || Db.Scalar(_db, "SELECT currency || '|' || type FROM account WHERE id=$id;", ("$id", e.Id)) is not string now) return;
+        var parts = now.Split('|');
+        if (!string.Equals(parts[0], e.Currency.Trim(), StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException(Loc.F("Store_CurrencyLocked", rows));
+        if (parts.Length > 1 && parts[1] != e.Type)
+            throw new ArgumentException(Loc.F("Store_TypeLocked", rows));
     }
 
     /// <summary>同名先擋下来講人話，不讓 UNIQUE 的 SqliteException 冒到 UI。</summary>
     void EnsureNameFree(string name, long selfId)
     {
         if (Db.Scalar(_db, "SELECT id FROM account WHERE name=$n AND id <> $id;", ("$n", name), ("$id", selfId)) is long)
-            throw new ArgumentException($"已經有叫「{name}」的帳戶了（归檔中的也算）。");
+            throw new ArgumentException(Loc.F("Store_DuplicateAccount", name));
     }
 
     public long CreateAccount(AccountEdit e)
@@ -974,7 +1016,7 @@ public sealed class LedgerStore
 
     public void UpdateAccount(AccountEdit e)
     {
-        if (e.Id <= 0) throw new ArgumentException("還沒選帳戶，無法儲存（要新建按「新增」）。");
+        if (e.Id <= 0) throw new ArgumentException(Loc.T("Store_NoAccountSelected"));
         ValidateAccount(e);
         var name = e.Name.Trim();
         EnsureNameFree(name, e.Id);
@@ -1018,7 +1060,7 @@ public sealed class LedgerStore
     /// </summary>
     public void AddBalanceSnapshot(long accountId, string asOf, string currency, long balanceMinor)
     {
-        if (!TryDate(asOf, out var d) || d is null) throw new ArgumentException("盤點日期要用 yyyy/MM/dd。");
+        if (!TryDate(asOf, out var d) || d is null) throw new ArgumentException(Loc.T("Store_BadCountDate"));
         Write("""
             INSERT INTO account_balance(account_id, as_of, currency, balance_minor, source)
             VALUES($a, $d, $c, $b, 'manual')
@@ -1045,10 +1087,24 @@ public sealed class LedgerStore
         Touch();
     }
 
+    /// <summary>
+    /// 鐵律：entry 只能標最底層分類（下面沒有子分類的）。標在父類，報表上父列小計就不等於子列相加,
+    /// 看起來像記錯帳。下拉已經只列最底層，這裡擋的是「分類快取變舊」那種漏網。
+    /// </summary>
+    void EnsureLeaf(long? categoryId)
+    {
+        if (categoryId is not { } id) return;
+        if (Db.Scalar(_db, "SELECT EXISTS(SELECT 1 FROM category ch WHERE ch.parent_id = $c);", ("$c", id)) is long n and > 0)
+            throw new InvalidOperationException(Loc.T("Store_NotLeafCategory"));
+    }
+
     /// <summary>使用者動過的列要寫 <c>edited_at</c>：重匯時匯入器只准更新 source_raw，不然人工分類會被蓋掉。</summary>
     public void SetCategory(long id, long? categoryId)
-        => Write("UPDATE entry SET category_id=$c, status=CASE WHEN $c IS NOT NULL AND status='imported' THEN 'cleared' ELSE status END, edited_at=$at, updated_at=$at WHERE id=$id;",
-                 ("$c", (object?)categoryId ?? DBNull.Value), ("$at", Db.Now()), ("$id", id));
+    {
+        EnsureLeaf(categoryId);
+        Write("UPDATE entry SET category_id=$c, status=CASE WHEN $c IS NOT NULL AND status='imported' THEN 'cleared' ELSE status END, edited_at=$at, updated_at=$at WHERE id=$id;",
+              ("$c", (object?)categoryId ?? DBNull.Value), ("$at", Db.Now()), ("$id", id));
+    }
 
     /// <summary>已有分類但仍是待補（imported）的列改成核銷（cleared）；啟動時跑一次，冪等。</summary>
     public int PromoteCategorizedImports()
@@ -1057,17 +1113,23 @@ public sealed class LedgerStore
         return Db.Scalar(_db, "SELECT changes();") is long n ? (int)n : 0;
     }
 
-    /// <summary>依商家批次補分類，只動尚未分類的列。</summary>
-    public int SetCategoryForMerchant(string merchant, long categoryId)
+    /// <summary>
+    /// 依商家批次補分類，只動尚未分類的列。<c>accountId</c> 要跟著建議視窗的篩選：
+    /// 不帶它，看的是 A 帳戶的 3 筆、實際連 B 帳戶同商家一起改。
+    /// </summary>
+    public int SetCategoryForMerchant(string merchant, long categoryId, long? accountId = null)
     {
-        var merchantKey = merchant == "(未命名)" ? null : merchant;
+        EnsureLeaf(categoryId);
+        var merchantKey = merchant == Loc.T("Store_Unnamed") ? null : merchant;
         Write($"""
             UPDATE entry SET category_id=$c, status=CASE WHEN status='imported' THEN 'cleared' ELSE status END, edited_at=$at, updated_at=$at
             WHERE deleted_at IS NULL AND status IN ('cleared','imported')
               AND category_id IS NULL AND kind NOT IN ('transfer','refund')
+              AND ($acct IS NULL OR account_id = $acct)
               AND (merchant IS $m OR ($m IS NULL AND merchant IS NULL));
             """,
-              ("$c", categoryId), ("$at", Db.Now()), ("$m", (object?)merchantKey ?? DBNull.Value));
+              ("$c", categoryId), ("$at", Db.Now()), ("$m", (object?)merchantKey ?? DBNull.Value),
+              ("$acct", (object?)accountId ?? DBNull.Value));
         return Db.Scalar(_db, "SELECT changes();") is long n ? (int)n : 0;
     }
 
@@ -1087,7 +1149,7 @@ public sealed class LedgerStore
     public void SetStatus(long id, string status)
     {
         if (status is not ("cleared" or "imported" or "pending" or "ignored" or "duplicate"))
-            throw new ArgumentException($"不認識的狀態：{status}");
+            throw new ArgumentException(Loc.F("Store_UnknownStatus", status));
         Write("UPDATE entry SET status=$s, edited_at=$at, updated_at=$at WHERE id=$id;",
               ("$s", status), ("$at", Db.Now()), ("$id", id));
     }
@@ -1107,14 +1169,15 @@ public sealed class LedgerStore
     public long InsertManual(ManualEntry e)
     {
         if (e.Kind is not ("income" or "expense" or "transfer" or "refund" or "adjustment"))
-            throw new ArgumentException($"不認識的種類：{e.Kind}");
-        if (e.Kind is "expense" or "income" && e.AmountMinor <= 0) throw new ArgumentException("金額要比 0 大（退款用 refund，調整用 adjustment）");
-        if (e.Kind is not ("refund" or "adjustment") && e.AmountMinor == 0) throw new ArgumentException("金額不准是 0");
+            throw new ArgumentException(Loc.F("Store_UnknownKind", e.Kind));
+        if (e.Kind is "expense" or "income" && e.AmountMinor <= 0) throw new ArgumentException(Loc.T("Store_AmountPositive"));
+        if (e.Kind is not ("refund" or "adjustment") && e.AmountMinor == 0) throw new ArgumentException(Loc.T("Store_AmountNonZero"));
         if (e.Kind == "transfer" && (e.ToAccountId is null || e.ToAccountId == e.AccountId))
-            throw new ArgumentException("轉帳要選「轉入帳戶」，而且不能跟轉出帳戶相同");
-        if (e.Kind == "transfer" && e.CategoryId is not null) throw new ArgumentException("轉帳不準有分類");
+            throw new ArgumentException(Loc.T("Store_TransferTarget"));
+        if (e.Kind == "transfer" && e.CategoryId is not null) throw new ArgumentException(Loc.T("Store_TransferNoCategory"));
+        EnsureLeaf(e.CategoryId);
 
-        return Db.InsertId(_db, """
+        var newId = Db.InsertId(_db, """
             INSERT INTO entry(kind, account_id, to_account_id, category_id, currency, amount_minor,
                               txn_date, merchant, note, status, source, created_at)
             VALUES($kind, $acct, $to, $cat, $cur, $amt, $date, $merchant, $note, 'cleared', 'manual', $at);
@@ -1125,6 +1188,8 @@ public sealed class LedgerStore
             ("$amt", e.AmountMinor), ("$date", e.TxnDate),
             ("$merchant", (object?)e.Merchant ?? DBNull.Value),
             ("$note", (object?)e.Note ?? DBNull.Value), ("$at", Db.Now()));
+        Touch();                                                  // 記一筆/盤點調整也要讓開著的分頁知道（跟其他寫入一樣）
+        return newId;                                             // 之前先在這裡 return，Touch() 永远跑不到
     }
 
     // ---------------------------------------------------------------- 小工具

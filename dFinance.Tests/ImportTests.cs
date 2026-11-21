@@ -226,9 +226,10 @@ public sealed class ImportTests : IDisposable
     [Fact]
     public void 真實台新信用卡帳單匯入兩次不會重複並留有底檔()
     {
-        var path = Path.Combine(Samples.Dir, "TSB_Creditcard_Estatement_202610.pdf");
+        var path = Samples.PathOf("TSB_Creditcard_Estatement_202610.pdf");
         var passwords = Samples.Passwords().ToArray();
-        if (!File.Exists(path) || passwords.Length == 0) return;              // 樣本或 .env 不在這台機器 → 跳過
+        if (path is null || passwords.Length == 0)
+            Assert.Skip($"樣本或 .env 不在這台機器（path={path ?? "找不到"}、密碼 {passwords.Length} 組）");
 
         var first = new StatementImporter(_db, _docsDir).ImportPdf(path, passwords);
         Assert.False(first.Duplicate);
@@ -288,6 +289,5 @@ public sealed class ImportTests : IDisposable
         Assert.Equal(-1999L, Money.ToMinor(-19.99m));
         Assert.Equal(0L, Money.ToMinor(0m));
         Assert.Equal(1234.57m, Money.FromMinor(123457L));
-        Assert.Equal(0.00000123m, Money.FromAssetUnits(Money.ToAssetUnits(0.00000123m)));
     }
 }

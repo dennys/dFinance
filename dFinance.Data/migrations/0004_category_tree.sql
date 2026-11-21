@@ -1,18 +1,18 @@
--- 0004¡G¤ÀÃş§ï¦¨¥ô·N²`«×ªº¾ğ¡]parent_id ¦Û¤Ş¥Î¡^¡C
--- SQLite ªº UNIQUE ¤£¾× NULL¡A³»¼h¡]parent_id IS NULL¡^¦P¦W·|­«½Æ¡A©Ò¥H¥t«Ø expression index¡C
+ï»¿-- 0004ï¼šåˆ†é¡æ”¹æˆä»»æ„æ·±åº¦çš„æ¨¹ï¼ˆparent_id è‡ªå¼•ç”¨ï¼‰ã€‚
+-- SQLite çš„ UNIQUE ä¸æ“‹ NULLï¼Œé ‚å±¤ï¼ˆparent_id IS NULLï¼‰åŒåæœƒé‡è¤‡ï¼Œæ‰€ä»¥å¦å»º expression indexã€‚
 CREATE UNIQUE INDEX ux_category_name ON category(COALESCE(parent_id, 0), kind, name);
 
--- ¤÷¤l¥²¶·¦P¤è¦V¡F¤£­ã«ü¦V¦Û¤v©Î¦Û¤vªº«á¥N¡]´`Àô¡^¡C
+-- çˆ¶å­å¿…é ˆåŒæ–¹å‘ï¼›ä¸å‡†æŒ‡å‘è‡ªå·±æˆ–è‡ªå·±çš„å¾Œä»£ï¼ˆå¾ªç’°ï¼‰ã€‚
 CREATE TRIGGER trg_category_tree_insert BEFORE INSERT ON category
 WHEN NEW.parent_id IS NOT NULL
 BEGIN
-    SELECT RAISE(ABORT, '¤÷¤ÀÃş¥²¶·¦s¦b¥B¦P¤è¦V')
+    SELECT RAISE(ABORT, 'çˆ¶åˆ†é¡å¿…é ˆå­˜åœ¨ä¸”åŒæ–¹å‘')
     WHERE NOT EXISTS (SELECT 1 FROM category p WHERE p.id = NEW.parent_id AND p.kind = NEW.kind);
 END;
 
 CREATE TRIGGER trg_category_tree_update BEFORE UPDATE OF parent_id, kind ON category
 BEGIN
-    SELECT RAISE(ABORT, '¤÷¤ÀÃş¥²¶·¦s¦b¥B¦P¤è¦V¡A¥B¤£¯à§Î¦¨´`Àô')
+    SELECT RAISE(ABORT, 'çˆ¶åˆ†é¡å¿…é ˆå­˜åœ¨ä¸”åŒæ–¹å‘ï¼Œä¸”ä¸èƒ½å½¢æˆå¾ªç’°')
     WHERE (NEW.parent_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM category p WHERE p.id = NEW.parent_id AND p.kind = NEW.kind))
        OR EXISTS (SELECT 1 FROM category ch WHERE ch.parent_id = NEW.id AND ch.kind <> NEW.kind)
        OR (NEW.parent_id IS NOT NULL AND NEW.parent_id IN (

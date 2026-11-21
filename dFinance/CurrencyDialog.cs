@@ -1,4 +1,5 @@
 using System.Windows;
+using dFinance.Data.Localization;
 using System.Windows.Controls;
 using System.Windows.Data;
 using dFinance.Data;
@@ -12,18 +13,18 @@ namespace dFinance;
 public sealed class CurrencyDialog : Window
 {
     readonly LedgerStore _store;
-    readonly ComboBox _base = new() { Width = 90, ToolTip = "淨值、每月總資產都用這種幣表達" };
+    readonly ComboBox _base = new() { Width = 90, ToolTip = Loc.T("Ccy_BaseHint") };
     readonly DataGrid _ccyGrid = new() { AutoGenerateColumns = false, CanUserAddRows = false, HeadersVisibility = DataGridHeadersVisibility.Column };
     readonly DataGrid _rateGrid = new() { AutoGenerateColumns = false, CanUserAddRows = false, HeadersVisibility = DataGridHeadersVisibility.Column };
-    readonly ComboBox _rateFrom = new() { Width = 80, IsEditable = true, ToolTip = "例 USD" };
-    readonly TextBox _rateValue = new() { Width = 90, ToolTip = "1 個上面那個幣 = ? 個基準幣" };
-    readonly TextBox _proxy = new() { Width = 230, ToolTip = "例 http://10.191.190.5:3128；空白 = 直連（公司網直連會連不出去）" };
+    readonly ComboBox _rateFrom = new() { Width = 80, IsEditable = true, ToolTip = Loc.T("Ccy_CodeHint") };
+    readonly TextBox _rateValue = new() { Width = 90, ToolTip = Loc.T("Ccy_RateHint") };
+    readonly TextBox _proxy = new() { Width = 230, ToolTip = Loc.T("Ccy_ProxyHint") };
     readonly TextBox _status = new() { IsReadOnly = true, BorderThickness = new Thickness(0), Background = System.Windows.Media.Brushes.Transparent, TextWrapping = TextWrapping.Wrap };
 
     public CurrencyDialog(LedgerStore store)
     {
         _store = store;
-        Title = "幣別與匯率"; Width = 660; Height = 620;
+        Title = Loc.T("Ccy_Title"); Width = 660; Height = 620;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
         BuildBaseRow();
@@ -31,13 +32,13 @@ public sealed class CurrencyDialog : Window
         BuildRateGrid();
 
         var root = new StackPanel { Margin = new Thickness(12) };
-        root.Children.Add(Section("基準幣"));
+        root.Children.Add(Section(Loc.T("Ccy_Base")));
         root.Children.Add(_baseRow);
-        root.Children.Add(new TextBlock { Text = "匯率是「1 個外幣 = ? 基準幣」，存的是幣對，所以換基準幣不會弄髒既有匯率。", Foreground = System.Windows.Media.Brushes.Gray, Margin = new Thickness(0, 2, 0, 8) });
-        root.Children.Add(Section("幣別字典"));
+        root.Children.Add(new TextBlock { Text = Loc.T("Ccy_PairHint"), Foreground = System.Windows.Media.Brushes.Gray, Margin = new Thickness(0, 2, 0, 8) });
+        root.Children.Add(Section(Loc.T("Ccy_Dictionary")));
         root.Children.Add(_ccyGrid);
         root.Children.Add(CurrencyAddRow());
-        root.Children.Add(Section("匯率"));
+        root.Children.Add(Section(Loc.T("Ccy_Rates")));
         root.Children.Add(_rateGrid);
         root.Children.Add(RateRow());
         root.Children.Add(NetworkRow());
@@ -63,21 +64,21 @@ public sealed class CurrencyDialog : Window
             if (_base.SelectedItem as string is not string ccy || ccy == _store.BaseCurrency) return;
             _store.SetBaseCurrency(ccy);
             Reload();                                       // 匯率表讀的是「對基準幣」那一側，要整張重讀
-            Say($"基準幣改成 {ccy}；沒匯率的帳戶會暫時不計入淨值（不瞎算 1:1）。");
+            Say(Loc.F("Ccy_BaseChanged", ccy));
         };
-        _baseRow.Children.Add(new TextBlock { Text = "報表用幣別", VerticalAlignment = VerticalAlignment.Center });
+        _baseRow.Children.Add(new TextBlock { Text = Loc.T("Ccy_ReportCcy"), VerticalAlignment = VerticalAlignment.Center });
         _baseRow.Children.Add(_base);
-        _baseRow.Children.Add(new TextBlock { Text = "　基準幣只是報表口徑，匯率存的是幣對，所以改它不會弄髒既有數字", VerticalAlignment = VerticalAlignment.Center, Foreground = System.Windows.Media.Brushes.Gray });
+        _baseRow.Children.Add(new TextBlock { Text = Loc.T("Ccy_BaseNote"), VerticalAlignment = VerticalAlignment.Center, Foreground = System.Windows.Media.Brushes.Gray });
     }
 
     // ---------------------------------------------------------------- 幣別字典
 
     void BuildCurrencyGrid()
     {
-        _ccyGrid.Columns.Add(Column("代碼", nameof(LedgerStore.CurrencyRow.Code), 70, readOnly: true));
-        _ccyGrid.Columns.Add(Column("名稱", nameof(LedgerStore.CurrencyRow.Name), 110));
-        _ccyGrid.Columns.Add(Column("小數位", nameof(LedgerStore.CurrencyRow.Scale), 60));
-        _ccyGrid.Columns.Add(Column("別名（匯入用的原文）", nameof(LedgerStore.CurrencyRow.Aliases), 320));
+        _ccyGrid.Columns.Add(Column(Loc.T("Common_Code"), nameof(LedgerStore.CurrencyRow.Code), 70, readOnly: true));
+        _ccyGrid.Columns.Add(Column(Loc.T("Common_Name"), nameof(LedgerStore.CurrencyRow.Name), 110));
+        _ccyGrid.Columns.Add(Column(Loc.T("Common_Scale"), nameof(LedgerStore.CurrencyRow.Scale), 60));
+        _ccyGrid.Columns.Add(Column(Loc.T("Ccy_Aliases"), nameof(LedgerStore.CurrencyRow.Aliases), 320));
         _ccyGrid.SelectionChanged += (_, _) =>
         {
             if (_ccyGrid.SelectedItem is not LedgerStore.CurrencyRow row) return;
@@ -96,30 +97,30 @@ public sealed class CurrencyDialog : Window
     readonly TextBox _newCode = new() { Width = 60 };
     readonly TextBox _newName = new() { Width = 110 };
     readonly TextBox _newScale = new() { Width = 40, Text = "2" };
-    readonly TextBox _newAliases = new() { Width = 190, ToolTip = "匯入時單子上寫的原文，用 | 分隔" };
+    readonly TextBox _newAliases = new() { Width = 190, ToolTip = Loc.T("Ccy_AliasHint") };
 
     UIElement CurrencyAddRow()
     {
-        var save = new Button { Content = "存幣別", Width = 70, Margin = new Thickness(6, 0, 0, 0) };
+        var save = new Button { Content = Loc.T("Ccy_SaveCurrency"), Width = 70, Margin = new Thickness(6, 0, 0, 0) };
         save.Click += (_, _) =>
         {
             try
             {
                 _store.SaveCurrency(_newCode.Text, _newName.Text, int.TryParse(_newScale.Text, out var s) ? s : 2, _newAliases.Text);
                 Reload();
-                Say($"幣別 {_newCode.Text.Trim().ToUpperInvariant()} 存好了。");
+                Say(Loc.F("Ccy_Saved", _newCode.Text.Trim().ToUpperInvariant()));
             }
             catch (Exception ex) { Say(ex.Message); }              // 驗證不過就留下來讓人補
         };
 
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
-        panel.Children.Add(new TextBlock { Text = "代碼", VerticalAlignment = VerticalAlignment.Center });
+        panel.Children.Add(new TextBlock { Text = Loc.T("Common_Code"), VerticalAlignment = VerticalAlignment.Center });
         panel.Children.Add(_newCode);
-        panel.Children.Add(new TextBlock { Text = " 名稱", VerticalAlignment = VerticalAlignment.Center });
+        panel.Children.Add(new TextBlock { Text = Loc.T("Ccy_Label_Name"), VerticalAlignment = VerticalAlignment.Center });
         panel.Children.Add(_newName);
-        panel.Children.Add(new TextBlock { Text = " 小數位", VerticalAlignment = VerticalAlignment.Center });
+        panel.Children.Add(new TextBlock { Text = Loc.T("Ccy_Label_Scale"), VerticalAlignment = VerticalAlignment.Center });
         panel.Children.Add(_newScale);
-        panel.Children.Add(new TextBlock { Text = " 別名", VerticalAlignment = VerticalAlignment.Center });
+        panel.Children.Add(new TextBlock { Text = Loc.T("Ccy_Label_Alias"), VerticalAlignment = VerticalAlignment.Center });
         panel.Children.Add(_newAliases);
         panel.Children.Add(save);
         return panel;
@@ -129,11 +130,11 @@ public sealed class CurrencyDialog : Window
 
     void BuildRateGrid()
     {
-        _rateGrid.Columns.Add(Column("外幣", nameof(LedgerStore.RateRow.From), 70, readOnly: true));
-        _rateGrid.Columns.Add(Column("→ 基準幣", nameof(LedgerStore.RateRow.To), 80, readOnly: true));
-        _rateGrid.Columns.Add(Column("匯率", nameof(LedgerStore.RateRow.Rate), 90, readOnly: true));
-        _rateGrid.Columns.Add(Column("報價日期", nameof(LedgerStore.RateRow.RateDate), 90, readOnly: true));
-        _rateGrid.Columns.Add(Column("來源", nameof(LedgerStore.RateRow.Source), 70, readOnly: true));
+        _rateGrid.Columns.Add(Column(Loc.T("Ccy_Col_From"), nameof(LedgerStore.RateRow.From), 70, readOnly: true));
+        _rateGrid.Columns.Add(Column(Loc.T("Ccy_Col_To"), nameof(LedgerStore.RateRow.To), 80, readOnly: true));
+        _rateGrid.Columns.Add(Column(Loc.T("Ccy_Rates"), nameof(LedgerStore.RateRow.Rate), 90, readOnly: true));
+        _rateGrid.Columns.Add(Column(Loc.T("Ccy_Col_RateDate"), nameof(LedgerStore.RateRow.RateDate), 90, readOnly: true));
+        _rateGrid.Columns.Add(Column(Loc.T("Common_Source"), nameof(LedgerStore.RateRow.Source), 70, readOnly: true));
         _rateGrid.Columns.Add(Column("⚠", nameof(LedgerStore.RateRow.StaleText), 80, readOnly: true));
         _rateGrid.SelectionChanged += (_, _) =>
         {
@@ -144,16 +145,16 @@ public sealed class CurrencyDialog : Window
 
     UIElement RateRow()
     {
-        var save = new Button { Content = "人工填", Width = 70, Margin = new Thickness(6, 0, 0, 0),
-                                ToolTip = "留空並選一列後按它 = 故意不折算（那個帳戶就不進淨值）" };
+        var save = new Button { Content = Loc.T("Ccy_Manual"), Width = 70, Margin = new Thickness(6, 0, 0, 0),
+                                ToolTip = Loc.T("Ccy_ClearRateHint") };
         save.Click += (_, _) =>
         {
             var from = _rateFrom.Text;
             if (decimal.TryParse(_rateValue.Text.Replace(",", "").Trim(), out var rate) && rate > 0) _store.SetRate(from, rate);
             else if (string.IsNullOrWhiteSpace(_rateValue.Text)) _store.SetRate(from, null);
-            else { Say("匯率要是一個大於 0 的數字（例 32.9），或留空當做不折算。"); return; }
+            else { Say(Loc.T("Ccy_BadRate")); return; }
             Reload();
-            Say($"{from} → {_store.BaseCurrency} 記好了。");
+            Say(Loc.F("Ccy_RateSaved", from, _store.BaseCurrency));
         };
 
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
@@ -171,28 +172,28 @@ public sealed class CurrencyDialog : Window
     {
         _proxy.Text = _store.RateProxy;
 
-        var fetch = new Button { Content = "抓匯率（帳戶用得到的幣對）", Margin = new Thickness(6, 0, 0, 0) };
+        var fetch = new Button { Content = Loc.T("Ccy_Fetch"), Margin = new Thickness(6, 0, 0, 0) };
         fetch.Click += (_, _) =>
         {
             var source = NewSource();
-            Say("抓匯率中…");
+            Say(Loc.T("Ccy_Fetching"));
             var (updated, errors) = source.Refresh(_store);
             Reload();
-            Say(errors.Count == 0 ? $"更新了 {updated} 個幣對。"
-                                  : $"更新 {updated} 個；" + string.Join("；", errors));
+            Say(errors.Count == 0 ? Loc.F("Ccy_FetchOk", updated)
+                                  : Loc.F("Ccy_FetchPartial", updated) + string.Join("；", errors));
         };
 
-        var test = new Button { Content = "測試連線", Margin = new Thickness(6, 0, 0, 0),
-                                ToolTip = "打一個幣對看回什麼（200/429/404/連不出去）" };
-        test.Click += (_, _) => { Say("測試中…"); Say(NewSource().Test(_store)); };
+        var test = new Button { Content = Loc.T("Ccy_Test"), Margin = new Thickness(6, 0, 0, 0),
+                                ToolTip = Loc.T("Ccy_TestHint") };
+        test.Click += (_, _) => { Say(Loc.T("Ccy_Testing")); Say(NewSource().Test(_store)); };
 
-        var split = new Button { Content = "把幣別不符的列拆到對的帳戶", Margin = new Thickness(18, 0, 0, 0),
-                                 ToolTip = "舊資料：美金列直接倒在台幣帳戶時用（那些金額會照台幣進淨值）" };
+        var split = new Button { Content = Loc.T("Ccy_Split"), Margin = new Thickness(18, 0, 0, 0),
+                                 ToolTip = Loc.T("Ccy_SplitHint") };
         split.Click += (_, _) =>
         {
             int moved = _store.SplitForeignCurrencyEntries();
             Reload();
-            Say(moved == 0 ? "沒有幣別跟帳戶不一樣的列。" : $"搬了 {moved} 筆到各自幣別的帳戶（對不上就從備份還原 data\\backups）。");
+            Say(moved == 0 ? Loc.T("Ccy_SplitNone") : Loc.F("Ccy_SplitDone", moved));
         };
 
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };

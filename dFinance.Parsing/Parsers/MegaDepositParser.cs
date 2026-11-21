@@ -36,7 +36,15 @@ public sealed class MegaDepositParser : IStatementParser
             return s;
         }
 
-        WordBox Col(string text) => header.Words.First(w => w.Text == text);
+        // 表頭少一個欄位名就丢例外（.First()）會讓整份檔案一筆都進不去：記警告就好。
+        string[] need = ["幣別", "帳號", "交易日期", "摘要", "支出", "存入", "餘額", "交易時間"];
+        var missing = header.MissingLabels(need);
+        if (missing.Length > 0)
+        {
+            s.Warnings.Add($"存款交易明細表頭少了欄位（缺 {missing}），這份不拆明細。");
+            return s;
+        }
+        WordBox Col(string text) => header.Label(text)!;                        // 上面查過了
         var currencyCol = Col("幣別");
         var accountCol = Col("帳號");
         var dateCol = Col("交易日期");
@@ -50,8 +58,7 @@ public sealed class MegaDepositParser : IStatementParser
         decimal? Income(Row r) => r.Words.Where(w => w.Overlaps(inCol)).Select(w => PdfText.ToDecimal(w.Text)).FirstOrDefault(a => a is not null);
         decimal? Expense(Row r) => r.Words.Where(w => w.Overlaps(outCol)).Select(w => PdfText.ToDecimal(w.Text)).FirstOrDefault(a => a is not null);
 
-        var rows = data.Rows.Where(r => r.Page > header.Page || (r.Page == header.Page && r.Top < header.Top))
-                            .OrderBy(r => r.Page).ThenByDescending(r => r.Top).ToList();
+        var rows = StatementTable.DetailRows(data, header).ToList();
         var accountLines = new Dictionary<string, int>();
         var oddCurrency = new SortedSet<string>();
 

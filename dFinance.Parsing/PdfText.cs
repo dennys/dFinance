@@ -6,7 +6,8 @@ namespace dFinance.Parsing;
 /// <summary>帳單文字層裡常見的金額/日期樣式，與「標籤列 + 下面一列數值」的取法。</summary>
 public static class PdfText
 {
-    public static readonly Regex MoneyRx = new(@"^[-+]?\$?(\d{1,3}(,\d{3})*|\d+)([./]\d{1,2})?%?元?$", RegexOptions.Compiled);
+    // 負號要收 U+2212／U+FF0D：字型把減號輸出成那個是常事（王道就踩過），只收 ASCII 連字號會靜靜漏掉繳款/退款列。
+    public static readonly Regex MoneyRx = new(@"^[-+−－]?\$?(\d{1,3}(,\d{3})*|\d+)([./]\d{1,2})?%?元?$", RegexOptions.Compiled);
     // 西元/民國都收，分隔號可能是 - / . 或 U+2010–U+2015 那幾種橫線。
     public static readonly Regex DateRx = new(@"^(\d{3,4})[-/.\u2010-\u2015](\d{1,2})[-/.\u2010-\u2015](\d{1,2})$", RegexOptions.Compiled);
     // 有些銀行把日期和文字接在同一個字（例：115-10-28已繳款金額），這種要從字串裡抓。
@@ -40,10 +41,13 @@ public static class PdfText
 
     public static bool IsMoney(string text) => MoneyRx.IsMatch(text);
 
+    /// <summary>負號統一成 ASCII，不然 decimal.Parse 不認 U+2212。</summary>
+    static string NormalizeSign(string text) => text.Replace('−', '-').Replace('－', '-');
+
     public static decimal? ToDecimal(string? text)
     {
         if (text is null || !IsMoney(text)) return null;
-        var s = text.Replace("$", "").Replace(",", "").Replace("%", "").Replace("元", "").Replace('/', '.');
+        var s = NormalizeSign(text).Replace("$", "").Replace(",", "").Replace("%", "").Replace("元", "").Replace('/', '.');
         return decimal.Parse(s, CultureInfo.InvariantCulture);
     }
 
@@ -122,4 +126,21 @@ public static class PdfText
 
     public static decimal? MoneyFor(this PageData data, string label) => PdfText.ToDecimal(data.ValueFor(label, w => IsMoney(w.Text))?.Text);
     public static DateOnly? DateFor(this PageData data, string label) => PdfText.ToDate(data.ValueFor(label, w => DateRx.IsMatch(w.Text))?.Text);
+
+    /// <summary>
+    /// 表頭那一列取標籤座標（整個字相同）。找不到回 null ——
+    /// 要用 null 判斷並記一筆警告，不准 <c>.First()</c>：銀行改一個欄位名就丢例外，會讓整份檔案一筆都進不去。
+    /// </summary>
+    public static WordBox? Label(this Row header, string text) => header.Words.FirstOrDefault(w => w.Text == text);
+
+    /// <summary>表頭取標籤（包含就行：OCR 讀的表頭常多一個空格或少一個字）。</summary>
+    public static WordBox? LabelLike(this Row header, string text) => header.Words.FirstOrDefault(w => w.Text.Contains(text));
+
+    /// <summary>表頭缺了那幾個標籤（拼在警告裡，讓人一看就知道要找哪個欄位）。</summary>
+    public static string MissingLabels(this Row header, params string[] labels) =>
+        string.Join("、", labels.Where(l => header.Label(l) is null));
+
+    /// <summary>同上，但用「包含」比對（給 LabelLike 那套欄位名用）。</summary>
+    public static string MissingLabelsLike(this Row header, params string[] labels) =>
+        string.Join("、", labels.Where(l => header.LabelLike(l) is null));
 }

@@ -14,7 +14,7 @@ public class CathayCardTests
     [Fact]
     public void Paid_off_bill_reports_zero_due_instead_of_looking_broken()
     {
-        var s = Samples.Parse(Sample); if (s is null) return;
+        var s = Samples.Parse(Sample);
 
         Assert.Equal("國泰世華商業銀行", s.Issuer);
         Assert.Equal(0m, s.TotalDue);
@@ -25,7 +25,7 @@ public class CathayCardTests
     [Fact]
     public void Payment_row_date_uses_the_bill_year_not_the_footer_year()
     {
-        var s = Samples.Parse(Sample); if (s is null) return;
+        var s = Samples.Parse(Sample);
 
         var pay = Assert.Single(s.Transactions);
         Assert.Equal(-2247m, pay.Amount);
@@ -37,7 +37,7 @@ public class CathayCardTests
     [Fact]
     public void Summary_rows_are_not_transactions()
     {
-        var s = Samples.Parse(Sample); if (s is null) return;
+        var s = Samples.Parse(Sample);
         Assert.DoesNotContain(s.Transactions, t => t.Merchant.Contains("小計") || t.Merchant.Contains("上期"));
     }
 }

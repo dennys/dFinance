@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text;
+using dFinance.Data.Localization;
 using Microsoft.Data.Sqlite;
 
 namespace dFinance.Data;
@@ -72,6 +73,12 @@ public static class Db
     public static void Backup(SqliteConnection source)
     {
         if (Path.GetFullPath(source.DataSource) == ":memory:") return;
+
+        // 只准真人開程式才算「啟動」：否則 --uismoke 跑幾輪就把那 5 份額度用完，
+        // 出事那天翻備份夾全是測試跑的同一份。（devcheck 不算：它跑 --autocat 那種大量改資料前，
+        // 就是要這份備份當救命索；真不想留就自己設 DFINANCE_NO_BACKUP=1。）
+        if (Environment.GetEnvironmentVariable("DFINANCE_NO_BACKUP") is { Length: > 0 }) return;
+        if (Environment.GetCommandLineArgs().Skip(1).Contains("--uismoke")) return;
         Directory.CreateDirectory(BackupDirectory);
         var target = Path.Combine(BackupDirectory, $"dfinance-{DateTime.Now:yyyyMMdd-HHmmss}.db");
         using var dest = new SqliteConnection($"Data Source={target}");
@@ -92,6 +99,14 @@ public static class Db
     public static string BaseCurrency(SqliteConnection c)
         => Scalar(c, "SELECT value FROM settings WHERE key='base_currency';") as string is string v && v.Trim().Length > 0
             ? NormalizeCurrencyCode(v) : "TWD";
+
+    /// <summary>介面語系（存進 settings，跟著資料庫走；不用 AppData/登録檔 — AGENTS 可攜性硬規則）。</summary>
+    public static string UiLanguage(SqliteConnection c)
+        => Scalar(c, "SELECT value FROM settings WHERE key='ui_language';") as string is string v && LocalizationManager.IsSupported(v.Trim())
+            ? v.Trim() : LocalizationManager.DefaultCulture;
+
+    public static void SetUiLanguage(SqliteConnection c, string code)
+        => Exec(c, "INSERT OR REPLACE INTO settings(key, value) VALUES('ui_language', $v);", ("$v", code));
 
     /// <summary>幣別代碼統一成大寫（SQL 的比较是 BINARY，`usd` 會被当成另一種幣）。空白回 TWD。</summary>
     public static string NormalizeCurrencyCode(string? raw)

@@ -1,5 +1,9 @@
 using System.Diagnostics;
+using dFinance.Data.Localization;
 using System.IO;
+using System.Collections.ObjectModel;
+using System.ComponentModel;                      // ListSortDirection：欄頭排序箭頭
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -21,12 +25,21 @@ public partial class LedgerTab : UserControl
     readonly bool _homeMode;
     long _loadedVersion = -1;
     bool _showingReport;
-    long _reportVersion = -1;
-    bool _loadingFilter;                          // 灌篩選選項時別跟著重查
+    long _reportVersion = -1;    bool _loadingFilter;                          // 灌篩選選項時別跟著重查
+
+    readonly ObservableCollection<PivotNode> _pivotRows = [];
+    List<PivotNode> _pivotRoots = [];
+    List<string> _pivotMonths = [];
+    readonly HashSet<long> _pivotExpanded = [];
+    string _pivotSortKey = PivotTree.TotalKey;
+    bool _pivotDesc = true;                       // 第一次點某欄都是由大到小：先看花費最多的那項
+    int _pivotSpan = 12;                          // 報表月欄：近 N 個月，0 = 全部
 
     record AccountPick(long? Id, string Label);
     record CategoryPick(long? Id, string Label, bool Uncategorized);
     record StatusPick(string Mode, string Label);
+    record RangePick(int Span, string Label);
+    record DatePreset(string Mode, string Label);          // 顯示文字會跟著語系變，判斷一律看 Mode
 
     /// <summary>使用者要把某個帳戶再開一個分頁（由 MainWindow 接手）。</summary>
     public event Action<long, string>? OpenAccountRequested;
@@ -42,6 +55,7 @@ public partial class LedgerTab : UserControl
         _accountId = accountId;
         _homeMode = accountId is null && !ledgerMode;
         BuildFilterOptions();
+        BuildReportRange();
 
         if (_accountId is not null)
         {
@@ -74,6 +88,29 @@ public partial class LedgerTab : UserControl
     /// <summary>給 --uismoke 看的：首頁淨值表載入幾個帳戶（首頁沒有帳本清單，RowCount 永遠是 0）。</summary>
     public int HomeAccountCount => HomeNetWorthGrid.Items.Count;
 
+    /// <summary>
+    /// 給 <c>--uismoke</c>：開報表 → 展開第一個有子類的分類 → 按最後一個月欄排序 → 收合。
+    /// 展開沒多列、或排序後空了，就是展開/排序壞了（這兩條路只有 UI 模得到）。
+    /// </summary>
+    public int SmokeReportInteract()
+    {
+        ShowCategoryReport();
+        var parent = _pivotRoots.FirstOrDefault(n => n.HasChildren);
+        if (parent is null) return 0;
+        _pivotExpanded.Add(parent.Id);
+        RebuildPivotRows();
+        var expandedCount = _pivotRows.Count;
+        _pivotSortKey = _pivotMonths.Count > 0 ? _pivotMonths[^1] : PivotTree.TotalKey;
+        _pivotDesc = true;
+        RebuildPivotRows();
+        _pivotExpanded.Clear();
+        RebuildPivotRows();
+        if (expandedCount <= _pivotRows.Count)
+            throw new InvalidOperationException($"展開「{parent.Name}」後列數沒增加（{expandedCount} → {_pivotRows.Count}）");
+        if (_pivotRows.Count == 0) throw new InvalidOperationException("排序後報表空了");
+        return expandedCount - _pivotRows.Count;
+    }
+
     /// <summary>匯入完或外部改過資料時叫這個（當前分頁馬上更新，沒顯示的分頁等切過去再說）。</summary>
     public void RefreshNow()
     {
@@ -90,17 +127,22 @@ public partial class LedgerTab : UserControl
         _loadingFilter = true;
         try
         {
-            PresetBox.ItemsSource = new[] { "本月", "上月", "今年", "全部", "自訂" };
+            PresetBox.ItemsSource = new[]
+            {
+                new DatePreset("month", Loc.T("Common_ThisMonth")), new DatePreset("last", Loc.T("Common_LastMonth")),
+                new DatePreset("year", Loc.T("Common_ThisYear")), new DatePreset("all", Loc.T("Common_All")),
+                new DatePreset("custom", Loc.T("Common_Custom")),
+            };
             PresetBox.SelectedIndex = 0;
 
-            var accounts = new List<AccountPick> { new(null, "全部帳戶") };
+            var accounts = new List<AccountPick> { new(null, Loc.T("Ledger_AllAccounts")) };
             // 已歸檔的也列出來（不列就再也筛不到它），但标清楚，别让人以为是个还在用的帳戶
             accounts.AddRange(s.Accounts(includeArchived: true).Select(a => new AccountPick(
-                a.Id, (a.Currency == "TWD" ? a.Name : $"{a.Name}（{a.Currency}）") + (a.IsArchived ? "（已歸檔）" : ""))));
+                a.Id, (a.Currency == "TWD" ? a.Name : $"{a.Name}（{a.Currency}）") + (a.IsArchived ? Loc.T("Ledger_ArchivedSuffix") : ""))));
             AccountBox.ItemsSource = accounts;
             AccountBox.SelectedItem = accounts.FirstOrDefault(a => a.Id == _accountId) ?? accounts[0];
 
-            var cats = new List<CategoryPick> { new(null, "全部分類", false), new(null, "未分類", true) };
+            var cats = new List<CategoryPick> { new(null, Loc.T("Ledger_AllCategories"), false), new(null, Loc.T("Ledger_Uncategorized"), true) };
             cats.AddRange(s.Categories("expense").Select(c => new CategoryPick(c.Id, c.Name, false)));
             cats.AddRange(s.Categories("income").Select(c => new CategoryPick(c.Id, c.Name, false)));
             CategoryBox.ItemsSource = cats;
@@ -108,10 +150,10 @@ public partial class LedgerTab : UserControl
 
             StatusBox.ItemsSource = new[]
             {
-                new StatusPick("ledger", "帳本"), new StatusPick("imported", "待補分類"),
-                new StatusPick("orphan", "孤兒列"), new StatusPick("dupgroup", "疑似重複"),
-                new StatusPick("duplicate", "已標重複"), new StatusPick("ignored", "已忽略"),
-                new StatusPick("deleted", "已刪除"), new StatusPick("all", "全部（含未發生）"),
+                new StatusPick("ledger", Loc.T("Ledger_Status_Ledger")), new StatusPick("imported", Loc.T("Ledger_Status_Imported")),
+                new StatusPick("orphan", Loc.T("Ledger_Status_Orphan")), new StatusPick("dupgroup", Loc.T("Ledger_Status_DupGroup")),
+                new StatusPick("duplicate", Loc.T("Ledger_Status_Duplicate")), new StatusPick("ignored", Loc.T("Ledger_Status_Ignored")),
+                new StatusPick("deleted", Loc.T("Ledger_Status_Deleted")), new StatusPick("all", Loc.T("Ledger_Status_All")),
             };
             StatusBox.SelectedIndex = 0;
         }
@@ -120,17 +162,16 @@ public partial class LedgerTab : UserControl
 
     void Preset_Changed(object sender, SelectionChangedEventArgs e)
     {
-        if (_loadingFilter || PresetBox.SelectedItem is not string p) return;
+        if (_loadingFilter || PresetBox.SelectedItem is not DatePreset p) return;
         var today = DateOnly.FromDateTime(DateTime.Today);
         _loadingFilter = true;
         try
         {
-            var (from, to) = p switch
+            var (from, to) = p.Mode switch
             {
-                "本月" => (new DateOnly(today.Year, today.Month, 1), LastDay(today)),
-                "上月" => LastMonth(today),
-                "今年" => (new DateOnly(today.Year, 1, 1), new DateOnly(today.Year, 12, 31)),
-                "全部" => ((DateOnly?)null, (DateOnly?)null),
+                "month" => (new DateOnly(today.Year, today.Month, 1), LastDay(today)),
+                "last" => LastMonth(today),
+                "year" => (new DateOnly(today.Year, 1, 1), new DateOnly(today.Year, 12, 31)),
                 _ => ((DateOnly?)null, (DateOnly?)null),
             };
             FromBox.SelectedDate = from?.ToDateTime(TimeOnly.MinValue);
@@ -140,11 +181,18 @@ public partial class LedgerTab : UserControl
         Reload();
     }
 
+    /// <summary>用 Mode 挑預設區間（顯示文字是語系字串，不能拿來比對）。</summary>
+    void SelectPreset(string mode)
+    {
+        var pick = ((IEnumerable<DatePreset>)PresetBox.ItemsSource).FirstOrDefault(p => p.Mode == mode);
+        if (pick is not null) PresetBox.SelectedItem = pick;
+    }
+
     void Range_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (_loadingFilter) return;
         _loadingFilter = true;
-        try { PresetBox.SelectedItem = "自訂"; } finally { _loadingFilter = false; }
+        try { SelectPreset("custom"); } finally { _loadingFilter = false; }
         Reload();
     }
 
@@ -159,10 +207,11 @@ public partial class LedgerTab : UserControl
     void Reset_Click(object sender, RoutedEventArgs e)
     {
         SearchBox.Text = "";
-        PresetBox.SelectedItem = "本月";
+        SelectPreset("month");
         CategoryBox.SelectedIndex = 0;
         StatusBox.SelectedIndex = 0;
         AccountBox.SelectedIndex = 0;
+        Reload();                                   // 本來就在預設值的那些控件不會發事件，不自己重載就會卡在上次搜尋的結果
     }
 
     void Suggest_Click(object sender, RoutedEventArgs e)
@@ -179,7 +228,7 @@ public partial class LedgerTab : UserControl
         _loadingFilter = true;
         try
         {
-            PresetBox.SelectedItem = "自訂";
+            SelectPreset("custom");
             FromBox.SelectedDate = from is null ? null : DateTime.ParseExact(from, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
             ToBox.SelectedDate = to is null ? null : DateTime.ParseExact(to, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
             CategoryBox.SelectedItem = (CategoryBox.ItemsSource as IEnumerable<CategoryPick>)?
@@ -220,7 +269,7 @@ public partial class LedgerTab : UserControl
 
     void Reload()
     {
-        if (_store is not { } s) { KpiText.Text = "資料庫開不起來，帳本暫時不能用。"; return; }
+        if (_store is not { } s) { KpiText.Text = Loc.T("Home_DbUnavailable"); return; }
 
         var f = _homeMode ? CurrentMonthFilter() : CurrentFilter();
         List<LedgerStore.Row> rows = _homeMode ? [] : s.List(f);   // 首頁不顯示帳本清單，不白查 2000 列
@@ -237,13 +286,21 @@ public partial class LedgerTab : UserControl
         var (orphans, dups) = s.Flags();
         var mismatch = s.BalanceMismatches();
 
-        CountText.Text = $"{rowCount} 列" + (rowCount >= f.Limit ? "（已截斷，請縮小範圍）" : "");
+        CountText.Text = Loc.F("Ledger_Rows", rowCount) + (rowCount >= f.Limit ? Loc.T("Ledger_Truncated") : "");
         if (_homeMode) ShowHome(nw, s);
         ShowKpi(k, nw, s.CardUnpaidMinor());
         ShowAlerts(orphans, dups, mismatch);
         if (_accountId is { } id && nw.Accounts.FirstOrDefault(a => a.Id == id) is { } mine)
-            AccountHeaderText.Text = $"{mine.Name}（{mine.Type} {mine.Currency}）餘額 {mine.BalanceText}" +
-                                     (mine.CountedInNet ? "" : $"　— 未折算（查不到 {mine.Currency} → {nw.BaseCurrency} 的匯率）");
+            AccountHeaderText.Text = Loc.F("Ledger_AccountHeader", mine.Name, mine.Type, mine.Currency, mine.BalanceText) +
+                                     (mine.CountedInNet ? "" : Loc.F("Ledger_AccountUnconverted", mine.Currency, nw.BaseCurrency));
+    }
+
+    /// <summary>帳單繳清了就地標已繳（不標就會永遠算在「卡未繳」與「未來帳單」裡）。</summary>
+    void MarkPaid_Click(object sender, RoutedEventArgs e)
+    {
+        if (_store is not { } s || (sender as FrameworkElement)?.DataContext is not LedgerStore.UpcomingItem { BillId: { } billId }) return;
+        s.MarkBillPaid(billId);
+        Reload();                                   // 重查：卡未繳 KPI 與未來帳單都要跟著變
     }
 
     /// <summary>首頁：淨值明細分組（銀行→信用卡→其它）＋每月總資產折線＋未來帳單。</summary>
@@ -269,12 +326,15 @@ public partial class LedgerTab : UserControl
             LabelFormatter = v => v.ToString("N0"),
         };
         plot.Axes.AutoScale();
-        plot.Title($"每月總資產（{nw.BaseCurrency}）");
+        plot.Title(Loc.F("Home_PlotTitle", nw.BaseCurrency));
         plot.Font.Automatic();                 // 標題是中文，預設字型沒有 glyph 會變亂碼
         NetWorthPlot.Refresh();
     }
 
-    /// <summary>分類帳報表：分類（列）× 月（欄）透視表，最後一欄為該分類合計；僅顯示報表本身。</summary>
+    /// <summary>
+    /// 分類帳報表：分類樹（列）× 月（欄）的透視表。預設只顯示頂層，點「分類」欄那一列就展開它的子類；
+    /// 點月欄或合計欄還是 drill down（舊行為）。格子裡是 long minor，顯示才格式化，所以欄排序比的是數值。
+    /// </summary>
     public void ShowCategoryReport()
     {
         if (_store is not { } s) return;
@@ -282,36 +342,96 @@ public partial class LedgerTab : UserControl
         _showingReport = true;
         _reportVersion = LedgerStore.DataVersion;
 
-        var totals = s.CatMonthTotals();
-        var months = totals.Select(t => t.Month).Distinct().OrderBy(m => m, StringComparer.Ordinal).ToList();
-        var rows = totals.GroupBy(t => (t.CategoryPath, t.IsRollup)).Select(g =>
-        {
-            var row = new Dictionary<string, string>
-            {
-                ["CategoryPath"] = g.Key.CategoryPath,
-                ["Label"] = g.Key.IsRollup ? $"{g.Key.CategoryPath}（含子類）" : g.Key.CategoryPath,
-            };
-            foreach (var m in months)
-                row[m] = Money.FromMinor(g.Where(t => t.Month == m).Sum(t => t.TotalMinor)).ToString("N0");
-            row["Total"] = Money.FromMinor(g.Sum(t => t.TotalMinor)).ToString("N0");
-            return row;
-        }).ToList();
+        // 「近 N 個月」= 從這個月往前推 N-1 個月的 1 號起，不封頂：未來的帳單月也要看得到。
+        var from = _pivotSpan <= 0 ? null
+            : new DateOnly(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(1 - _pivotSpan).ToString("yyyy-MM-dd");
+        var pivot = s.CategoryPivot(from, null, _accountId);
+        _pivotMonths = PivotTree.Months(pivot.Cells);
+        _pivotRoots = PivotTree.Build(pivot.Categories, pivot.Cells, Loc.T("Ledger_Uncategorized"));
+        ReportNote.Text = pivot.SkippedForeignEntries > 0
+            ? Loc.F("Report_ForeignSkipped", pivot.SkippedForeignEntries, pivot.BaseCurrency) : "";
 
-        CategoryReportGrid.Columns.Clear();
-        CategoryReportGrid.Columns.Add(ReportColumn("分類路徑", "Label", new DataGridLength(3, DataGridLengthUnitType.Star)));
-        foreach (var m in months) CategoryReportGrid.Columns.Add(ReportColumn(m, m, DataGridLength.Auto));
-        CategoryReportGrid.Columns.Add(ReportColumn("合計", "Total", DataGridLength.Auto));
-        CategoryReportGrid.ItemsSource = rows;
+        BuildPivotColumns(s);
+        RebuildPivotRows();
     }
 
-    static DataGridTextColumn ReportColumn(string header, string key, DataGridLength width) => new()
+    /// <summary>月欄跟著資料走（需求 1）：有資料的月才一欄，最後一欄是合計。</summary>
+    void BuildPivotColumns(LedgerStore s)
+    {
+        var format = new CellFormat(s.BaseCurrencyScale);
+        CategoryReportGrid.Columns.Clear();
+        CategoryReportGrid.Columns.Add(new DataGridTextColumn
+        {
+            Header = Loc.T("Ledger_Col_CategoryPath"),
+            Binding = new Binding(nameof(PivotNode.Label)),
+            SortMemberPath = PivotTree.NameKey,               // 這一欄的同時是「展開/收合」的身分標記
+            Width = new DataGridLength(3, DataGridLengthUnitType.Star),
+        });
+        foreach (var m in _pivotMonths) CategoryReportGrid.Columns.Add(ReportColumn(m, m, m, DataGridLength.Auto, format));
+        CategoryReportGrid.Columns.Add(ReportColumn(Loc.T("Common_Total"), nameof(PivotNode.Total), PivotTree.TotalKey, DataGridLength.Auto, format));
+        CategoryReportGrid.ItemsSource = _pivotRows;
+    }
+
+    void BuildReportRange()
+    {
+        ReportRangeBox.ItemsSource = new[]
+        {
+            new RangePick(6, Loc.F("Report_LastMonths", 6)),
+            new RangePick(12, Loc.F("Report_LastMonths", 12)),
+            new RangePick(24, Loc.F("Report_LastMonths", 24)),
+            new RangePick(0, Loc.T("Report_AllMonths")),
+        };
+        ReportRangeBox.SelectedIndex = 1;                     // 預設近 12 個月
+    }
+
+    void ReportRange_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ReportRangeBox.SelectedItem is not RangePick pick || pick.Span == _pivotSpan) return;
+        _pivotSpan = pick.Span;
+        if (_showingReport) ShowCategoryReport();             // 沒開報表就不查庫
+    }
+
+    /// <summary>排一次，再把展開節點的子列插回可見列。列數就幾百，重建整份清單比做增量通知划算。</summary>
+    void RebuildPivotRows()
+    {
+        PivotTree.Sort(_pivotRoots, _pivotSortKey, _pivotDesc);
+        _pivotRows.Clear();
+        foreach (var row in PivotTree.Visible(_pivotRoots, _pivotExpanded)) _pivotRows.Add(row);
+    }
+
+    /// <summary>
+    /// 欄頭點擊自己排（e.Handled = true）：內建那份排序不會讓父列帶著子列走，也做不到「只在一層內排」。
+    /// 第一次點某欄都是由大到小（先看花費最多的），按同一欄第二次才反向。
+    /// </summary>
+    void Report_Sorting(object? sender, DataGridSortingEventArgs e)
+    {
+        e.Handled = true;
+        if (e.Column?.SortMemberPath is not { } key) return;
+        _pivotDesc = _pivotSortKey == key ? !_pivotDesc : true;
+        _pivotSortKey = key;
+        foreach (var col in CategoryReportGrid.Columns) col.SortDirection = null;
+        e.Column.SortDirection = _pivotDesc ? ListSortDirection.Descending : ListSortDirection.Ascending;
+        RebuildPivotRows();
+    }
+
+    static DataGridTextColumn ReportColumn(string header, string path, string sortKey, DataGridLength width, IValueConverter format) => new()
     {
         Header = header,
-        Binding = new System.Windows.Data.Binding($"[{key}]"),
+        Binding = new Binding(path) { Converter = format },
+        SortMemberPath = sortKey,                               // 欄位身分靠它認，欄頭是給人看的（會翻譯）
         Width = width,
         IsReadOnly = true,
-        ElementStyle = key == "Label" ? null : NumberCellStyle,
+        ElementStyle = NumberCellStyle,
     };
+
+    /// <summary>格子裡的 long minor → 顯示字；小數位跟著基準幣的 <c>currency.scale</c>（美金不會被顯示成整數）。</summary>
+    sealed class CellFormat(int scale) : IValueConverter
+    {
+        public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+            => Money.Format(System.Convert.ToInt64(value ?? 0L), scale);
+        public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
 
     static readonly Style NumberCellStyle = new(typeof(TextBlock))
     {
@@ -322,14 +442,20 @@ public partial class LedgerTab : UserControl
     {
         if (e.OriginalSource is not DependencyObject src) return;
         var cell = FindAncestor<DataGridCell>(src);
-        if (cell is null || cell.Column?.Header is not string header || header == "分類路徑") return;
-        if (cell.DataContext is not Dictionary<string, string> row) return;
+        if (cell is null || cell.Column?.SortMemberPath is not string key) return;
+        if (cell.DataContext is not PivotNode node) return;
 
-        var category = row["CategoryPath"];
-        if (header == "合計") { DrillDownRequested?.Invoke(category, null, null); return; }
+        if (key == PivotTree.NameKey)                         // 點「分類」欄 = 展開/收合（需求 4）
+        {
+            if (!node.HasChildren) return;
+            if (!_pivotExpanded.Remove(node.Id)) _pivotExpanded.Add(node.Id);
+            RebuildPivotRows();
+            return;
+        }
+        if (key == PivotTree.TotalKey) { DrillDownRequested?.Invoke(node.Path, null, null); return; }
 
-        var first = DateOnly.ParseExact(header, "yyyy-MM", System.Globalization.CultureInfo.InvariantCulture);
-        DrillDownRequested?.Invoke(category, first.ToString("yyyy-MM-dd"), LastDay(first).ToString("yyyy-MM-dd"));
+        var first = DateOnly.ParseExact(key, "yyyy-MM", CultureInfo.InvariantCulture);
+        DrillDownRequested?.Invoke(node.Path, first.ToString("yyyy-MM-dd"), LastDay(first).ToString("yyyy-MM-dd"));
     }
 
     static T? FindAncestor<T>(DependencyObject d) where T : DependencyObject
@@ -349,19 +475,19 @@ public partial class LedgerTab : UserControl
     void ShowKpi(LedgerStore.Kpi k, LedgerStore.NetWorthReport nw, long unpaidMinor)
     {
         KpiText.Inlines.Clear();
-        Add("本月收入", N(k.IncomeMinor), null);
-        Add("本月支出", N(k.ExpenseMinor), null);
-        Add("淨額", N(k.NetMinor), null);
-        Add("待分類", $"{k.Uncategorized} 筆", N(k.UncategorizedMinor));
-        Add("淨值", N(nw.NetMinor), $"資產 {N(nw.AssetsMinor)}　負債 {N(nw.LiabilitiesMinor)}");
-        Add("卡未繳", N(unpaidMinor), null);
-        if (nw.UnconvertedAccounts > 0) Add("未折算", $"{nw.UnconvertedAccounts} 個帳戶", "非台幣、沒有匯率來源，故意不計入淨值");
+        Add(Loc.T("Ledger_Kpi_Income"), N(k.IncomeMinor), null);
+        Add(Loc.T("Ledger_Kpi_Expense"), N(k.ExpenseMinor), null);
+        Add(Loc.T("Ledger_Kpi_Net"), N(k.NetMinor), null);
+        Add(Loc.T("Ledger_Kpi_Uncategorized"), Loc.F("Ledger_Count", k.Uncategorized), N(k.UncategorizedMinor));
+        Add(Loc.T("Ledger_Kpi_NetWorth"), N(nw.NetMinor), Loc.F("Ledger_AssetsLiabilities", N(nw.AssetsMinor), N(nw.LiabilitiesMinor)));
+        Add(Loc.T("Ledger_Kpi_CardUnpaid"), N(unpaidMinor), null);
+        if (nw.UnconvertedAccounts > 0) Add(Loc.T("Ledger_Kpi_Unconverted"), Loc.F("Ledger_AccountCount", nw.UnconvertedAccounts), Loc.T("Ledger_UnconvertedNote"));
 
-        static string N(long minor) => (minor / 100m).ToString("N0");
+        static string N(long minor) => Money.Format(minor, 0);
 
         void Add(string label, string value, string? note)
         {
-            if (KpiText.Inlines.Count > 0) KpiText.Inlines.Add(new System.Windows.Documents.Run("　｜　") { Foreground = System.Windows.Media.Brushes.LightGray });
+            if (KpiText.Inlines.Count > 0) KpiText.Inlines.Add(new System.Windows.Documents.Run(Loc.T("Ledger_Sep")) { Foreground = System.Windows.Media.Brushes.LightGray });
             KpiText.Inlines.Add(new System.Windows.Documents.Run(label + " ") { Foreground = System.Windows.Media.Brushes.Gray });
             KpiText.Inlines.Add(new System.Windows.Documents.Run(value) { FontWeight = FontWeights.Bold });
             if (note is not null) KpiText.Inlines.Add(new System.Windows.Documents.Run($" {note}") { Foreground = System.Windows.Media.Brushes.Gray });
@@ -370,13 +496,13 @@ public partial class LedgerTab : UserControl
 
     void ShowAlerts(int orphans, int dups, List<(string Account, long DiffMinor, string Source, string AsOf)> mismatch)
     {
-        OrphanButton.Content = $"孤兒列 {orphans} 筆";
+        OrphanButton.Content = Loc.F("Ledger_OrphanButton", orphans);
         OrphanButton.Visibility = orphans > 0 ? Visibility.Visible : Visibility.Collapsed;
-        DuplicateButton.Content = $"疑似重複 {dups} 對";
+        DuplicateButton.Content = Loc.F("Ledger_DupButton", dups);
         DuplicateButton.Visibility = dups > 0 ? Visibility.Visible : Visibility.Collapsed;
-        BalanceButton.Content = $"餘額不符 {mismatch.Count} 個帳戶" +
-                                (mismatch.Count > 0 ? $"：{string.Join("、", mismatch.Select(m => $"{m.Account} 差 {Money.FromMinor(m.DiffMinor):N0}"))}" : "");
-        BalanceButton.ToolTip = "餘額快照（存款單解析出來的，或人工盤點的）對不上交易累加";
+        BalanceButton.Content = Loc.F("Ledger_MismatchButton", mismatch.Count) +
+                                (mismatch.Count > 0 ? Loc.F("Ledger_MismatchButtonSuffix", string.Join("、", mismatch.Select(m => $"{m.Account} {Loc.F("Ledger_DiffShort", Money.Format(m.DiffMinor, 0))}"))) : "");
+        BalanceButton.ToolTip = Loc.T("Ledger_MismatchTip");
         BalanceButton.Visibility = mismatch.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -387,10 +513,12 @@ public partial class LedgerTab : UserControl
     {
         if (_store is not { } s) return;
         var list = s.BalanceMismatches();
-        MessageBox.Show(list.Count == 0 ? "都對得上。"
-                        : string.Join("\n", list.Select(m => $"{m.Account}：{(m.Source == "manual" ? "人工盤點" : "存款單")} {m.AsOf} 比交易累加多 {Money.FromMinor(m.DiffMinor):N0}")
-                                     .Append("\n對不上通常是漏了交易或期初填錯；可在「帳戶…」裡重新盤點或改期初餘額。")),
-                        "餘額快照 vs 交易累加",
+        MessageBox.Show(list.Count == 0 ? Loc.T("Ledger_MismatchAllOk")
+                        : string.Join("\n", list.Select(m => Loc.F("Ledger_MismatchLine", m.Account,
+                                        Loc.T(m.Source == "manual" ? "Common_Manual" : "Common_BankSlip"),
+                                        m.AsOf, Money.Format(m.DiffMinor, 0)))
+                                     .Append(Loc.T("Ledger_MismatchFooter"))),
+                        Loc.T("Ledger_MismatchTitle"),
                         MessageBoxButton.OK, MessageBoxImage.Warning);
     }
     object? FindStatus(string mode) => ((IEnumerable<StatusPick>)StatusBox.ItemsSource).FirstOrDefault(s => s.Mode == mode);
@@ -401,15 +529,15 @@ public partial class LedgerTab : UserControl
     {
         if (LedgerGrid.SelectedItem is not LedgerStore.Row r) { LineageBox.Text = ""; return; }
         LineageBox.Text =
-            $"商家      {r.Merchant}\n" +
-            $"金額      {r.Amount:N0} {r.Currency}" + (r.OrigCurrency is null ? "" : $"（原幣 {r.OrigCurrency}）") + "\n" +
-            $"帳戶      {r.Account}（{r.AccountType}）\n" +
-            $"種類      {r.Kind}　狀態 {r.StatusText}" + (r.Orphaned ? "　孤兒" : "") + (r.Edited ? "　人工改過" : "") + "\n" +
-            $"來源      {r.SourceFile ?? "（手動輸入）"}" + (r.SourcePage is { } p ? $" 第 {p} 頁" : "") + "\n" +
-            $"發行方    {r.Issuer}\n" +
+            Loc.F("Ledger_Lineage_Merchant", r.Merchant) + "\n" +
+            Loc.F("Ledger_Lineage_Amount", r.Amount.ToString("N0"), r.Currency) + (r.OrigCurrency is null ? "" : Loc.F("Ledger_Lineage_Orig", r.OrigCurrency)) + "\n" +
+            Loc.F("Ledger_Lineage_Account", r.Account, r.AccountType) + "\n" +
+            Loc.F("Ledger_Lineage_Kind", r.Kind, r.StatusText) + (r.Orphaned ? Loc.T("Ledger_Lineage_Orphan") : "") + (r.Edited ? Loc.T("Ledger_Lineage_Edited") : "") + "\n" +
+            Loc.F("Ledger_Lineage_Source", r.SourceFile ?? Loc.T("Ledger_Lineage_Manual")) + (r.SourcePage is { } p ? Loc.F("Ledger_Lineage_Page", p) : "") + "\n" +
+            Loc.F("Ledger_Lineage_Issuer", r.Issuer) + "\n" +
             $"parser    {r.Parser}\n" +
-            $"留底      {r.ArchivedPath ?? "（沒有）"}\n\n" +
-            $"原文\n{r.SourceRaw}";
+            Loc.F("Ledger_Lineage_Archived", r.ArchivedPath ?? Loc.T("Common_None")) + "\n\n" +
+            Loc.F("Ledger_Lineage_Raw", r.SourceRaw);
     }
 
     void Grid_CellEditEnding(object? sender, DataGridCellEditEndingEventArgs e)
@@ -422,7 +550,7 @@ public partial class LedgerTab : UserControl
             if (!LedgerStore.TryDate(text, out var dbDate))
             {
                 e.Cancel = true;
-                MessageBox.Show("消費日要用 yyyy/MM/dd（例 2026-11-03），清空就是留空等以後補。", "日期格式不對");
+                MessageBox.Show(Loc.T("Ledger_BadDateMsg"), Loc.T("Ledger_BadDateTitle"));
                 return;
             }
             r.Date = dbDate;
@@ -440,7 +568,16 @@ public partial class LedgerTab : UserControl
         }
         else if (e.Column == CategoryCol)
         {
-            s.SetCategory(r.Id, r.CategoryId);
+            try { s.SetCategory(r.Id, r.CategoryId); }
+            catch (Exception ex)
+            {
+                // 下拉已經只列最底層，會走到這裡通常是別人剛把這個分類拆了子類（快取舊了）。
+                // shortcut: 只提示不還原下拉內容， Reload 就恢復；要一鍵改選子類等有人按到再說。
+                MessageBox.Show(ex.Message, Loc.T("Ledger_BadCategoryTitle"));
+                return;
+            }
+            // 綁定只寫了 CategoryId；格子裡的文字綁的是 Category，不一起換就會看起來像沒儲存。
+            r.Category = r.Categories.FirstOrDefault(o => o.Id == r.CategoryId)?.Name;
         }
         else return;
         r.Edited = true;                                        // 列首出現 ●：以後重匯只准更新原始文字
@@ -510,11 +647,11 @@ public partial class LedgerTab : UserControl
     {
         if (LedgerGrid.SelectedItem is not LedgerStore.Row { ArchivedPath: { } path })
         {
-            MessageBox.Show("這筆沒有留底 PDF（手動輸入的，或留底路徑缺失）。", "開啟留底 PDF");
+            MessageBox.Show(Loc.T("Ledger_NoPdf"), Loc.T("Ledger_OpenPdf"));
             return;
         }
-        if (!File.Exists(path)) { MessageBox.Show("留底檔不見了：" + path, "開啟留底 PDF"); return; }
+        if (!File.Exists(path)) { MessageBox.Show(Loc.T("Ledger_PdfMissing") + path, Loc.T("Ledger_OpenPdf")); return; }
         try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "開啟留底 PDF"); }
+        catch (Exception ex) { MessageBox.Show(ex.Message, Loc.T("Ledger_OpenPdf")); }
     }
 }

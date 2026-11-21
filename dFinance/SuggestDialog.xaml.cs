@@ -1,15 +1,17 @@
 using System.Windows;
+using dFinance.Data.Localization;
 using dFinance.Data;
 
 namespace dFinance;
 
-/// <summary>¥¼¤ÀÃş°Ó®aªº¤ÀÃş«ØÄ³¡G¥i¤Ä¿ï®M¥Î¡B§ï¤ÀÃş©Î¨ú®ø¡C</summary>
+/// <summary>æœªåˆ†é¡å•†å®¶çš„åˆ†é¡å»ºè­°ï¼šå¯å‹¾é¸å¥—ç”¨ã€æ”¹åˆ†é¡æˆ–å–æ¶ˆã€‚</summary>
 public partial class SuggestDialog : Window
 {
-    public const string NoCategory = "¡]¤£¤ÀÃş¡^";
+    public static string NoCategory => Loc.T("Suggest_NoCategory");        // ä¸æ˜¯ constï¼šæœƒè·Ÿè‘—èªç³»è®Šï¼Œåˆ¤æ–·ä¸€å¾‹ç”¨é€™å€‹ property
 
     readonly LedgerStore _store;
     readonly Dictionary<string, long> _categoryIds;
+    readonly long? _accountId;
 
     public sealed class SuggestRow
     {
@@ -26,36 +28,45 @@ public partial class SuggestDialog : Window
     public SuggestDialog(LedgerStore store, string? from = null, string? to = null, long? accountId = null)
     {
         _store = store;
-        var categories = store.Categories("expense").Concat(store.Categories("income")).ToList();
-        _categoryIds = categories.ToDictionary(c => c.Name, c => c.Id);
+        _accountId = accountId;
+        // entry åªèƒ½æ¨™æœ€åº•å±¤åˆ†é¡ï¼Œæ‰€ä»¥ä¸‹æ‹‰åªåˆ— leafï¼›åˆ leaf é¡¯ç¤ºçš„æ˜¯å…¨è·¯å¾‘ï¼ˆã€Œé¤é£²ï¼åˆé¤ã€ï¼‰ï¼Œ
+        // è€Œ MerchantClassifier çµ¦çš„æ˜¯é ‚å±¤åï¼Œæ‰€ä»¥åªèƒ½æ‹¿è·¯å¾‘å»å°ã€‚ToDictionary ä¹Ÿä¸èƒ½ç”¨ï¼š
+        // income/expense å¯ä»¥åŒ nameï¼ŒåŒ key æœƒç›´æ¥ Throwã€‚
+        var leaves = store.Categories("expense", leavesOnly: true).Concat(store.Categories("income", leavesOnly: true)).ToList();
+        _categoryIds = new Dictionary<string, long>();
+        foreach (var c in leaves) _categoryIds[c.Name] = c.Id;
         CategoryNames = new List<string> { NoCategory };
-        CategoryNames.AddRange(categories.Select(c => c.Name));
+        CategoryNames.AddRange(leaves.Select(c => c.Name));
 
         Rows = store.UncategorizedMerchants(from, to, accountId)
             .Select(m =>
             {
                 var suggested = MerchantClassifier.Suggest(m.Merchant);
-                var known = suggested is not null && _categoryIds.ContainsKey(suggested);
+                // å»ºè­°åªåˆ°é ‚å±¤ï¼šè©²é ‚å±¤å·²ç»æ‹†å­é¡æ™‚ä¸æ•¢çŒœå“ªä¸€å€‹ï¼Œåªæœ‰ä¸€å€‹å­é¡æ‰é å‹¾ï¼Œå…¶å®ƒè¦äººè‡ªå·±é¸ã€‚
+                var hit = suggested is null
+                    ? new List<LedgerStore.Option>()
+                    : leaves.Where(c => c.Name == suggested || c.Name.StartsWith(suggested + "ï¼", StringComparison.Ordinal)).ToList();
+                var known = hit.Count == 1;
                 return new SuggestRow
                 {
                     Merchant = m.Merchant,
                     Count = m.Count,
                     Apply = known,
-                    Category = known ? suggested! : NoCategory,
+                    Category = known ? hit[0].Name : NoCategory,
                 };
             })
             .ToList();
 
         DataContext = this;
         InitializeComponent();
-        Title = from is null && to is null ? "«ØÄ³¤ÀÃş" : $"«ØÄ³¤ÀÃş¡]{from ?? "³Ì¦­"} ¡ã {to ?? "³Ìªñ"}¡^";
-        ApplyButton.Content = "®M¥Î";
-        CancelButton.Content = "¨ú®ø";
-        HintText.Text = $"¦@ {Rows.Sum(r => r.Count)} µ§¥¼¤ÀÃş¡B{Rows.Count} ­Ó°Ó®a¡]¦P¤@°Ó®aªºµ§¼Æ·|¦X¨Ö¦¨¤@¦C¡^¡C¤Ä¿ï­n®M¥Îªº°Ó®a¡F¥iÂI¡u¤ÀÃş¡vÄæ§ï¦¨¨ä¥L¤ÀÃş¡C¨ú®ø¤Ä¿ï©Î¿ï¡u¡]¤£¤ÀÃş¡^¡v´N¤£®M¥Î¡C";
-        ApplyCol.Header = "®M¥Î";
-        MerchantCol.Header = "°Ó®a";
-        CountCol.Header = "µ§¼Æ";
-        CategoryCol.Header = "¤ÀÃş";
+        Title = from is null && to is null ? Loc.T("Suggest_Title") : Loc.F("Suggest_TitleRange", from ?? Loc.T("Suggest_Earliest"), to ?? Loc.T("Suggest_Latest"));
+        ApplyButton.Content = Loc.T("Suggest_Apply");
+        CancelButton.Content = Loc.T("Common_Cancel");
+        HintText.Text = Loc.F("Suggest_Hint", Rows.Sum(r => r.Count), Rows.Count);
+        ApplyCol.Header = Loc.T("Suggest_Apply");
+        MerchantCol.Header = Loc.T("Common_Merchant");
+        CountCol.Header = Loc.T("Suggest_Count");
+        CategoryCol.Header = Loc.T("Common_Category");
     }
 
     void Apply_Click(object sender, RoutedEventArgs e)
@@ -63,7 +74,7 @@ public partial class SuggestDialog : Window
         foreach (var r in Rows)
         {
             if (!r.Apply || !_categoryIds.TryGetValue(r.Category, out var categoryId)) continue;
-            Applied += _store.SetCategoryForMerchant(r.Merchant, categoryId);
+            Applied += _store.SetCategoryForMerchant(r.Merchant, categoryId, _accountId);
         }
         DialogResult = true;
     }

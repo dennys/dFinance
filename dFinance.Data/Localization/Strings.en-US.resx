@@ -1,0 +1,1086 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Common_Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Common_Date" xml:space="preserve">
+    <value>Date</value>
+  </data>
+  <data name="Common_Amount" xml:space="preserve">
+    <value>Amount</value>
+  </data>
+  <data name="Common_Merchant" xml:space="preserve">
+    <value>Merchant</value>
+  </data>
+  <data name="Common_Category" xml:space="preserve">
+    <value>Category</value>
+  </data>
+  <data name="Common_Account" xml:space="preserve">
+    <value>Account</value>
+  </data>
+  <data name="Common_Currency" xml:space="preserve">
+    <value>Currency</value>
+  </data>
+  <data name="Common_Type" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="Common_Kind" xml:space="preserve">
+    <value>Kind</value>
+  </data>
+  <data name="Common_Note" xml:space="preserve">
+    <value>Note</value>
+  </data>
+  <data name="Common_Balance" xml:space="preserve">
+    <value>Balance</value>
+  </data>
+  <data name="Common_Total" xml:space="preserve">
+    <value>Total</value>
+  </data>
+  <data name="Common_Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Common_Code" xml:space="preserve">
+    <value>Code</value>
+  </data>
+  <data name="Common_Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Common_Restore" xml:space="preserve">
+    <value>Restore</value>
+  </data>
+  <data name="Common_Archive" xml:space="preserve">
+    <value>Archive</value>
+  </data>
+  <data name="Common_Scale" xml:space="preserve">
+    <value>Decimals</value>
+  </data>
+  <data name="Common_Source" xml:space="preserve">
+    <value>Source</value>
+  </data>
+  <data name="Common_None" xml:space="preserve">
+    <value>(none)</value>
+  </data>
+  <data name="Common_All" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="Common_Custom" xml:space="preserve">
+    <value>Custom</value>
+  </data>
+  <data name="Common_ThisMonth" xml:space="preserve">
+    <value>This month</value>
+  </data>
+  <data name="Common_LastMonth" xml:space="preserve">
+    <value>Last month</value>
+  </data>
+  <data name="Common_ThisYear" xml:space="preserve">
+    <value>This year</value>
+  </data>
+  <data name="Common_BankSlip" xml:space="preserve">
+    <value>Deposit slip</value>
+  </data>
+  <data name="Menu_File" xml:space="preserve">
+    <value>File(_F)</value>
+  </data>
+  <data name="Menu_NewDb" xml:space="preserve">
+    <value>New database…</value>
+  </data>
+  <data name="Menu_OpenDb" xml:space="preserve">
+    <value>Open database…</value>
+  </data>
+  <data name="Menu_SaveDbAs" xml:space="preserve">
+    <value>Save database as…</value>
+  </data>
+  <data name="Menu_Recent" xml:space="preserve">
+    <value>Recent</value>
+  </data>
+  <data name="Menu_ClearRecent" xml:space="preserve">
+    <value>Clear recent</value>
+  </data>
+  <data name="Menu_Exit" xml:space="preserve">
+    <value>Exit</value>
+  </data>
+  <data name="Menu_Reports" xml:space="preserve">
+    <value>Reports(_R)</value>
+  </data>
+  <data name="Menu_CategoryReport" xml:space="preserve">
+    <value>Category ledger</value>
+  </data>
+  <data name="Menu_Tools" xml:space="preserve">
+    <value>Tools(_T)</value>
+  </data>
+  <data name="Menu_CategoryManager" xml:space="preserve">
+    <value>Manage categories…</value>
+  </data>
+  <data name="Menu_Currency" xml:space="preserve">
+    <value>Currency…</value>
+  </data>
+  <data name="Menu_Language" xml:space="preserve">
+    <value>Language…</value>
+  </data>
+  <data name="Menu_Help" xml:space="preserve">
+    <value>Help(_H)</value>
+  </data>
+  <data name="Menu_About" xml:space="preserve">
+    <value>About dFinance</value>
+  </data>
+  <data name="Tab_Home" xml:space="preserve">
+    <value>Home</value>
+  </data>
+  <data name="Tab_Import" xml:space="preserve">
+    <value>Import PDF</value>
+  </data>
+  <data name="Tab_CloseHint" xml:space="preserve">
+    <value>Close this tab</value>
+  </data>
+  <data name="Tab_CloseHintKey" xml:space="preserve">
+    <value>Close this tab (Ctrl+W)</value>
+  </data>
+  <data name="Db_BackupFailed" xml:space="preserve">
+    <value>Backup failed ({0}); the ledger still opens.</value>
+  </data>
+  <data name="Db_BackupTitle" xml:space="preserve">
+    <value>Backup</value>
+  </data>
+  <data name="Db_NotDFinance" xml:space="preserve">
+    <value>This file is not a dFinance database.</value>
+  </data>
+  <data name="Db_OpenTitle" xml:space="preserve">
+    <value>Open database</value>
+  </data>
+  <data name="Db_PathLine" xml:space="preserve">
+    <value>Database: {0}    Archived PDFs: {1}</value>
+  </data>
+  <data name="Db_OpenFailedHead" xml:space="preserve">
+    <value>Database will not open:\n</value>
+  </data>
+  <data name="Db_OpenFailedImport" xml:space="preserve">
+    <value>Database will not open; import is unavailable.</value>
+  </data>
+  <data name="Db_OpenFailedLog" xml:space="preserve">
+    <value>Open failed:</value>
+  </data>
+  <data name="Db_OpenFailed" xml:space="preserve">
+    <value>Would not open: {0}</value>
+  </data>
+  <data name="Db_BaseCurrencyMissing" xml:space="preserve">
+    <value>Reporting currency unavailable</value>
+  </data>
+  <data name="Db_SameAsCurrent" xml:space="preserve">
+    <value>This is the database already open; no need to create it.</value>
+  </data>
+  <data name="Db_NewTitle" xml:space="preserve">
+    <value>New database</value>
+  </data>
+  <data name="Db_Filter" xml:space="preserve">
+    <value>dFinance database|*.db</value>
+  </data>
+  <data name="Db_FilterAll" xml:space="preserve">
+    <value>dFinance database|*.db|All files|*.*</value>
+  </data>
+  <data name="About_Line" xml:space="preserve">
+    <value>Database: {0}
+Folder: {1}
+
+Local bookkeeping, PDFs kept on file, nothing leaves this machine.</value>
+  </data>
+  <data name="Db_SaveAsTitle" xml:space="preserve">
+    <value>Save database as</value>
+  </data>
+  <data name="Db_NoneOpen" xml:space="preserve">
+    <value>(none open)</value>
+  </data>
+  <data name="Import_Pick" xml:space="preserve">
+    <value>Browse…</value>
+  </data>
+  <data name="Import_Password" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="Import_PasswordHint" xml:space="preserve">
+    <value>Type it here (the UI never reads .env). Separate several passwords with commas; each is tried.</value>
+  </data>
+  <data name="Import_Parse" xml:space="preserve">
+    <value>Parse</value>
+  </data>
+  <data name="Import_Parsing" xml:space="preserve">
+    <value>Recognising…</value>
+  </data>
+  <data name="Import_ToDb" xml:space="preserve">
+    <value>Import to database</value>
+  </data>
+  <data name="Import_ToDbHint" xml:space="preserve">
+    <value>Keep the PDF on file and write it to the database (re-importing the same file is refused).</value>
+  </data>
+  <data name="Import_Folder" xml:space="preserve">
+    <value>Import folder…</value>
+  </data>
+  <data name="Import_LogHint" xml:space="preserve">
+    <value>Import result: inserted / updated / skipped and warnings per file</value>
+  </data>
+  <data name="Import_RawHint" xml:space="preserve">
+    <value>Raw text layer extracted by PdfPig, for checking what the parser saw</value>
+  </data>
+  <data name="Import_Col_SpendDate" xml:space="preserve">
+    <value>Spend date</value>
+  </data>
+  <data name="Import_Col_PostingDate" xml:space="preserve">
+    <value>Posting date</value>
+  </data>
+  <data name="Import_Col_Card" xml:space="preserve">
+    <value>Card</value>
+  </data>
+  <data name="Import_Col_Kind" xml:space="preserve">
+    <value>Kind</value>
+  </data>
+  <data name="Import_Col_Page" xml:space="preserve">
+    <value>Page</value>
+  </data>
+  <data name="Import_Filter" xml:space="preserve">
+    <value>PDF statements|*.pdf</value>
+  </data>
+  <data name="Import_NoFile" xml:space="preserve">
+    <value>Pick an existing PDF file first.</value>
+  </data>
+  <data name="Import_FolderTitle" xml:space="preserve">
+    <value>Pick a folder that holds statement PDFs</value>
+  </data>
+  <data name="Import_FolderEmpty" xml:space="preserve">
+    <value>No PDF found in {0}.</value>
+  </data>
+  <data name="Import_FileFailed" xml:space="preserve">
+    <value>{0}: failed — {1}</value>
+  </data>
+  <data name="Import_BadPassword" xml:space="preserve">
+    <value>Wrong password or the PDF will not open: {0}</value>
+  </data>
+  <data name="Import_SummaryHead" xml:space="preserve">
+    <value>Issuer: {0}    Statement period: {1} ~ {2}
+Due date: {3}    Amount due: {4}    Minimum due: {5}    Account: {6}</value>
+  </data>
+  <data name="Import_CheckOk" xml:space="preserve">
+    <value>{0} items, total {1} — matches the amount due</value>
+  </data>
+  <data name="Import_CheckDiff" xml:space="preserve">
+    <value>{0} items, total {1} — differs from the amount due {2} by {3}; rows may be missing</value>
+  </data>
+  <data name="Ledger_AddEntry" xml:space="preserve">
+    <value>＋ New entry</value>
+  </data>
+  <data name="Ledger_AddEntryHint" xml:space="preserve">
+    <value>Cash and wallets never have a PDF — use this to add a row</value>
+  </data>
+  <data name="Ledger_OpenAccount" xml:space="preserve">
+    <value>Open account tab</value>
+  </data>
+  <data name="Ledger_OpenAccountHint" xml:space="preserve">
+    <value>Open this row's account in its own tab so you can compare the two</value>
+  </data>
+  <data name="Ledger_SearchHint" xml:space="preserve">
+    <value>Merchant keyword, press Enter to search</value>
+  </data>
+  <data name="Ledger_Reset" xml:space="preserve">
+    <value>Reset</value>
+  </data>
+  <data name="Ledger_AmountReadonly" xml:space="preserve">
+    <value>Amounts are read-only: use ＋ New entry → adjustment to correct them　　</value>
+  </data>
+  <data name="Ledger_Settle" xml:space="preserve">
+    <value>Mark paid</value>
+  </data>
+  <data name="Ledger_Ignore" xml:space="preserve">
+    <value>Ignore</value>
+  </data>
+  <data name="Ledger_Duplicate" xml:space="preserve">
+    <value>Duplicate</value>
+  </data>
+  <data name="Ledger_DuplicateHint" xml:space="preserve">
+    <value>Marked rows are excluded from reports (the data stays, nothing is deleted)</value>
+  </data>
+  <data name="Ledger_Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Ledger_DeleteHint" xml:space="preserve">
+    <value>Soft delete (deleted_at); find it again with the status filter "Deleted"</value>
+  </data>
+  <data name="Ledger_AddCategory" xml:space="preserve">
+    <value>＋ Category</value>
+  </data>
+  <data name="Ledger_Accounts" xml:space="preserve">
+    <value>Accounts…</value>
+  </data>
+  <data name="Ledger_AccountsHint" xml:space="preserve">
+    <value>Add/edit accounts, opening balance, credit limit and auto-pay, balance counts (cash and wallets have no PDF)</value>
+  </data>
+  <data name="Ledger_Suggest" xml:space="preserve">
+    <value>Suggest categories…</value>
+  </data>
+  <data name="Ledger_SuggestHint" xml:space="preserve">
+    <value>Suggest categories for uncategorised rows by merchant keyword; tick to apply (untouched rows stay)</value>
+  </data>
+  <data name="Ledger_OrphanHint" xml:space="preserve">
+    <value>Rows the current parser no longer produces (may just be a parsing miss, so never delete)</value>
+  </data>
+  <data name="Ledger_DupGroupHint" xml:space="preserve">
+    <value>Same amount and date across card files: flagged only, nothing is changed</value>
+  </data>
+  <data name="Ledger_MismatchHint" xml:space="preserve">
+    <value>Deposit-slip balance snapshot vs running total mismatch = the parser missed a row</value>
+  </data>
+  <data name="Ledger_Col_Lineage" xml:space="preserve">
+    <value>Provenance</value>
+  </data>
+  <data name="Ledger_OpenPdf" xml:space="preserve">
+    <value>Open archived PDF</value>
+  </data>
+  <data name="Ledger_OpenPdfHint" xml:space="preserve">
+    <value>Archives are stored as-is (still encrypted if they were), so you need the password again</value>
+  </data>
+  <data name="Ledger_LineageHint" xml:space="preserve">
+    <value>Which file, page and source line this row came from — the only way to audit the parser</value>
+  </data>
+  <data name="Home_NetWorth" xml:space="preserve">
+    <value>Net worth detail</value>
+  </data>
+  <data name="Home_NetWorthHint" xml:space="preserve">
+    <value>Click a row to open that account's tab</value>
+  </data>
+  <data name="Home_Converted" xml:space="preserve">
+    <value>Converted</value>
+  </data>
+  <data name="Home_CountedIn" xml:space="preserve">
+    <value>In net worth</value>
+  </data>
+  <data name="Home_MonthlyAssets" xml:space="preserve">
+    <value>Monthly total assets</value>
+  </data>
+  <data name="Home_Upcoming" xml:space="preserve">
+    <value>Upcoming bills (not yet due)</value>
+  </data>
+  <data name="Home_Item" xml:space="preserve">
+    <value>Item</value>
+  </data>
+  <data name="Home_DbUnavailable" xml:space="preserve">
+    <value>Database will not open; the ledger is unavailable.</value>
+  </data>
+  <data name="Ledger_AllAccounts" xml:space="preserve">
+    <value>All accounts</value>
+  </data>
+  <data name="Ledger_ArchivedSuffix" xml:space="preserve">
+    <value>(archived)</value>
+  </data>
+  <data name="Ledger_AllCategories" xml:space="preserve">
+    <value>All categories</value>
+  </data>
+  <data name="Ledger_Uncategorized" xml:space="preserve">
+    <value>Uncategorised</value>
+  </data>
+  <data name="Ledger_Status_Ledger" xml:space="preserve">
+    <value>Ledger</value>
+  </data>
+  <data name="Ledger_Status_Imported" xml:space="preserve">
+    <value>Needs a category</value>
+  </data>
+  <data name="Ledger_Status_Orphan" xml:space="preserve">
+    <value>Orphan rows</value>
+  </data>
+  <data name="Ledger_Status_DupGroup" xml:space="preserve">
+    <value>Suspected duplicates</value>
+  </data>
+  <data name="Ledger_Status_Duplicate" xml:space="preserve">
+    <value>Marked duplicate</value>
+  </data>
+  <data name="Ledger_Status_Ignored" xml:space="preserve">
+    <value>Ignored</value>
+  </data>
+  <data name="Ledger_Status_Deleted" xml:space="preserve">
+    <value>Deleted</value>
+  </data>
+  <data name="Ledger_Status_All" xml:space="preserve">
+    <value>All (including future)</value>
+  </data>
+  <data name="Ledger_Rows" xml:space="preserve">
+    <value>{0} rows</value>
+  </data>
+  <data name="Ledger_Truncated" xml:space="preserve">
+    <value>(truncated — narrow the range)</value>
+  </data>
+  <data name="Ledger_AccountHeader" xml:space="preserve">
+    <value>{0} ({1} {2}) balance {3}</value>
+  </data>
+  <data name="Ledger_AccountUnconverted" xml:space="preserve">
+    <value>— not converted (no {0} → {1} rate)</value>
+  </data>
+  <data name="Home_PlotTitle" xml:space="preserve">
+    <value>Monthly total assets ({0})</value>
+  </data>
+  <data name="Ledger_Rollup" xml:space="preserve">
+    <value>{0} (including sub-categories)</value>
+  </data>
+  <data name="Report_LastMonths" xml:space="preserve">
+    <value>Last {0} months</value>
+  </data>
+  <data name="Report_AllMonths" xml:space="preserve">
+    <value>All months</value>
+  </data>
+  <data name="Report_ForeignSkipped" xml:space="preserve">
+    <value>{0} non-base-currency ({1}) entries are excluded: nothing is counted without a converted rate.</value>
+  </data>
+  <data name="Ledger_Col_CategoryPath" xml:space="preserve">
+    <value>Category path</value>
+  </data>
+  <data name="Ledger_Kpi_Income" xml:space="preserve">
+    <value>Income this month</value>
+  </data>
+  <data name="Ledger_Kpi_Expense" xml:space="preserve">
+    <value>Expenses this month</value>
+  </data>
+  <data name="Ledger_Kpi_Net" xml:space="preserve">
+    <value>Net</value>
+  </data>
+  <data name="Ledger_Kpi_Uncategorized" xml:space="preserve">
+    <value>To categorise</value>
+  </data>
+  <data name="Ledger_Kpi_NetWorth" xml:space="preserve">
+    <value>Net worth</value>
+  </data>
+  <data name="Ledger_Kpi_CardUnpaid" xml:space="preserve">
+    <value>Card balance due</value>
+  </data>
+  <data name="Ledger_Kpi_Unconverted" xml:space="preserve">
+    <value>Not converted</value>
+  </data>
+  <data name="Ledger_Count" xml:space="preserve">
+    <value>{0} items</value>
+  </data>
+  <data name="Ledger_AssetsLiabilities" xml:space="preserve">
+    <value>Assets {0}　Liabilities {1}</value>
+  </data>
+  <data name="Ledger_AccountCount" xml:space="preserve">
+    <value>{0} accounts</value>
+  </data>
+  <data name="Ledger_UnconvertedNote" xml:space="preserve">
+    <value>Non-TWD with no rate source, deliberately left out of net worth</value>
+  </data>
+  <data name="Ledger_OrphanButton" xml:space="preserve">
+    <value>Orphan rows {0}</value>
+  </data>
+  <data name="Ledger_DupButton" xml:space="preserve">
+    <value>Suspected duplicates {0}</value>
+  </data>
+  <data name="Ledger_MismatchButton" xml:space="preserve">
+    <value>Balance mismatch {0} accounts</value>
+  </data>
+  <data name="Ledger_MismatchButtonSuffix" xml:space="preserve">
+    <value>: {0}</value>
+  </data>
+  <data name="Ledger_MismatchTip" xml:space="preserve">
+    <value>Balance snapshot (from a deposit slip or a manual count) does not match the running total</value>
+  </data>
+  <data name="Ledger_MismatchAllOk" xml:space="preserve">
+    <value>Everything matches.</value>
+  </data>
+  <data name="Ledger_MismatchLine" xml:space="preserve">
+    <value>{0}: {1} {2} is {3} above the running total</value>
+  </data>
+  <data name="Ledger_MismatchFooter" xml:space="preserve">
+    <value>
+Mismatches are usually a missing transaction or a wrong opening balance; recount or fix the opening balance under Accounts….</value>
+  </data>
+  <data name="Ledger_MismatchTitle" xml:space="preserve">
+    <value>Balance snapshot vs running total</value>
+  </data>
+  <data name="Ledger_Lineage_Merchant" xml:space="preserve">
+    <value>Merchant   {0}</value>
+  </data>
+  <data name="Ledger_Lineage_Amount" xml:space="preserve">
+    <value>Amount     {0} {1}</value>
+  </data>
+  <data name="Ledger_Lineage_Orig" xml:space="preserve">
+    <value>(original {0})</value>
+  </data>
+  <data name="Ledger_Lineage_Account" xml:space="preserve">
+    <value>Account    {0} ({1})</value>
+  </data>
+  <data name="Ledger_Lineage_Kind" xml:space="preserve">
+    <value>Kind       {0}　Status {1}</value>
+  </data>
+  <data name="Ledger_Lineage_Orphan" xml:space="preserve">
+    <value>　orphan</value>
+  </data>
+  <data name="Ledger_Lineage_Edited" xml:space="preserve">
+    <value>　edited</value>
+  </data>
+  <data name="Ledger_Lineage_Source" xml:space="preserve">
+    <value>Source     {0}</value>
+  </data>
+  <data name="Ledger_Lineage_Manual" xml:space="preserve">
+    <value>(manual entry)</value>
+  </data>
+  <data name="Ledger_Lineage_Page" xml:space="preserve">
+    <value> page {0}</value>
+  </data>
+  <data name="Ledger_Lineage_Issuer" xml:space="preserve">
+    <value>Issuer     {0}</value>
+  </data>
+  <data name="Ledger_Lineage_Archived" xml:space="preserve">
+    <value>Archive    {0}</value>
+  </data>
+  <data name="Ledger_Lineage_Raw" xml:space="preserve">
+    <value>Source text
+{0}</value>
+  </data>
+  <data name="Ledger_BadCategoryTitle" xml:space="preserve">
+    <value>Invalid category</value>
+  </data>
+  <data name="Ledger_BadDateMsg" xml:space="preserve">
+    <value>Spend date must be yyyy/MM/dd (e.g. 2026-11-03); clear it to leave it blank for now.</value>
+  </data>
+  <data name="Ledger_BadDateTitle" xml:space="preserve">
+    <value>Wrong date format</value>
+  </data>
+  <data name="Ledger_NoPdf" xml:space="preserve">
+    <value>No archived PDF for this row (manual entry, or the archive path is missing).</value>
+  </data>
+  <data name="Ledger_PdfMissing" xml:space="preserve">
+    <value>Archived file is gone:</value>
+  </data>
+  <data name="Ledger_Sep" xml:space="preserve">
+    <value>　|　</value>
+  </data>
+  <data name="Ledger_DiffShort" xml:space="preserve">
+    <value>off by {0}</value>
+  </data>
+  <data name="Entry_Title" xml:space="preserve">
+    <value>New entry</value>
+  </data>
+  <data name="Entry_ToAccount" xml:space="preserve">
+    <value>Transfer-in account</value>
+  </data>
+  <data name="Entry_Kind_Expense" xml:space="preserve">
+    <value>Expense</value>
+  </data>
+  <data name="Entry_Kind_Income" xml:space="preserve">
+    <value>Income</value>
+  </data>
+  <data name="Entry_Kind_Refund" xml:space="preserve">
+    <value>Refund</value>
+  </data>
+  <data name="Entry_Kind_Adjustment" xml:space="preserve">
+    <value>Adjustment</value>
+  </data>
+  <data name="Entry_Kind_Transfer" xml:space="preserve">
+    <value>Transfer</value>
+  </data>
+  <data name="Entry_KindHint" xml:space="preserve">
+    <value>Positive numbers only: pick Refund for refunds, Adjustment to correct the books</value>
+  </data>
+  <data name="Entry_BadDate" xml:space="preserve">
+    <value>Date must be yyyy/MM/dd.</value>
+  </data>
+  <data name="Entry_BadAmount" xml:space="preserve">
+    <value>Amount must be a number.</value>
+  </data>
+  <data name="Category_Add" xml:space="preserve">
+    <value>New category</value>
+  </data>
+  <data name="Category_NeedName" xml:space="preserve">
+    <value>Please give it a name.</value>
+  </data>
+  <data name="Category_Title" xml:space="preserve">
+    <value>Manage categories</value>
+  </data>
+  <data name="Category_Direction" xml:space="preserve">
+    <value>Direction</value>
+  </data>
+  <data name="Category_Hierarchy" xml:space="preserve">
+    <value>Hierarchy</value>
+  </data>
+  <data name="Category_NameEditable" xml:space="preserve">
+    <value>Name (editable)</value>
+  </data>
+  <data name="Category_Uses" xml:space="preserve">
+    <value>Uses</value>
+  </data>
+  <data name="Category_Add_Btn" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="Category_NewLabel" xml:space="preserve">
+    <value>New category:</value>
+  </data>
+  <data name="Category_ParentLabel" xml:space="preserve">
+    <value> Parent:</value>
+  </data>
+  <data name="Category_NameLabel" xml:space="preserve">
+    <value> Name:</value>
+  </data>
+  <data name="Category_TopLevel" xml:space="preserve">
+    <value>(top level)</value>
+  </data>
+  <data name="Category_NeedNameMsg" xml:space="preserve">
+    <value>Enter a category name first.</value>
+  </data>
+  <data name="Suggest_NoCategory" xml:space="preserve">
+    <value>(no category)</value>
+  </data>
+  <data name="Suggest_Title" xml:space="preserve">
+    <value>Suggest categories</value>
+  </data>
+  <data name="Suggest_TitleRange" xml:space="preserve">
+    <value>Suggest categories ({0} – {1})</value>
+  </data>
+  <data name="Suggest_Earliest" xml:space="preserve">
+    <value>earliest</value>
+  </data>
+  <data name="Suggest_Latest" xml:space="preserve">
+    <value>latest</value>
+  </data>
+  <data name="Suggest_Apply" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="Suggest_Count" xml:space="preserve">
+    <value>Count</value>
+  </data>
+  <data name="Suggest_Hint" xml:space="preserve">
+    <value>{0} uncategorised rows across {1} merchants (counts per merchant are merged into one row). Tick the merchants to apply; click the Category column to change it. Unticking or choosing (no category) skips it.</value>
+  </data>
+  <data name="Account_Title" xml:space="preserve">
+    <value>Accounts</value>
+  </data>
+  <data name="Account_Add" xml:space="preserve">
+    <value>＋ New account</value>
+  </data>
+  <data name="Account_RateHintCCY" xml:space="preserve">
+    <value>How much {0} one unit of the foreign currency is worth. Blank = deliberately not converted (that account stays out of net worth)</value>
+  </data>
+  <data name="Account_IssuerHint" xml:space="preserve">
+    <value>Merchants and banks, e.g. Taishin Bank / Taipower / JKO Pay…</value>
+  </data>
+  <data name="Account_MaskHint" xml:space="preserve">
+    <value>Last digits of the account or card number</value>
+  </data>
+  <data name="Account_OpeningHint" xml:space="preserve">
+    <value>What you had when you started; a card usually starts at 0 and goes negative as you spend</value>
+  </data>
+  <data name="Account_Count" xml:space="preserve">
+    <value>Balance count…</value>
+  </data>
+  <data name="Account_Col_Issuer" xml:space="preserve">
+    <value>Issuer</value>
+  </data>
+  <data name="Account_Col_Mask" xml:space="preserve">
+    <value>Last digits</value>
+  </data>
+  <data name="Account_Col_OpeningBalance" xml:space="preserve">
+    <value>Opening balance</value>
+  </data>
+  <data name="Account_Col_OpeningDate" xml:space="preserve">
+    <value>Opening date</value>
+  </data>
+  <data name="Account_Col_CreditLimit" xml:space="preserve">
+    <value>Credit limit</value>
+  </data>
+  <data name="Account_Col_AutoPay" xml:space="preserve">
+    <value>Auto-pay</value>
+  </data>
+  <data name="Account_Col_Rate" xml:space="preserve">
+    <value>Rate</value>
+  </data>
+  <data name="Account_RateLabel" xml:space="preserve">
+    <value>Rate (1 {0} = ? {1})</value>
+  </data>
+  <data name="Account_NewHint" xml:space="preserve">
+    <value>New account: fill it in and press Save. Cash and wallets have no PDF, so they can only be created here.</value>
+  </data>
+  <data name="Account_DerivedBalance" xml:space="preserve">
+    <value>Derived balance {0} {1}</value>
+  </data>
+  <data name="Account_LastCount" xml:space="preserve">
+    <value>　|　last counted {0} ({1})</value>
+  </data>
+  <data name="Account_NeverCounted" xml:space="preserve">
+    <value>　|　never counted</value>
+  </data>
+  <data name="Account_ArchivedNote" xml:space="preserve">
+    <value>　|　archived, excluded from net worth</value>
+  </data>
+  <data name="Account_BadOpening" xml:space="preserve">
+    <value>Opening balance must be a number.</value>
+  </data>
+  <data name="Account_BadLimit" xml:space="preserve">
+    <value>Credit limit must be a number.</value>
+  </data>
+  <data name="Account_BadRate" xml:space="preserve">
+    <value>Rate must be a number greater than 0 (e.g. 32.9).</value>
+  </data>
+  <data name="Account_CountTitle" xml:space="preserve">
+    <value>Balance count — {0}</value>
+  </data>
+  <data name="Account_CountDerived" xml:space="preserve">
+    <value>The transactions add up to {0} {1}.</value>
+  </data>
+  <data name="Account_CountHint" xml:space="preserve">
+    <value>A mismatch is usually a missing transaction or a wrong opening balance, not a wrong calculation.</value>
+  </data>
+  <data name="Account_Counted" xml:space="preserve">
+    <value>What I actually have</value>
+  </data>
+  <data name="Account_CountDate" xml:space="preserve">
+    <value>Count date</value>
+  </data>
+  <data name="Account_BadCount" xml:space="preserve">
+    <value>Balance must be a number.</value>
+  </data>
+  <data name="Account_BadCountDate" xml:space="preserve">
+    <value>Date must be yyyy/MM/dd.</value>
+  </data>
+  <data name="Account_CountDiff" xml:space="preserve">
+    <value>Counted {0}, transactions add up to {1}, difference {2}.
+
+</value>
+  </data>
+  <data name="Account_CountAsk" xml:space="preserve">
+    <value>Record an adjustment to close the gap? (No keeps only the snapshot; the home page will list it as a balance mismatch)</value>
+  </data>
+  <data name="Account_CountCaption" xml:space="preserve">
+    <value>Balance count</value>
+  </data>
+  <data name="Account_AdjustKind" xml:space="preserve">
+    <value>Count adjustment</value>
+  </data>
+  <data name="Ccy_Title" xml:space="preserve">
+    <value>Currencies and rates</value>
+  </data>
+  <data name="Ccy_Base" xml:space="preserve">
+    <value>Reporting currency</value>
+  </data>
+  <data name="Ccy_BaseHint" xml:space="preserve">
+    <value>Net worth and monthly total assets are expressed in this currency</value>
+  </data>
+  <data name="Ccy_CodeHint" xml:space="preserve">
+    <value>e.g. USD</value>
+  </data>
+  <data name="Ccy_RateHint" xml:space="preserve">
+    <value>1 unit of the currency above = ? units of the reporting currency</value>
+  </data>
+  <data name="Ccy_ProxyHint" xml:space="preserve">
+    <value>e.g. http://10.191.190.5:3128; blank = direct (a corporate network cannot reach out directly)</value>
+  </data>
+  <data name="Ccy_PairHint" xml:space="preserve">
+    <value>Rates are stored per currency pair as "1 foreign = ? reporting", so changing the reporting currency does not spoil existing rates.</value>
+  </data>
+  <data name="Ccy_Dictionary" xml:space="preserve">
+    <value>Currency dictionary</value>
+  </data>
+  <data name="Ccy_Rates" xml:space="preserve">
+    <value>Rates</value>
+  </data>
+  <data name="Ccy_BaseChanged" xml:space="preserve">
+    <value>Reporting currency is now {0}; accounts without a rate are left out of net worth for now (no made-up 1:1).</value>
+  </data>
+  <data name="Ccy_ReportCcy" xml:space="preserve">
+    <value>Reporting currency</value>
+  </data>
+  <data name="Ccy_BaseNote" xml:space="preserve">
+    <value>　The reporting currency is only the reporting basis; rates live on currency pairs, so changing it does not spoil existing figures</value>
+  </data>
+  <data name="Ccy_Aliases" xml:space="preserve">
+    <value>Aliases (text found on statements)</value>
+  </data>
+  <data name="Ccy_AliasHint" xml:space="preserve">
+    <value>Exact wording on statements when importing, separated by |</value>
+  </data>
+  <data name="Ccy_SaveCurrency" xml:space="preserve">
+    <value>Save currency</value>
+  </data>
+  <data name="Ccy_Saved" xml:space="preserve">
+    <value>Currency {0} saved.</value>
+  </data>
+  <data name="Ccy_Label_Name" xml:space="preserve">
+    <value> Name</value>
+  </data>
+  <data name="Ccy_Label_Scale" xml:space="preserve">
+    <value> Decimals</value>
+  </data>
+  <data name="Ccy_Label_Alias" xml:space="preserve">
+    <value> Aliases</value>
+  </data>
+  <data name="Ccy_Col_From" xml:space="preserve">
+    <value>Foreign currency</value>
+  </data>
+  <data name="Ccy_Col_To" xml:space="preserve">
+    <value>→ Reporting currency</value>
+  </data>
+  <data name="Ccy_Col_RateDate" xml:space="preserve">
+    <value>Quote date</value>
+  </data>
+  <data name="Ccy_Manual" xml:space="preserve">
+    <value>Manual</value>
+  </data>
+  <data name="Ccy_ClearRateHint" xml:space="preserve">
+    <value>Select a row, leave it blank and press this = deliberately not converted (that account stays out of net worth)</value>
+  </data>
+  <data name="Ccy_BadRate" xml:space="preserve">
+    <value>Rate must be a number greater than 0 (e.g. 32.9), or blank to skip conversion.</value>
+  </data>
+  <data name="Ccy_RateSaved" xml:space="preserve">
+    <value>{0} → {1} recorded.</value>
+  </data>
+  <data name="Ccy_Fetch" xml:space="preserve">
+    <value>Fetch rates (pairs the accounts need)</value>
+  </data>
+  <data name="Ccy_Fetching" xml:space="preserve">
+    <value>Fetching rates…</value>
+  </data>
+  <data name="Ccy_FetchOk" xml:space="preserve">
+    <value>Updated {0} currency pairs.</value>
+  </data>
+  <data name="Ccy_FetchPartial" xml:space="preserve">
+    <value>Updated {0};</value>
+  </data>
+  <data name="Ccy_Test" xml:space="preserve">
+    <value>Test connection</value>
+  </data>
+  <data name="Ccy_TestHint" xml:space="preserve">
+    <value>Try one currency pair and see what comes back (200/429/404/cannot connect)</value>
+  </data>
+  <data name="Ccy_Testing" xml:space="preserve">
+    <value>Testing…</value>
+  </data>
+  <data name="Ccy_Split" xml:space="preserve">
+    <value>Split mismatched rows into the right accounts</value>
+  </data>
+  <data name="Ccy_SplitHint" xml:space="preserve">
+    <value>For old data: when USD rows were dumped into the TWD account (those amounts entered net worth as TWD)</value>
+  </data>
+  <data name="Ccy_SplitNone" xml:space="preserve">
+    <value>No rows whose currency differs from its account.</value>
+  </data>
+  <data name="Ccy_SplitDone" xml:space="preserve">
+    <value>Moved {0} rows to their own currency accounts (if something is off, restore from data\backups).</value>
+  </data>
+  <data name="Store_Status_Settled" xml:space="preserve">
+    <value>paid</value>
+  </data>
+  <data name="Store_Status_Pending" xml:space="preserve">
+    <value>pending</value>
+  </data>
+  <data name="Store_Status_NotYet" xml:space="preserve">
+    <value>not yet</value>
+  </data>
+  <data name="Store_Status_Ignored" xml:space="preserve">
+    <value>ignored</value>
+  </data>
+  <data name="Store_Status_Duplicate" xml:space="preserve">
+    <value>duplicate</value>
+  </data>
+  <data name="Store_BalanceForeign" xml:space="preserve">
+    <value>　⚠ includes {0} rows in another currency (counted at the account's currency)</value>
+  </data>
+  <data name="Store_Unconverted" xml:space="preserve">
+    <value>not converted ({0} → {1} has no rate)</value>
+  </data>
+  <data name="Store_Group_Bank" xml:space="preserve">
+    <value>Bank</value>
+  </data>
+  <data name="Store_Group_Card" xml:space="preserve">
+    <value>Credit card</value>
+  </data>
+  <data name="Store_Group_Other" xml:space="preserve">
+    <value>Other</value>
+  </data>
+  <data name="Store_Type_Cash" xml:space="preserve">
+    <value>Cash</value>
+  </data>
+  <data name="Store_Type_Bank" xml:space="preserve">
+    <value>Bank</value>
+  </data>
+  <data name="Store_Type_Wallet" xml:space="preserve">
+    <value>Wallet</value>
+  </data>
+  <data name="Store_Type_Card" xml:space="preserve">
+    <value>Credit card</value>
+  </data>
+  <data name="Store_Type_Deposit" xml:space="preserve">
+    <value>Time deposit</value>
+  </data>
+  <data name="Store_Type_Investment" xml:space="preserve">
+    <value>Investment</value>
+  </data>
+  <data name="Store_Type_Loan" xml:space="preserve">
+    <value>Loan</value>
+  </data>
+  <data name="Store_Type_Asset" xml:space="preserve">
+    <value>Asset</value>
+  </data>
+  <data name="Store_ArchivedSuffix" xml:space="preserve">
+    <value>　(archived)</value>
+  </data>
+  <data name="Store_BadCurrencyCode" xml:space="preserve">
+    <value>Code must be three uppercase letters (e.g. USD).</value>
+  </data>
+  <data name="Store_BadScale" xml:space="preserve">
+    <value>Display decimals must be 0–4.</value>
+  </data>
+  <data name="Store_Stale" xml:space="preserve">
+    <value>⚠ not updated for over {0} days</value>
+  </data>
+  <data name="Store_BadParent" xml:space="preserve">
+    <value>The parent must be an existing category in the same direction.</value>
+  </data>
+  <data name="Store_NeedCategoryName" xml:space="preserve">
+    <value>A category needs a name.</value>
+  </data>
+  <data name="Store_CategoryNotFound" xml:space="preserve">
+    <value>Category not found.</value>
+  </data>
+  <data name="Store_DuplicateCategory" xml:space="preserve">
+    <value>A {1} category named "{0}" already exists.</value>
+  </data>
+  <data name="Store_NeedAccountName" xml:space="preserve">
+    <value>An account needs a name.</value>
+  </data>
+  <data name="Store_UnknownType" xml:space="preserve">
+    <value>Unknown account type: {0}</value>
+  </data>
+  <data name="Store_NeedCurrency" xml:space="preserve">
+    <value>Pick a currency.</value>
+  </data>
+  <data name="Store_BadOpeningDate" xml:space="preserve">
+    <value>Opening date must be yyyy/MM/dd.</value>
+  </data>
+  <data name="Store_BadAutoPay" xml:space="preserve">
+    <value>The auto-pay account does not exist (and cannot be itself).</value>
+  </data>
+  <data name="Store_DuplicateAccount" xml:space="preserve">
+    <value>An account named "{0}" already exists (archived ones count too).</value>
+  </data>
+  <data name="Store_NoAccountSelected" xml:space="preserve">
+    <value>No account selected, cannot save (press Add to create one).</value>
+  </data>
+  <data name="Store_BadCountDate" xml:space="preserve">
+    <value>Count date must be yyyy/MM/dd.</value>
+  </data>
+  <data name="Store_Unnamed" xml:space="preserve">
+    <value>(unamed)</value>
+  </data>
+  <data name="Store_NotLeafCategory" xml:space="preserve">
+    <value>Categories can only be tagged at the lowest level: pick a subcategory (create one under Tools &gt; Categories).</value>
+  </data>
+  <data name="Store_UnknownStatus" xml:space="preserve">
+    <value>Unknown status: {0}</value>
+  </data>
+  <data name="Store_UnknownKind" xml:space="preserve">
+    <value>Unknown kind: {0}</value>
+  </data>
+  <data name="Store_AmountPositive" xml:space="preserve">
+    <value>Amount must be greater than 0 (use refund for refunds, adjustment for corrections)</value>
+  </data>
+  <data name="Store_AmountNonZero" xml:space="preserve">
+    <value>Amount cannot be 0</value>
+  </data>
+  <data name="Store_TransferTarget" xml:space="preserve">
+    <value>A transfer needs a transfer-in account, and it cannot be the same account</value>
+  </data>
+  <data name="Store_TransferNoCategory" xml:space="preserve">
+    <value>A transfer cannot carry a category</value>
+  </data>
+  <data name="Store_NotConvertedShort" xml:space="preserve">
+    <value>not converted</value>
+  </data>
+  <data name="Rate_NoConnect" xml:space="preserve">
+    <value>Cannot connect: {0} (is a proxy needed?)</value>
+  </data>
+  <data name="Rate_NotJson" xml:space="preserve">
+    <value>Response is not JSON: {0}</value>
+  </data>
+  <data name="Rate_NotFoundDetail" xml:space="preserve">
+    <value>{0}→{1} not found ({2})</value>
+  </data>
+  <data name="Rate_NoQuote" xml:space="preserve">
+    <value>No quote found for {0}→{1}</value>
+  </data>
+  <data name="Rate_NoLive" xml:space="preserve">
+    <value>{0}→{1} has no live price (market closed or wrong symbol)</value>
+  </data>
+  <data name="Rate_WrongCcy" xml:space="preserve">
+    <value>{0}→{1} returned a price for {2}; the pair does not match, so nothing was written</value>
+  </data>
+  <data name="Imp_Skipped" xml:space="preserve">
+    <value>{0}: skipped — {1}</value>
+  </data>
+  <data name="Imp_Line" xml:space="preserve">
+    <value>{0}: {1} {2} — {3} new, {4} updated</value>
+  </data>
+  <data name="Imp_SkippedZero" xml:space="preserve">
+    <value>(skipped {0} zero-amount rows)</value>
+  </data>
+  <data name="Imp_AutoCreated" xml:space="preserve">
+    <value>, auto-created {0} accounts</value>
+  </data>
+    <data name="Home_CardBillLabel" xml:space="preserve">
+    <value>Credit card bill</value>
+  </data>
+  <data name="Imp_SeenSeparator" xml:space="preserve">
+    <value> from </value>
+  </data>
+<data name="Imp_DuplicateFile" xml:space="preserve">
+    <value>This file was already imported ({0})</value>
+  </data>
+  <data name="Imp_NoDate" xml:space="preserve">
+    <value>One row has no spend date ({0} {1}); left blank for you to fill in.</value>
+  </data>
+  <data name="Imp_NegativeRows" xml:space="preserve">
+    <value>Negative rows were booked as refund; some may be payments that should become transfer once the parser splits payment/spend.</value>
+  </data>
+  <data name="Imp_Superseded" xml:space="preserve">
+    <value>Replaced {0} older imports of the same statement period</value>
+  </data>
+  <data name="Imp_NoPassword" xml:space="preserve">
+    <value>(no password)</value>
+  </data>
+  <data name="Imp_BadPassword" xml:space="preserve">
+    <value>Wrong password or this PDF will not open (tried {0}: {1})</value>
+  </data>
+  <data name="Imp_UnknownIssuer" xml:space="preserve">
+    <value>(issuer not recognised)</value>
+  </data>
+  <data name="Imp_AutoCreatedAccount" xml:space="preserve">
+    <value>Account created automatically; check whether it is an existing one.</value>
+  </data>
+  <data name="Imp_NoBankAccount" xml:space="preserve">
+    <value>No bank accounts yet, so the bill was booked to a new cash account (the default paying account can be changed later).</value>
+  </data>
+  <data name="Imp_CurrencyUnmatched" xml:space="preserve">
+    <value>Currency "{0}" matches no code; booked as {1}. Add the alias under Tools → Currency…, or fix this row.</value>
+  </data>
+  <data name="Imp_CurrencyCreated" xml:space="preserve">
+    <value>Currency {0} seen for the first time; created with 2 decimals (change the display digits under Currency…).</value>
+  </data>
+  <data name="Imp_NoStatementEnd" xml:space="preserve">
+    <value>No statement end date, so no bill record was created for this card statement.</value>
+  </data>
+  <data name="Store_CurrencyLocked" xml:space="preserve">
+    <value>This account already has {0} entries, so the currency can't be changed — the existing amounts would be converted again and the net worth would be wrong. Create a new account instead and archive this one.</value>
+  </data>
+  <data name="Store_TypeLocked" xml:space="preserve">
+    <value>This account already has {0} entries, so the type can't be changed — the type drives net worth, duplicate detection and autopay. Create a new account instead and archive this one.</value>
+  </data>
+  <data name="Home_MarkPaid" xml:space="preserve">
+    <value>Paid</value>
+  </data>
+  <data name="Home_MarkPaidHint" xml:space="preserve">
+    <value>Mark this bill as paid (in full): it stops counting toward card outstanding and upcoming bills</value>
+  </data>
+  <data name="Imp_Identifying" xml:space="preserve">
+    <value>Recognising: {0}</value>
+  </data>
+</root>

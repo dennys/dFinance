@@ -1,4 +1,5 @@
 using System.Windows;
+using dFinance.Data.Localization;
 using System.Windows.Controls;
 using dFinance.Data;
 
@@ -19,15 +20,15 @@ public sealed class AddEntryDialog : Window
     readonly TextBox _merchant = new();
     readonly TextBox _amount = new();
     readonly TextBox _note = new();
-    readonly TextBlock _toLabel = new() { Text = "轉入帳戶" };
+    readonly TextBlock _toLabel = new() { Text = Loc.T("Entry_ToAccount") };
 
     public AddEntryDialog(LedgerStore store, long? defaultAccountId)
     {
         _store = store;
-        Title = "記一筆"; Width = 380; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
+        Title = Loc.T("Entry_Title"); Width = 380; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
-        _kind.ItemsSource = new[] { "支出", "收入", "退款", "調整", "轉帳" };
+        _kind.ItemsSource = new[] { Loc.T("Entry_Kind_Expense"), Loc.T("Entry_Kind_Income"), Loc.T("Entry_Kind_Refund"), Loc.T("Entry_Kind_Adjustment"), Loc.T("Entry_Kind_Transfer") };
         _kind.SelectedIndex = 0;
         _kind.SelectionChanged += (_, _) => { SyncVisibility(); ReloadCategories(); };
 
@@ -38,27 +39,27 @@ public sealed class AddEntryDialog : Window
         }
         _account.SelectedItem = accounts.FirstOrDefault(a => a.Id == defaultAccountId) ?? accounts.FirstOrDefault();
         _category.DisplayMemberPath = "Name"; _category.SelectedValuePath = "Id";
-        _amount.ToolTip = "正數就好：退款選「退款」、修正帳務選「調整」";
+        _amount.ToolTip = Loc.T("Entry_KindHint");
 
         var grid = new Grid { Margin = new Thickness(12) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var ok = new Button { Content = "存檔", Width = 80, IsDefault = true, Margin = new Thickness(0, 10, 8, 0) };
-        var cancel = new Button { Content = "取消", Width = 80, IsCancel = true, Margin = new Thickness(0, 10, 0, 0) };
+        var ok = new Button { Content = Loc.T("Common_Save"), Width = 80, IsDefault = true, Margin = new Thickness(0, 10, 8, 0) };
+        var cancel = new Button { Content = Loc.T("Common_Cancel"), Width = 80, IsCancel = true, Margin = new Thickness(0, 10, 0, 0) };
         ok.Click += (_, _) => Save();
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         buttons.Children.Add(ok); buttons.Children.Add(cancel);
 
         var i = 0;
-        Row(i++, "日期", _date);
-        Row(i++, "種類", _kind);
-        Row(i++, "帳戶", _account);
-        Row(i++, "商家", _merchant);
-        Row(i++, "分類", _category);
-        Row(i++, "金額", _amount);
-        Row(i++, "備註", _note);
+        Row(i++, Loc.T("Common_Date"), _date);
+        Row(i++, Loc.T("Common_Kind"), _kind);
+        Row(i++, Loc.T("Common_Account"), _account);
+        Row(i++, Loc.T("Common_Merchant"), _merchant);
+        Row(i++, Loc.T("Common_Category"), _category);
+        Row(i++, Loc.T("Common_Amount"), _amount);
+        Row(i++, Loc.T("Common_Note"), _note);
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Grid.SetRow(buttons, i); Grid.SetColumn(buttons, 0); Grid.SetColumnSpan(buttons, 2);
         grid.Children.Add(buttons);
@@ -100,11 +101,11 @@ public sealed class AddEntryDialog : Window
         var dateText = _date.SelectedDate?.ToString("yyyy-MM-dd") ?? _date.Text;
         if (!LedgerStore.TryDate(dateText, out var date) || date is null)
         {
-            MessageBox.Show("日期要用 yyyy/MM/dd。", "記一筆"); return;
+            MessageBox.Show(Loc.T("Entry_BadDate"), Loc.T("Entry_Title")); return;
         }
         if (!decimal.TryParse(_amount.Text.Replace(",", "").Trim(), out var amount))
         {
-            MessageBox.Show("金額要是一個數字。", "記一筆"); return;
+            MessageBox.Show(Loc.T("Entry_BadAmount"), Loc.T("Entry_Title")); return;
         }
 
         try
@@ -122,7 +123,7 @@ public sealed class AddEntryDialog : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "記一筆");            // 驗證不過就留下來讓人補，不默默吞掉
+            MessageBox.Show(ex.Message, Loc.T("Entry_Title"));            // 驗證不過就留下來讓人補，不默默吞掉
         }
     }
 }
@@ -138,15 +139,15 @@ public sealed class CategoryDialog : Window
 
     public CategoryDialog()
     {
-        Title = "新增分類"; Width = 300; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
+        Title = Loc.T("Category_Add"); Width = 300; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        _kind.ItemsSource = new[] { "支出", "收入" };
+        _kind.ItemsSource = new[] { Loc.T("Entry_Kind_Expense"), Loc.T("Entry_Kind_Income") };
 
-        var ok = new Button { Content = "存檔", Width = 70, IsDefault = true, Margin = new Thickness(0, 10, 8, 0) };
-        var cancel = new Button { Content = "取消", Width = 70, IsCancel = true, Margin = new Thickness(0, 10, 0, 0) };
+        var ok = new Button { Content = Loc.T("Common_Save"), Width = 70, IsDefault = true, Margin = new Thickness(0, 10, 8, 0) };
+        var cancel = new Button { Content = Loc.T("Common_Cancel"), Width = 70, IsCancel = true, Margin = new Thickness(0, 10, 0, 0) };
         ok.Click += (_, _) =>
         {
-            if (Name.Length == 0) { MessageBox.Show("要取個名字。", "新增分類"); return; }
+            if (Name.Length == 0) { MessageBox.Show(Loc.T("Category_NeedName"), Loc.T("Category_Add")); return; }
             DialogResult = true;
         };
 
@@ -154,9 +155,9 @@ public sealed class CategoryDialog : Window
         buttons.Children.Add(ok); buttons.Children.Add(cancel);
 
         var panel = new StackPanel { Margin = new Thickness(12) };
-        panel.Children.Add(new TextBlock { Text = "名稱" });
+        panel.Children.Add(new TextBlock { Text = Loc.T("Common_Name") });
         panel.Children.Add(_name);
-        panel.Children.Add(new TextBlock { Text = "種類", Margin = new Thickness(0, 8, 0, 0) });
+        panel.Children.Add(new TextBlock { Text = Loc.T("Common_Kind"), Margin = new Thickness(0, 8, 0, 0) });
         panel.Children.Add(_kind);
         panel.Children.Add(buttons);
         Content = panel;

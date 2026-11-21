@@ -11,7 +11,7 @@ public class MegaCardTests
     [Fact]
     public void Header_fields_match_the_bill()
     {
-        var s = Samples.Parse(Sample); if (s is null) return;
+        var s = Samples.Parse(Sample);
 
         Assert.Equal("兆豐國際商業銀行", s.Issuer);
         Assert.Equal(1265.00m, s.TotalDue);
@@ -24,7 +24,7 @@ public class MegaCardTests
     [Fact]
     public void Charges_add_up_to_the_amount_due_and_payment_is_flagged()
     {
-        var s = Samples.Parse(Sample); if (s is null) return;
+        var s = Samples.Parse(Sample);
 
         Assert.Equal(3, s.Transactions.Count(t => t.Kind == "charge"));
         Assert.Equal(1265.00m, s.Transactions.Where(t => t.Kind == "charge").Sum(t => t.Amount)
@@ -37,7 +37,7 @@ public class MegaCardTests
     [Fact]
     public void Summary_rows_are_not_mistaken_for_transactions()
     {
-        var s = Samples.Parse(Sample); if (s is null) return;
+        var s = Samples.Parse(Sample);
         Assert.DoesNotContain(s.Transactions, t => t.Merchant.Contains("小計") || t.Merchant.Contains("應付帳款"));
         Assert.All(s.Transactions.Where(t => t.Kind == "charge"), t =>
         {

@@ -3,10 +3,7 @@ using UglyToad.PdfPig;
 
 namespace dFinance.Parsing;
 
-public sealed record WordBox(string Text, double Left, double Top, double Right, bool FromOcr = false, double OcrScore = 1)
-{
-    public double X => Left;
-}
+public sealed record WordBox(string Text, double Left, double Top, double Right, bool FromOcr = false, double OcrScore = 1);
 
 public sealed class Row
 {
@@ -57,7 +54,6 @@ public sealed class PageData
 {
     public List<Row> Rows { get; init; } = new();
     public string RawText { get; init; } = "";
-    public int PageCount { get; init; }
 
     /// <summary>圖片物件數量，用來判斷這份是不是圖片式帳單。</summary>
     public int ImageCount { get; init; }
@@ -77,7 +73,7 @@ public sealed class PageData
             // OCR 那一格的上缘跟文字層同一行的上缘會差幾 pt，容忍度要比純文字層寬。
             rows.AddRange(PdfRows.Cluster(words, page, 8));
         }
-        return new PageData { Rows = rows, RawText = RawText, PageCount = PageCount, ImageCount = ImageCount, OcrApplied = true };
+        return new PageData { Rows = rows, RawText = RawText, ImageCount = ImageCount, OcrApplied = true };
     }
 }
 
@@ -102,7 +98,7 @@ public static class PdfRows
                 new WordBox(w.Text, w.BoundingBox.Left, w.BoundingBox.Top, w.BoundingBox.Right)), page.Number));
         }
 
-        return new PageData { Rows = rows, RawText = text.ToString(), PageCount = doc.NumberOfPages, ImageCount = images };
+        return new PageData { Rows = rows, RawText = text.ToString(), ImageCount = images };
     }
 
     internal static IEnumerable<Row> Cluster(IEnumerable<WordBox> words, int page, double tolerance = RowTolerance)

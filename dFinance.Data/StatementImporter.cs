@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using dFinance.Data.Localization;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
@@ -14,10 +15,10 @@ public sealed record ImportResult(
     string? Message = null, List<string>? Warnings = null)
 {
     public string Summary => Duplicate
-        ? $"{FileName}：跳過 — {Message}"
-        : $"{FileName}：{Issuer} {Kind} 新 {Inserted} 筆、更新 {Updated} 筆"
-          + (SkippedZero > 0 ? $"（跳過 {SkippedZero} 筆 0 元）" : "")
-          + (AutoCreatedAccounts > 0 ? $"，自動建帳戶 {AutoCreatedAccounts} 個" : "");
+        ? Loc.F("Imp_Skipped", FileName, Message)
+        : Loc.F("Imp_Line", FileName, Issuer, Kind, Inserted, Updated)
+          + (SkippedZero > 0 ? Loc.F("Imp_SkippedZero", SkippedZero) : "")
+          + (AutoCreatedAccounts > 0 ? Loc.F("Imp_AutoCreated", AutoCreatedAccounts) : "");
 }
 
 /// <summary>
@@ -40,11 +41,11 @@ public sealed class StatementImporter
     {
         var bytes = File.ReadAllBytes(pdfPath);
         var sha = Sha256(bytes);
-        var seen = Db.Scalar(_db, "SELECT imported_at || ' 自 ' || file_path FROM document WHERE sha256=$s AND is_deleted=0;", ("$s", sha));
+        var seen = Db.Scalar(_db, "SELECT imported_at || $sep || file_path FROM document WHERE sha256=$s AND is_deleted=0;", ("$sep", Loc.T("Imp_SeenSeparator")), ("$s", sha));   // 串接用的連接詞也走語系
         if (seen is not null)
-            return new ImportResult(Path.GetFileName(pdfPath), "", StatementKind.Unknown, 0, 0, 0, 0, 0, true, $"同一份檔案已匯入過（{seen}）");
+            return new ImportResult(Path.GetFileName(pdfPath), "", StatementKind.Unknown, 0, 0, 0, 0, 0, true, Loc.F("Imp_DuplicateFile", seen));
 
-        progress?.Report($"辨識中：{Path.GetFileName(pdfPath)}");
+        progress?.Report(Loc.F("Imp_Identifying", Path.GetFileName(pdfPath)));
         var statement = ParseWithPasswords(pdfPath, passwords, progress);
         return Import(statement, pdfPath, sha, bytes);
     }
@@ -61,17 +62,30 @@ public sealed class StatementImporter
         var skippedZero = 0;
         int inserted = 0, updated = 0;
 
+        // 留底要在交易前就寫好：寫檔失敗（磁碟滿、網路盤斷線）→ 整個匯入回滾，可以重來。
+        // 之前是 commit 之後才寫，失敗會留下「有帳、沒留底」，而重匯又被 sha256 擋死 → 永久沒有原始單據可查。
+        sha256 ??= SyntheticSha();
+        var archived = pdfBytes is null ? null : Archive(pdfBytes, sourcePath, sha256);
+
         using var tx = _db.BeginTransaction();
 
         var (accountId, cardId) = ResolveTargets(s, kind, warnings, ref autoCreated);
 
-        var docId = Db.InsertId(_db, """
+        // sha256 是 UNIQUE：同一份內容被軟刪過（is_deleted=1）時插新的會直接被打死，所以沿用那一列。
+        Db.Exec(_db, """
             INSERT INTO document(sha256, file_path, file_name, imported_at, issuer, parser, parser_ver,
                                  account_mask, statement_start, statement_end, due_date, page_count, warnings)
             VALUES($sha, $path, $name, $at, $issuer, $parser, $ver,
-                   $mask, $start, $end, $due, $pages, $warnings);
+                   $mask, $start, $end, $due, $pages, $warnings)
+            ON CONFLICT(sha256) DO UPDATE SET
+                is_deleted=0, file_path=excluded.file_path, file_name=excluded.file_name,
+                imported_at=excluded.imported_at, issuer=excluded.issuer, parser=excluded.parser,
+                parser_ver=excluded.parser_ver, account_mask=excluded.account_mask,
+                statement_start=excluded.statement_start, statement_end=excluded.statement_end,
+                due_date=excluded.due_date, page_count=excluded.page_count,
+                warnings=NULL, skipped_zero=0, archived_path=NULL, superseded_at=NULL;
             """,
-            ("$sha", sha256 ??= SyntheticSha()),
+            ("$sha", sha256),
             ("$path", sourcePath),
             ("$name", Path.GetFileName(sourcePath)),
             ("$at", now),
@@ -82,6 +96,7 @@ public sealed class StatementImporter
             ("$start", Date(s.StatementStartDate)), ("$end", Date(s.StatementEndDate)), ("$due", Date(s.DueDate)),
             ("$pages", DBNull.Value),
             ("$warnings", warnings.Count == 0 ? (object)DBNull.Value : JsonSerializer.Serialize(warnings)));
+        var docId = (long)Db.Scalar(_db, "SELECT id FROM document WHERE sha256=$s;", ("$s", sha256))!;
 
         var touched = new List<long>();
         var lineAccounts = new Dictionary<string, long>();          // 列級帳號 → account.id（同帳號只查/建一次）
@@ -95,7 +110,7 @@ public sealed class StatementImporter
             var currency = EnsureCurrency(t.Currency, warnings);
             var account = LineAccount(s, t, accountId, kind, currency, lineAccounts, warnings, ref autoCreated);
             var txnDate = t.Date == default ? null : Iso(t.Date);
-            if (txnDate is null) warnings.Add($"有一筆拿不到消費日（{t.Merchant} {t.Amount}），先留空等人補。");
+            if (txnDate is null) warnings.Add(Loc.F("Imp_NoDate", t.Merchant, t.Amount));
 
             var lineKind = minor < 0 ? "refund" : "expense";
             var baseHash = BaseHash(s, t, minor, currency);
@@ -163,23 +178,20 @@ public sealed class StatementImporter
         }
 
         if (s.Transactions.Any(t => t.Amount < 0))
-            warnings.Add("有負額列先當 refund；其中可能是繳款列，要等 parser 拆出「繳款/消費」後改記 transfer。");
+            warnings.Add(Loc.T("Imp_NegativeRows"));
 
         var superseded = SupersedePrior(s, accountId, docId, touched, kind);
 
-        // 警告可能在中途增加，最後一次寫回。
-        Db.Exec(_db, "UPDATE document SET warnings=$w, skipped_zero=$z WHERE id=$id;",
+        // 警告可能在中途增加，最後一次寫回；留底路徑也在這裡（同一個交易：要嘛帳與留底一起進，要嘛都沒有）。
+        Db.Exec(_db, "UPDATE document SET warnings=$w, skipped_zero=$z, archived_path=$arch WHERE id=$id;",
             ("$w", warnings.Count == 0 ? (object)DBNull.Value : JsonSerializer.Serialize(warnings)),
-            ("$z", skippedZero), ("$id", docId));
+            ("$z", skippedZero), ("$arch", (object?)archived ?? DBNull.Value), ("$id", docId));
 
         tx.Commit();
 
-        var archived = pdfBytes is null ? null : Archive(pdfBytes, sourcePath, sha256);
-        if (archived is not null) Db.Exec(_db, "UPDATE document SET archived_path=$p WHERE id=$id;", ("$p", archived), ("$id", docId));
-
         return new ImportResult(Path.GetFileName(sourcePath), s.Issuer, kind, docId, inserted, updated,
                                 skippedZero, autoCreated, false,
-                                superseded > 0 ? $"取代 {superseded} 份舊的同帳期匯入" : null, warnings);
+                                superseded > 0 ? Loc.F("Imp_Superseded", superseded) : null, warnings);
     }
 
     /// <summary>依 parser 的命名規則（&lt;銀行&gt;&lt;Card|Deposit|Bill&gt;Parser）判斷單據種類。</summary>
@@ -199,9 +211,9 @@ public sealed class StatementImporter
             try { return StatementParser.Parse(pdfPath, pw, Db.DataDirectory, progress); }
             catch (Exception e) when (e.GetType().Name.Contains("Password", StringComparison.OrdinalIgnoreCase)
                                    || e.GetType().Name.Contains("Encrypted", StringComparison.OrdinalIgnoreCase))
-            { tried.Add(pw.Length == 0 ? "(無密碼)" : pw); }
+            { tried.Add(pw.Length == 0 ? Loc.T("Imp_NoPassword") : pw); }
         }
-        throw new InvalidOperationException($"密碼不對或這份 PDF 開不了（試過 {tried.Count} 組：{string.Join(", ", tried)}）");
+        throw new InvalidOperationException(Loc.F("Imp_BadPassword", tried.Count, string.Join(", ", tried)));
     }
 
     (long accountId, long? cardId) ResolveTargets(ParsedStatement s, StatementKind kind, List<string> warnings, ref int autoCreated)
@@ -209,7 +221,7 @@ public sealed class StatementImporter
         // 一筆都進不去的（OCR 未實作的中信/匯豐、或 0 元單）不要順手生出帳戶，否则帳戶表會被垃圾填滿。
         if (!s.Transactions.Any(t => t.Amount != 0)) return (0, null);
 
-        var issuer = string.IsNullOrWhiteSpace(s.Issuer) ? "(未辨識發行方)" : s.Issuer.Trim();
+        var issuer = string.IsNullOrWhiteSpace(s.Issuer) ? Loc.T("Imp_UnknownIssuer") : s.Issuer.Trim();
         var mask = (s.AccountMask ?? "").Trim();
 
         if (kind == StatementKind.Bill) return (PaymentAccount(warnings, ref autoCreated), null);
@@ -217,7 +229,7 @@ public sealed class StatementImporter
         var type = kind == StatementKind.Card ? "credit_card" : "bank";
         var currency = EnsureCurrency(s.Transactions.FirstOrDefault(t => !string.IsNullOrWhiteSpace(t.Currency))?.Currency, warnings);
         var accountId = FindAccount(issuer, mask, type, currency) ?? CreateAccount(issuer, mask, type, currency, warnings, ref autoCreated);
-        if (autoCreated > 0) warnings.Add($"自動建立帳戶，請確認是不是既有帳戶。");
+        if (autoCreated > 0) warnings.Add(Loc.T("Imp_AutoCreatedAccount"));
 
         long? cardId = null;
         if (kind == StatementKind.Card)
@@ -251,11 +263,11 @@ public sealed class StatementImporter
             mask = docMask;                                                  // 要換幣別：帳號沿用整份單子的，另開一個幣別的帳戶
         }
 
-        var issuer = (string.IsNullOrWhiteSpace(s.Issuer) ? docIssuer : s.Issuer.Trim()) ?? "(未辨識發行方)";
+        var issuer = (string.IsNullOrWhiteSpace(s.Issuer) ? docIssuer : s.Issuer.Trim()) ?? Loc.T("Imp_UnknownIssuer");
         var type = kind == StatementKind.Card ? "credit_card" : "bank";
         var before = autoCreated;
         var id = FindAccount(issuer, mask, type, currency) ?? CreateAccount(issuer, mask, type, currency, warnings, ref autoCreated);
-        if (autoCreated > before) warnings.Add("自動建立帳戶，請確認是不是既有帳戶。");
+        if (autoCreated > before) warnings.Add(Loc.T("Imp_AutoCreatedAccount"));
         return cache[key] = id;
     }
 
@@ -299,8 +311,9 @@ public sealed class StatementImporter
     long PaymentAccount(List<string> warnings, ref int autoCreated)
     {
         var setting = Db.Scalar(_db, "SELECT value FROM settings WHERE key='default_payment_account_id';");
+        // 已歸檔的帳戶不能用：它不在淨值裡，繳費單記進去會悄悄從報表消失（下面兩個 fallback 就有驗）。
         if (setting is string raw && long.TryParse(raw, out var configured)
-            && Db.Scalar(_db, "SELECT id FROM account WHERE id=$id;", ("$id", configured)) is not null)
+            && Db.Scalar(_db, "SELECT id FROM account WHERE id=$id AND is_archived=0;", ("$id", configured)) is not null)
             return configured;
 
         var picked = Db.Scalar(_db, "SELECT id FROM account WHERE type='bank' AND is_archived=0 ORDER BY id LIMIT 1;")
@@ -312,7 +325,7 @@ public sealed class StatementImporter
             return existing;
         }
 
-        warnings.Add("還沒有任何銀行帳戶，繳費單先記到新的現金帳戶（之後可在設定改預設付款帳戶）。");
+        warnings.Add(Loc.T("Imp_NoBankAccount"));
         autoCreated++;
         var newId = Db.InsertId(_db, """
             INSERT INTO account(name, type, currency, created_at) VALUES('現金', 'cash', $c, $at);
@@ -337,13 +350,13 @@ public sealed class StatementImporter
         if (code.Length != 3 || !code.All(c => c >= 'A' && c <= 'Z')) code = ResolveAlias(text) ?? "";
         if (code.Length == 0)
         {
-            warnings.Add($"幣別「{text}」對不到代碼，先按基準幣 {baseCcy} 記；請在「工具→幣別…」補別名，或自己改這一列。");
+            warnings.Add(Loc.F("Imp_CurrencyUnmatched", text, baseCcy));
             return baseCcy;
         }
 
         if (Db.Scalar(_db, "SELECT code FROM currency WHERE code=$c;", ("$c", code)) is null)
         {
-            warnings.Add($"第一次看到幣別 {code}，先以 2 位小數建立，顯示位數之後可在「幣別…」改。");
+            warnings.Add(Loc.F("Imp_CurrencyCreated", code));
             Db.Exec(_db, "INSERT INTO currency(code, name, scale) VALUES($c, $c, 2);", ("$c", code));
         }
         return code;
@@ -362,7 +375,7 @@ public sealed class StatementImporter
         if (cardId is null) return null;
         var periodEnd = s.StatementEndDate ?? s.DueDate
             ?? (s.Transactions.Count > 0 ? s.Transactions.Max(t => t.Date) : default);
-        if (periodEnd == default) { warnings.Add("拿不到帳期結束日，這份信用卡帳單不建帳單記錄。"); return null; }
+        if (periodEnd == default) { warnings.Add(Loc.T("Imp_NoStatementEnd")); return null; }
 
         var existing = Db.Scalar(_db, "SELECT id FROM credit_card_bill WHERE card_id=$c AND period_end=$e;",
                                  ("$c", cardId.Value), ("$e", Iso(periodEnd))) is long id ? id : (long?)null;

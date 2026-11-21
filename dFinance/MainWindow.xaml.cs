@@ -1,4 +1,5 @@
 using System.IO;
+using dFinance.Data.Localization;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -22,10 +23,57 @@ namespace dFinance
             InitializeComponent();
             RebuildRecentMenu();
             OpenDatabase();
+            LocalizationManager.Current.ChangeCulture(_db is { } db ? Db.UiLanguage(db) : LocalizationManager.DefaultCulture);
+            LocalizationManager.Current.CultureChanged += RebuildForCulture;
+            RebuildLanguageMenu();                      // 啟動時已經换過語系（那時候還沒訂閱），選單要自己補一次
             PreviewKeyDown += (_, e) =>
             {
                 if (e.Key == Key.W && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) CloseSelectedAccountTab();
             };
+        }
+
+        // ------------------------------------------------------------ 語系
+
+        /// <summary>工具 → 語言：選了立刻換，不用重開程式。選單本身從 <see cref="LocalizationManager.Languages") 產，加語系只改那一張表。</summary>
+        void RebuildLanguageMenu()
+        {
+            LanguageMenu.Items.Clear();
+            foreach (var (code, native) in LocalizationManager.Languages)
+            {
+                var item = new MenuItem { Header = native, IsChecked = string.Equals(code, LocalizationManager.Current.UiCulture.Name, StringComparison.OrdinalIgnoreCase) };
+                item.Click += (_, _) =>
+                {
+                    LocalizationManager.Current.ChangeCulture(code);
+                    if (_db is { } db) Db.SetUiLanguage(db, code);
+                };
+                LanguageMenu.Items.Add(item);
+            }
+        }
+
+        /// <summary>
+        /// 換語系後重建分頁。XAML 宣告的文字靠綁定自己更新，但 code 裡一次指派出去的欄頭、
+        /// 篩選下拉、圖表標題不吃綁定，只能重建。drill-down 分頁帶這篩選條件，重建成本高，
+        /// 就關掉請人重開（shortcut: 要留條件就把 from/to 存起來重建時補回）。
+        /// </summary>
+        void RebuildForCulture()
+        {
+            RebuildRecentMenu();
+            RebuildLanguageMenu();
+            if (_db is not { } db) return;
+
+            var open = _accountTabs.Keys.ToList();
+            foreach (var item in _accountTabs.Values) Tabs.Items.Remove(item);
+            _accountTabs.Clear();
+            foreach (var item in _drillDownTabs.ToList()) CloseDrillDownTab(item);
+
+            HomeTab.Content = NewLedger(null, Loc.T("Tab_Home"));
+            BuildCategoryTab();
+            foreach (var id in open)
+            {
+                var name = Db.Scalar(db, "SELECT name FROM account WHERE id=$i;", ("$i", id)) as string ?? id.ToString();
+                OpenAccountTab(id, name);
+            }
+            Tabs.SelectedItem = HomeTab;
         }
 
         /// <summary>啟動就開庫、跑遷移、備份一份（留最近 5 份），並把主頁接上庫。</summary>
@@ -34,7 +82,7 @@ namespace dFinance
             OpenDatabasePath(Db.DatabasePath);
             if (_db is null) return;
             try { Db.Backup(_db); }
-            catch (Exception ex) { MessageBox.Show($"備份失敗（{ex.Message}），帳本照常開啟。", "備份"); }
+            catch (Exception ex) { MessageBox.Show(Loc.F("Db_BackupFailed", ex.Message), Loc.T("Db_BackupTitle")); }
         }
 
         /// <summary>換一個資料庫檔（開檔/新建/另存都走這裡）。舊的一律等新庫開成功才關，開失敗就維持原狀。</summary>
@@ -43,7 +91,7 @@ namespace dFinance
             if (SamePath(path, _db?.DataSource) && _db is not null) return;      // 已經開著同一個檔
             if (File.Exists(path) && !IsDFinanceDatabase(path))
             {
-                MessageBox.Show("這個檔不是 dFinance 資料庫。", "開啟資料庫");
+                MessageBox.Show(Loc.T("Db_NotDFinance"), Loc.T("Db_OpenTitle"));
                 return;
             }
 
@@ -59,25 +107,26 @@ namespace dFinance
                 foreach (var item in _drillDownTabs) Tabs.Items.Remove(item);
                 _drillDownTabs.Clear();
                 new LedgerStore(db).PromoteCategorizedImports();
-                HomeTab.Content = NewLedger(null, "首頁");
+                HomeTab.Content = NewLedger(null, Loc.T("Tab_Home"));
                 BuildCategoryTab();
                 Tabs.SelectedItem = HomeTab;
                 previous?.Dispose();
 
-                DbPathText.Text = $"資料庫：{Path.GetFullPath(path)}    留底 PDF：{Db.DocumentsDirectory}";
+                DbPathText.Text = Loc.F("Db_PathLine", Path.GetFullPath(path), Db.DocumentsDirectory);
                 Title = $"dFinance — {Path.GetFileName(path)}";
                 RecentFiles.Add(path);
                 RebuildRecentMenu();
+                LocalizationManager.Current.ChangeCulture(Db.UiLanguage(db));      // 這份庫存過的語系（重建分頁由 CultureChanged 接手）
             }
             catch (Exception ex)
             {
                 if (_db is null)
                 {
-                    HomeTab.Content = new TextBlock { Text = "資料庫開不起來：\n" + ex.Message, Margin = new Thickness(8) };
-                    DbPathText.Text = "資料庫開不起來，匯入按鈕暂時不能用。";
-                    ImportLog.Text = "開庫失敗：" + ex.Message;
+                    HomeTab.Content = new TextBlock { Text = Loc.T("Db_OpenFailedHead") + ex.Message, Margin = new Thickness(8) };
+                    DbPathText.Text = Loc.T("Db_OpenFailedImport");
+                    ImportLog.Text = Loc.T("Db_OpenFailedLog") + ex.Message;
                 }
-                else MessageBox.Show($"開不起來：{ex.Message}", "開啟資料庫");
+                else MessageBox.Show(Loc.F("Db_OpenFailed", ex.Message), Loc.T("Db_OpenTitle"));
             }
         }
 
@@ -106,7 +155,7 @@ namespace dFinance
             {
                 Content = "✕", Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(3, 0, 3, 0),
                 BorderThickness = new Thickness(0), Background = System.Windows.Media.Brushes.Transparent,
-                ToolTip = "關閉這個分頁",
+                ToolTip = Loc.T("Tab_CloseHint"),
             };
             close.Click += (_, _) => CloseDrillDownTab(item);
             header.Children.Add(close);
@@ -134,7 +183,7 @@ namespace dFinance
             {
                 Content = "✕", Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(3, 0, 3, 0),
                 BorderThickness = new Thickness(0), Background = System.Windows.Media.Brushes.Transparent,
-                ToolTip = "關閉這個分頁（Ctrl+W）",
+                ToolTip = Loc.T("Tab_CloseHintKey"),
             };
             close.Click += (_, _) => CloseAccountTab(accountId);
             header.Children.Add(close);
@@ -189,8 +238,31 @@ namespace dFinance
             if (_db is not { } db) return -1;
             var store = new LedgerStore(db);
             var n = new CurrencyDialog(store).CurrencyRowCount;
-            if (string.IsNullOrEmpty(store.BaseCurrency)) throw new InvalidOperationException("基準幣讀不到");
+            if (string.IsNullOrEmpty(store.BaseCurrency)) throw new InvalidOperationException(Loc.T("Db_BaseCurrencyMissing"));
             return n;
+        }
+
+        /// <summary>給 <c>--uismoke</c> 用的钩子：換語系（走的是 CultureChanged 那条路：重建分頁也一起跑过）。</summary>
+        internal void SmokeSwitchLanguage(string code) => LocalizationManager.Current.ChangeCulture(code);
+
+        /// <summary>給 <c>--uismoke</c> 看的：功能表上透過 <c>{loc:Loc}</c> 綁出去的文字，用來確認換語系真的更新了 UI。</summary>
+        internal string SmokeLanguageMenuHeader() => LanguageMenu.Header as string ?? "";
+
+        /// <summary>給 <c>--uismoke</c> 看的：工具 → 語言 選單真的有列出來嗎（不是空的）。</summary>
+        internal int SmokeLanguageItemCount() => LanguageMenu.Items.Count;
+
+        /// <summary>給 <c>--uismoke</c>：把「建議分類」建一次（不 Show、不按套用）。商家分組、最底層限制、語系 key 都在這條路上。</summary>
+        internal int SmokeOpenSuggestDialog()
+        {
+            if (_db is not { } db) return -1;
+            return new SuggestDialog(new LedgerStore(db)).Rows.Count;
+        }
+
+        /// <summary>給 <c>--uismoke</c>：分類報表建起來、展開一個有子類的分類、按欄排序（回傳展開比收合多幾列）。</summary>
+        internal int SmokeCategoryReport()
+        {
+            if (_db is not { } db) return -1;
+            return new LedgerTab(db, null, ledgerMode: true).SmokeReportInteract();
         }
 
         internal string SmokeReport()
@@ -207,15 +279,15 @@ namespace dFinance
         {
             var dlg = new SaveFileDialog
             {
-                Title = "新資料庫",
-                Filter = "dFinance 資料庫|*.db",
+                Title = Loc.T("Db_NewTitle"),
+                Filter = Loc.T("Db_Filter"),
                 FileName = "dfinance.db",
                 InitialDirectory = CurrentDbFolder(),
             };
             if (dlg.ShowDialog() != true) return;
             if (SamePath(dlg.FileName, _db?.DataSource))
             {
-                MessageBox.Show("這是目前開著的資料庫，不用新建。", "新資料庫");
+                MessageBox.Show(Loc.T("Db_SameAsCurrent"), Loc.T("Db_NewTitle"));
                 return;
             }
 
@@ -226,15 +298,15 @@ namespace dFinance
                 File.Delete(dlg.FileName + "-shm");
                 OpenDatabasePath(dlg.FileName);
             }
-            catch (Exception ex) { MessageBox.Show(ex.Message, "新資料庫"); }
+            catch (Exception ex) { MessageBox.Show(ex.Message, Loc.T("Db_NewTitle")); }
         }
 
         void OpenDb_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new OpenFileDialog
             {
-                Title = "開啟資料庫",
-                Filter = "dFinance 資料庫|*.db|所有檔案|*.*",
+                Title = Loc.T("Db_OpenTitle"),
+                Filter = Loc.T("Db_FilterAll"),
                 InitialDirectory = CurrentDbFolder(),
             };
             if (dlg.ShowDialog() == true) OpenDatabasePath(dlg.FileName);
@@ -245,8 +317,8 @@ namespace dFinance
             if (_db is not { } db) return;
             var dlg = new SaveFileDialog
             {
-                Title = "另存資料庫",
-                Filter = "dFinance 資料庫|*.db",
+                Title = Loc.T("Db_SaveAsTitle"),
+                Filter = Loc.T("Db_Filter"),
                 FileName = Path.GetFileName(db.DataSource),
                 InitialDirectory = CurrentDbFolder(),
             };
@@ -258,7 +330,7 @@ namespace dFinance
                 db.BackupDatabase(dest);                     // 用備份 API，WAL 裡還沒落盤的也一起過去
                 OpenDatabasePath(dlg.FileName);
             }
-            catch (Exception ex) { MessageBox.Show(ex.Message, "另存資料庫"); }
+            catch (Exception ex) { MessageBox.Show(ex.Message, Loc.T("Db_SaveAsTitle")); }
         }
 
         void ClearRecent_Click(object sender, RoutedEventArgs e)
@@ -287,9 +359,8 @@ namespace dFinance
         void About_Click(object sender, RoutedEventArgs e)
             => MessageBox.Show(
                 $"dFinance {typeof(MainWindow).Assembly.GetName().Version}\n\n" +
-                $"資料庫：{_db?.DataSource ?? "（沒有開啟）"}\n資料夾：{Db.DataDirectory}\n\n" +
-                "本機記帳，PDF 留底，資料不連網。",
-                "關於 dFinance", MessageBoxButton.OK, MessageBoxImage.Information);
+                Loc.F("About_Line", _db?.DataSource ?? Loc.T("Db_NoneOpen"), Db.DataDirectory),
+                Loc.T("Menu_About"), MessageBoxButton.OK, MessageBoxImage.Information);
 
         void BuildCategoryTab()
         {
@@ -300,7 +371,7 @@ namespace dFinance
             var ledgerTab = new LedgerTab(db, null);
             ledgerTab.ShowCategoryReport();
             ledgerTab.DrillDownRequested += OpenDrillDownTab;
-            _categoryTab = new TabItem { Header = "分類帳", Content = ledgerTab };
+            _categoryTab = new TabItem { Header = Loc.T("Menu_CategoryReport"), Content = ledgerTab };
             Tabs.Items.Insert(Tabs.Items.IndexOf(HomeTab) + 1, _categoryTab);      // 常駐，緊接在首頁之後
         }
 
@@ -315,7 +386,7 @@ namespace dFinance
             var paths = RecentFiles.Load().Where(File.Exists).ToList();
             if (paths.Count == 0)
             {
-                RecentMenu.Items.Add(new MenuItem { Header = "（沒有）", IsEnabled = false });
+                RecentMenu.Items.Add(new MenuItem { Header = Loc.T("Common_None"), IsEnabled = false });
                 return;
             }
             foreach (var path in paths)
@@ -360,7 +431,7 @@ namespace dFinance
         {
             var dialog = new OpenFileDialog
             {
-                Filter = "PDF 帳單|*.pdf",
+                Filter = Loc.T("Import_Filter"),
                 InitialDirectory = File.Exists(PathBox.Text) ? Path.GetDirectoryName(PathBox.Text) : @"D:\dennys",
             };
             if (dialog.ShowDialog() != true) return;
@@ -372,34 +443,45 @@ namespace dFinance
         private async void Import_Click(object sender, RoutedEventArgs e)
         {
             var path = PathBox.Text.Trim();
-            if (!File.Exists(path)) { ImportLog.Text = "請先選一個存在的 PDF 檔案。"; return; }
+            if (!File.Exists(path)) { ImportLog.Text = Loc.T("Import_NoFile"); return; }
             await ImportAsync([path]);
         }
 
         private async void ImportFolder_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new OpenFolderDialog { Title = "選一個放帳單 PDF 的資料夾" };
+            var dialog = new OpenFolderDialog { Title = Loc.T("Import_FolderTitle") };
             if (dialog.ShowDialog() != true) return;
 
             var files = Directory.GetFiles(dialog.FolderName, "*.pdf", SearchOption.AllDirectories);
-            if (files.Length == 0) { ImportLog.Text = $"{dialog.FolderName} 裡找不到 PDF。"; return; }
+            if (files.Length == 0) { ImportLog.Text = Loc.F("Import_FolderEmpty", dialog.FolderName); return; }
             await ImportAsync(files);
         }
 
         /// <summary>一個一個匯入；已經入庫的檔案會直接被 sha 擋掉，所以重複按不會記兩次。</summary>
         private async Task ImportAsync(IEnumerable<string> files)
         {
-            if (_db is not { } db) return;
+            if (_db is null) return;
             var passwords = UiPasswords();
             ImportButton.IsEnabled = ImportFolderButton.IsEnabled = false;
             try
             {
                 var progress = new Progress<string>(m => ImportLog.Text = m);
-                var lines = await Task.Run(() => files.Select(f =>
+                // 在 Task.Run 裡面就要把檔案跑完（foreach/.ToList）：之前交回去的是一條還沒執行的 LINQ，
+                // 真正解析與寫庫發生在 join 那一刻 —— 就在 UI 執行緒上，整個視窗凍住。
+                // 匯入自己開一條連線：整個 app 共用一條 SqliteConnection 不是執行緒安全的，
+                // 匯入中使用者點主頁/切分頁才會撞（WAL 讓讀與寫互不擋）。
+                var lines = await Task.Run(() =>
                 {
-                    try { return new StatementImporter(db).ImportPdf(f, passwords, progress).Summary; }
-                    catch (Exception ex) { return $"{Path.GetFileName(f)}：失敗 — {ex.Message}"; }
-                }));
+                    using var bg = Db.Open();
+                    var importer = new StatementImporter(bg);
+                    var results = new List<string>();
+                    foreach (var f in files)
+                    {
+                        try { results.Add(importer.ImportPdf(f, passwords, progress).Summary); }
+                        catch (Exception ex) { results.Add(Loc.F("Import_FileFailed", Path.GetFileName(f), ex.Message)); }
+                    }
+                    return results;
+                });
                 ImportLog.Text = string.Join("\n", lines);
                 LedgerStore.Touch();                                // 讓開著的帳本/帳戶分頁切過去時重查
             }
@@ -417,15 +499,17 @@ namespace dFinance
             var path = PathBox.Text.Trim();
             if (!File.Exists(path))
             {
-                ShowResult(new ParsedStatement { Warnings = { "請先選一個存在的 PDF 檔案。" } });
+                ShowResult(new ParsedStatement { Warnings = { Loc.T("Import_NoFile") } });
                 return;
             }
 
             ParseButton.IsEnabled = false;
+            ParseButton.Content = Loc.T("Import_Parsing");        // 圖片式帳單要 OCR，第一份會慢幾十秒（之後讀快取）
             try
             {
                 var password = PasswordBox.Password;
-                var progress = new Progress<string>(m => ImportLog.Text = m);   // OCR 一頁十幾秒，不回報進度看起來像卡住
+                // OCR 一頁十几秒，不回報進度看起來像卡住。
+                var progress = new Progress<string>(m => ImportLog.Text = m);
                 var statement = await Task.Run(() => StatementParser.Parse(path, password, Db.DataDirectory, progress));
                 ShowResult(statement);
                 if (ImportLog.Text.StartsWith("OCR")) ImportLog.Text = "";
@@ -439,7 +523,7 @@ namespace dFinance
                     Warnings =
                     {
                         ex.GetType().Name.Contains("Password", StringComparison.OrdinalIgnoreCase)
-                            ? $"密碼錯誤或這個 PDF 開不了：{ex.Message}"
+                            ? Loc.F("Import_BadPassword", ex.Message)
                             : ex.Message,
                     }
                 });
@@ -447,6 +531,7 @@ namespace dFinance
             finally
             {
                 ParseButton.IsEnabled = true;
+                ParseButton.Content = Loc.T("Import_Parse");
             }
         }
 
@@ -455,19 +540,23 @@ namespace dFinance
             Grid.ItemsSource = s.Transactions;
             RawText.Text = s.RawText;
 
-            SummaryText.Text =
-                $"發行方：{s.Issuer}    帳期：{s.StatementStartDate:yyyy/MM/dd} ~ {s.StatementEndDate:yyyy/MM/dd}    " +
-                $"繳款截止日：{s.DueDate:yyyy/MM/dd}    本期應繳：{s.TotalDue:N0}    最低應繳：{s.MinimumDue:N0}    帳號：{s.AccountMask}";
+            SummaryText.Text = Loc.F("Import_SummaryHead",
+                s.Issuer, Fmt(s.StatementStartDate), Fmt(s.StatementEndDate), Fmt(s.DueDate),
+                Num(s.TotalDue), Num(s.MinimumDue), s.AccountMask);
 
             var warnings = s.Warnings.ToList();
             if (s.Transactions.Count > 0 && s.TotalDue is not null)
             {
                 var sum = s.Transactions.Sum(t => t.Amount);
                 warnings.Add(sum == s.TotalDue
-                    ? $"明細 {s.Transactions.Count} 筆，合計 {sum:N0} — 與本期應繳相符"
-                    : $"明細 {s.Transactions.Count} 筆，合計 {sum:N0} — 和本期應繳 {s.TotalDue:N0} 差 {sum - s.TotalDue:N0}，可能漏解析");
+                    ? Loc.F("Import_CheckOk", s.Transactions.Count, Num(sum))
+                    : Loc.F("Import_CheckDiff", s.Transactions.Count, Num(sum), Num(s.TotalDue), Num(sum - s.TotalDue)));
             }
             WarningText.Text = string.Join("\n", warnings);
         }
+
+        // 金額與日期先照原格式排好再進字串：格式不跟著語系走（AGENTS：錢只經 Money，格式吃 CurrentCulture）。
+        static string Num(decimal? v) => v?.ToString("N0") ?? "";
+        static string Fmt(DateOnly? d) => d?.ToString("yyyy/MM/dd") ?? "";
     }
 }

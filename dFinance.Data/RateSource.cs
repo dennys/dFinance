@@ -1,3 +1,4 @@
+using dFinance.Data.Localization;
 using System.Net;
 using System.Text.Json;
 
@@ -45,7 +46,7 @@ public sealed class RateSource
         }
         catch (Exception e)
         {
-            return (null, $"連不出去：{e.Message.Split('\n')[0]}（proxy 要不要填？）");
+            return (null, Loc.F("Rate_NoConnect", e.Message.Split('\n')[0]));
         }
     }
 
@@ -62,24 +63,24 @@ public sealed class RateSource
         }
         catch (JsonException)
         {
-            return (null, $"回應不是 JSON：{json.Substring(0, Math.Min(60, json.Length))}");
+            return (null, Loc.F("Rate_NotJson", json.Substring(0, Math.Min(60, json.Length))));
         }
 
         if (chart.TryGetProperty("error", out var err) && err.ValueKind == JsonValueKind.Object)
         {
             var desc = err.TryGetProperty("description", out var d) ? d.GetString() : "";
-            return (null, $"找不到 {fromCcy}→{toCcy}（{err.GetProperty("code").GetString()} {desc}）");
+            return (null, Loc.F("Rate_NotFoundDetail", fromCcy, toCcy, $"{err.GetProperty("code").GetString()} {desc}"));
         }
         if (!chart.TryGetProperty("result", out var result) || result.GetArrayLength() == 0)
-            return (null, $"找不到 {fromCcy}→{toCcy} 的報價");
+            return (null, Loc.F("Rate_NoQuote", fromCcy, toCcy));
 
         var meta = result[0].GetProperty("meta");
         if (!meta.TryGetProperty("regularMarketPrice", out var price) || price.ValueKind != JsonValueKind.Number)
-            return (null, $"{fromCcy}→{toCcy} 沒有即時價（市場沒開或符號不對）");
+            return (null, Loc.F("Rate_NoLive", fromCcy, toCcy));
 
         var quoteCcy = meta.TryGetProperty("currency", out var c) ? c.GetString() ?? "" : "";
         if (!quoteCcy.Equals(Db.NormalizeCurrencyCode(toCcy), StringComparison.OrdinalIgnoreCase))
-            return (null, $"{fromCcy}→{toCcy} 回的是 {quoteCcy} 的價，對不上，不敢寫進去");
+            return (null, Loc.F("Rate_WrongCcy", fromCcy, toCcy, quoteCcy));
 
         // 報價自己的日期（GMT 的 unix 時間）；少了它就不能判斷匯率新不新。
         var date = Db.Today();

@@ -9,7 +9,7 @@ namespace dFinance.Parsing;
 /// </summary>
 public sealed class UtilityBillParser : IStatementParser
 {
-    private static readonly Regex Money = new(@"^[-+]?\$?(\d{1,3}(,\d{3})*|\d+)(\.\d{1,2})?元?$", RegexOptions.Compiled);
+    // 金額形状一律走 PdfText.IsMoney（這裡之前自己寫一份，U+2212 負號不收 → 繳款列靜靜漏掉）。
     private static readonly Regex MoneyLoose = new(@"^\$(\d{1,3}(,\d{3})*|\d+)", RegexOptions.Compiled);
     private static readonly Regex DateRx = new(@"(\d{3,4})[-/.](\d{1,2})[-/.](\d{1,2})", RegexOptions.Compiled);
     private static readonly Regex RocDateWords = new(@"(\d{3})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日", RegexOptions.Compiled);
@@ -87,7 +87,7 @@ public sealed class UtilityBillParser : IStatementParser
 
         foreach (var row in data.Rows)
         {
-            var money = row.Words.Where(w => Money.IsMatch(w.Text) && w.Text.StartsWith('$')).ToList();
+            var money = row.Words.Where(w => PdfText.IsMoney(w.Text) && w.Text.StartsWith('$')).ToList();
             var date = row.Words.Select(w => DateRx.Match(w.Text)).Where(m => m.Success).Select(ToDate).FirstOrDefault();
             if (money.Count < 5 || date is null) continue;
 
@@ -122,7 +122,7 @@ public sealed class UtilityBillParser : IStatementParser
     static decimal? AmountAfter(PageData data, string label)
     {
         foreach (var w in WordsAfterLabel(data, label))
-            if (Money.IsMatch(w) || MoneyLoose.IsMatch(w)) return ToDecimal(w);
+            if (PdfText.IsMoney(w) || MoneyLoose.IsMatch(w)) return ToDecimal(w);
         return null;
     }
 
@@ -177,8 +177,7 @@ public sealed class UtilityBillParser : IStatementParser
         return null;
     }
 
-    static decimal ToDecimal(string text) =>
-        decimal.Parse(text.Replace("$", "").Replace(",", "").Replace("元", ""), System.Globalization.CultureInfo.InvariantCulture);
+    static decimal ToDecimal(string text) => PdfText.ToDecimal(text) ?? 0m;
 
     static DateOnly? ToDate(Match m)
     {

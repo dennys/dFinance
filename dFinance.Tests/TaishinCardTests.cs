@@ -14,7 +14,7 @@ public class TaishinCardTests
     [Fact]
     public void Header_fields_match_the_sample()
     {
-        var s = Parse(); if (s is null) return;
+        var s = Parse();
         Assert.Equal("台新國際商業銀行", s.Issuer);
         Assert.Equal(new DateOnly(2026, 10, 27), s.DueDate);
         Assert.Equal(3000m, s.TotalDue);
@@ -25,7 +25,7 @@ public class TaishinCardTests
     [Fact]
     public void Merchant_wrapped_over_two_lines_is_joined()
     {
-        var s = Parse(); if (s is null) return;
+        var s = Parse();
         Assert.Equal(2, s.Transactions.Count);
         var pay = s.Transactions.Single(t => t.Amount < 0);
         Assert.Equal(-1166m, pay.Amount);
@@ -36,7 +36,7 @@ public class TaishinCardTests
     [Fact]
     public void Location_line_below_does_not_leak_into_the_next_merchant()
     {
-        var s = Parse(); if (s is null) return;
+        var s = Parse();
         var buy = s.Transactions.Single(t => t.Amount == 3000m);
         Assert.Equal("街口電支－繳費-新竹振道有線電", buy.Merchant);
         Assert.DoesNotContain("TAIPEI", buy.Merchant);
@@ -49,7 +49,7 @@ public class TaishinCardTests
     [Fact]
     public void Payment_rows_are_explained_not_left_looking_like_a_parse_error()
     {
-        var s = Parse(); if (s is null) return;
+        var s = Parse();
         Assert.NotEqual(s.TotalDue, s.Transactions.Sum(t => t.Amount));
         Assert.Contains(s.Warnings, w => w.Contains("繳款/退款"));
         Assert.DoesNotContain(s.Warnings, w => w.Contains("讀不到交易明細"));
@@ -62,7 +62,7 @@ public class TaishinCardTests
     [Fact]
     public void Previous_month_bill_parses_by_the_same_rules()
     {
-        var s = Samples.Parse("TSB_Creditcard_Estatement_202611.pdf"); if (s is null) return;
+        var s = Samples.Parse("TSB_Creditcard_Estatement_202611.pdf");
 
         Assert.Equal(new DateOnly(2026, 11, 27), s.DueDate);
         Assert.Equal(1006m, s.TotalDue);

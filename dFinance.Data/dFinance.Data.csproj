@@ -4,6 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- 預設語系 = Strings.resx 的原文（繁中）。不標的話要嘛多產一份 zh-TW satellite、要嘛查語系時白跑一趟探測。 -->
+    <NeutralResourcesLanguage>zh-TW</NeutralResourcesLanguage>
   </PropertyGroup>
 
   <ItemGroup>

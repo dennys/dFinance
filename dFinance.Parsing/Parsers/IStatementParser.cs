@@ -8,7 +8,7 @@ namespace dFinance.Parsing;
 ///   Deposit = 存款對帳單（有帳戶交易明細，含綜合對帳單裡的存款那段）
 ///   Bill    = 非銀行的繳費單（電/水/瓦斯/電信/eTag）
 /// 外面的入口只有一個 StatementParser.Parse(path, password)，class 名字裡不要再出現 Statement，
-/// 免得跟那個入口搞混。新增銀行就新增一個 class 並掛進 StatementParserFactory。
+/// 免得跟那個入口搞混。新增銀行就新增一個 class 並掛進 ParserFactory。
 /// </summary>
 public interface IStatementParser
 {

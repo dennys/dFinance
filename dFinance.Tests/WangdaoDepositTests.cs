@@ -14,7 +14,7 @@ public class WangdaoDepositTests
     [Fact]
     public void Header_fields_match_the_sample()
     {
-        var s = Parse(); if (s is null) return;
+        var s = Parse();
         Assert.Equal("王道商業銀行", s.Issuer);
         Assert.Equal("010000***41988", s.AccountMask);
         Assert.Equal(new DateOnly(2026, 1, 21), s.StatementStartDate);
@@ -27,19 +27,19 @@ public class WangdaoDepositTests
     [Fact]
     public void Deposit_transactions_are_parsed_with_sign_and_currency()
     {
-        var s = Parse(); if (s is null) return;
+        var s = Parse();
         Assert.Equal(8, s.Transactions.Count);
         Assert.All(s.Transactions, t => Assert.Equal("USD", t.Currency));
         Assert.Equal(0.50m, s.Transactions.Sum(t => t.Amount));
-        Assert.All(s.Transactions.Where(t => t.Kind == "credit"), t => Assert.True(t.Amount > 0));
-        Assert.All(s.Transactions.Where(t => t.Kind == "debit"), t => Assert.True(t.Amount < 0));
+        Assert.All(s.Transactions.Where(t => t.Kind == "charge"), t => Assert.True(t.Amount > 0));
+        Assert.All(s.Transactions.Where(t => t.Kind == "credit"), t => Assert.True(t.Amount < 0));
         Assert.Contains(s.Transactions, t => t.Merchant == "帳戶存入");
     }
 
     [Fact]
     public void Fixed_deposits_are_flagged_not_dropped_silently()
     {
-        var s = Parse(); if (s is null) return;
+        var s = Parse();
         Assert.Contains(s.Warnings, w => w.Contains("定期存款"));
         Assert.Contains(s.Warnings, w => w.Contains("外幣活期存款總餘額"));
     }
@@ -51,13 +51,14 @@ public class WangdaoDepositTests
     [Fact]
     public void Quiet_month_says_why_it_is_thin()
     {
-        var s = Samples.Parse(QuietMonth); if (s is null) return;
+        var s = Samples.Parse(QuietMonth);
 
         var interest = Assert.Single(s.Transactions);
         Assert.Equal("利息", interest.Merchant);
         Assert.Equal(9.44m, interest.Amount);
         Assert.Equal("USD", interest.Currency);
-        Assert.Equal("credit", interest.Kind);                 // 收入不能標成支出
+        Assert.True(interest.Amount > 0, "利息是收入，金額要是正的（落庫只看正負號）");
+        Assert.Equal("charge", interest.Kind);                  // 存款單那組慣例：正數=charge、負數=credit（跟聯邦/永豐/兆豐存款單一致；匯入不看 Kind）
         Assert.Contains(s.Warnings, w => w.Contains("沒進模型"));
         Assert.Contains(s.Warnings, w => w.Contains("個明細段落"));
     }

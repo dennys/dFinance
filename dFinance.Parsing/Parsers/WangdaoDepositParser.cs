@@ -87,7 +87,7 @@ public sealed class WangdaoDepositParser : IStatementParser
                 Merchant = merchant,
                 Amount = amount,
                 Currency = currency,
-                Kind = amount < 0 ? "debit" : "credit",      // 支出 = debit，收入/退款 = credit
+                Kind = amount < 0 ? "credit" : "charge",      // 用 Models 那組詞（charge/credit），不要自己另創 debit
                 RawLine = text,
             });
         }

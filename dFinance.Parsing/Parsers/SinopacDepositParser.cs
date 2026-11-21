@@ -27,7 +27,15 @@ public sealed class SinopacDepositParser : IStatementParser
             return s;
         }
 
-        WordBox Col(string text) => header.Words.First(w => w.Text == text);
+        // 表頭少一個欄位名就丢例外（.First()）會讓整份檔案一筆都進不去：記警告就好。
+        string[] need = ["交易日", "摘要", "支出", "存入", "餘額"];
+        var missing = header.MissingLabels(need);
+        if (missing.Length > 0)
+        {
+            s.Warnings.Add($"存款交易明細表頭少了欄位（缺 {missing}），這份不拆明細。");
+            return s;
+        }
+        WordBox Col(string text) => header.Label(text)!;                        // 上面查過了
         var dateCol = Col("交易日");
         var summaryCol = Col("摘要");
         var outCol = Col("支出");
@@ -36,8 +44,11 @@ public sealed class SinopacDepositParser : IStatementParser
         var account = Regex.Match(data.RawText, @"帳號[:：]\s*([0-9*\-]+)\(([^)]+)\)").Groups;
         s.AccountMask = account[1].Success ? account[1].Value : "";
 
-        var noteLeft = header.Words.First(w => w.Text.Contains("備註")).Left - 40;
-        var all = data.Rows.Where(r => r.Top < header.Top).OrderBy(r => r.Page).ThenByDescending(r => r.Top).ToList();
+        // 備註欄只是拿来切「接在上一筆下面的續行」，沒有也能記帳，所以只警告不擋。
+        var noteCol = header.LabelLike("備註");
+        if (noteCol is null) s.Warnings.Add("找不到備註欄：商家名的多行續行不會被接回來。");
+        var noteLeft = noteCol is null ? double.MaxValue : noteCol.Left - 40;      // 沒有備註欄就乾脆不收續行，免得把整列吃進來
+        var all = StatementTable.DetailRows(data, header).ToList();
 
         decimal? Income(Row r) => r.Words.Where(w => w.BelongsTo(inCol, outCol, balanceCol)).Select(w => PdfText.ToDecimal(w.Text)).FirstOrDefault(a => a is not null);
         decimal? Expense(Row r) => r.Words.Where(w => w.BelongsTo(outCol, inCol, balanceCol)).Select(w => PdfText.ToDecimal(w.Text)).FirstOrDefault(a => a is not null);

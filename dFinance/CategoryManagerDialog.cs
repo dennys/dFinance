@@ -1,10 +1,11 @@
 using System.Windows;
+using dFinance.Data.Localization;
 using System.Windows.Controls;
 using dFinance.Data;
 
 namespace dFinance;
 
-/// <summary>¤u¨ã ? ¤ÀÃş¡G¦C¥X¤ä¥X¡ş¦¬¤J¤ÀÃş¡A¥i§ï¦W¡B¥i·s¼W¡]¦P¦Wªu¥Î¬J¦³¡^¡Cµ{¦¡½X«Ø¤¶­±¡A¦P AddEntryDialog¡C</summary>
+/// <summary>å·¥å…· ? åˆ†é¡ï¼šåˆ—å‡ºæ”¯å‡ºï¼æ”¶å…¥åˆ†é¡ï¼Œå¯æ”¹åã€å¯æ–°å¢ï¼ˆåŒåæ²¿ç”¨æ—¢æœ‰ï¼‰ã€‚ç¨‹å¼ç¢¼å»ºä»‹é¢ï¼ŒåŒ AddEntryDialogã€‚</summary>
 public sealed class CategoryManagerDialog : Window
 {
     readonly LedgerStore _store;
@@ -16,37 +17,37 @@ public sealed class CategoryManagerDialog : Window
     public CategoryManagerDialog(LedgerStore store)
     {
         _store = store;
-        Title = "¤ÀÃşºŞ²z";
+        Title = Loc.T("Category_Title");
         Width = 560; Height = 460;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
-        _grid.Columns.Add(new DataGridTextColumn { Header = "¤è¦V", Binding = new System.Windows.Data.Binding(nameof(LedgerStore.CategoryRow.Kind)) { Converter = KindConverter.Instance }, IsReadOnly = true, Width = 60 });
-        _grid.Columns.Add(new DataGridTextColumn { Header = "¶¥¼h", Binding = new System.Windows.Data.Binding(nameof(LedgerStore.CategoryRow.Indented)), IsReadOnly = true, Width = new DataGridLength(3, DataGridLengthUnitType.Star) });
+        _grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Category_Direction"), Binding = new System.Windows.Data.Binding(nameof(LedgerStore.CategoryRow.Kind)) { Converter = KindConverter.Instance }, IsReadOnly = true, Width = 60 });
+        _grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Category_Hierarchy"), Binding = new System.Windows.Data.Binding(nameof(LedgerStore.CategoryRow.Indented)), IsReadOnly = true, Width = new DataGridLength(3, DataGridLengthUnitType.Star) });
         _grid.Columns.Add(new DataGridTextColumn
         {
-            Header = "¦WºÙ¡]¥i§ï¡^", Binding = new System.Windows.Data.Binding(nameof(LedgerStore.CategoryRow.Name)), Width = new DataGridLength(2, DataGridLengthUnitType.Star),
+            Header = Loc.T("Category_NameEditable"), Binding = new System.Windows.Data.Binding(nameof(LedgerStore.CategoryRow.Name)), Width = new DataGridLength(2, DataGridLengthUnitType.Star),
             ElementStyle = new Style(typeof(TextBlock)) { Setters = { new Setter(TextBlock.TextAlignmentProperty, TextAlignment.Left) } },
         });
         _grid.Columns.Add(new DataGridTextColumn
         {
-            Header = "µ§¼Æ", Binding = new System.Windows.Data.Binding(nameof(LedgerStore.CategoryRow.Uses)), IsReadOnly = true, Width = 60,
+            Header = Loc.T("Category_Uses"), Binding = new System.Windows.Data.Binding(nameof(LedgerStore.CategoryRow.Uses)), IsReadOnly = true, Width = 60,
             ElementStyle = new Style(typeof(TextBlock)) { Setters = { new Setter(TextBlock.TextAlignmentProperty, TextAlignment.Right) } },
         });
         _grid.CellEditEnding += Grid_CellEditEnding;
 
-        _newKind.ItemsSource = new[] { "¤ä¥X", "¦¬¤J" };
+        _newKind.ItemsSource = new[] { Loc.T("Entry_Kind_Expense"), Loc.T("Entry_Kind_Income") };
         _newKind.SelectionChanged += (_, _) => ReloadParents();
-        var add = new Button { Content = "·s¼W", Width = 70, Margin = new Thickness(8, 0, 0, 0) };
+        var add = new Button { Content = Loc.T("Category_Add_Btn"), Width = 70, Margin = new Thickness(8, 0, 0, 0) };
         add.Click += (_, _) => AddNew();
-        var close = new Button { Content = "Ãö³¬", Width = 70, IsCancel = true, IsDefault = true, Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Right };
+        var close = new Button { Content = Loc.T("Common_Close"), Width = 70, IsCancel = true, IsDefault = true, Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Right };
         close.Click += (_, _) => Close();
 
         var addRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
-        addRow.Children.Add(new TextBlock { Text = "·s¤ÀÃş¡G", VerticalAlignment = VerticalAlignment.Center });
+        addRow.Children.Add(new TextBlock { Text = Loc.T("Category_NewLabel"), VerticalAlignment = VerticalAlignment.Center });
         addRow.Children.Add(_newKind);
-        addRow.Children.Add(new TextBlock { Text = " ¤÷¤ÀÃş¡G", VerticalAlignment = VerticalAlignment.Center });
+        addRow.Children.Add(new TextBlock { Text = Loc.T("Category_ParentLabel"), VerticalAlignment = VerticalAlignment.Center });
         addRow.Children.Add(_newParent);
-        addRow.Children.Add(new TextBlock { Text = " ¦WºÙ¡G", VerticalAlignment = VerticalAlignment.Center });
+        addRow.Children.Add(new TextBlock { Text = Loc.T("Category_NameLabel"), VerticalAlignment = VerticalAlignment.Center });
         addRow.Children.Add(_newName);
         addRow.Children.Add(add);
 
@@ -67,7 +68,7 @@ public sealed class CategoryManagerDialog : Window
     void ReloadParents()
     {
         var kind = _newKind.SelectedIndex == 1 ? "income" : "expense";
-        var items = new List<LedgerStore.Option> { new(0, "¡]³»¼h¡^") };
+        var items = new List<LedgerStore.Option> { new(0, Loc.T("Category_TopLevel")) };
         items.AddRange(_store.TopCategories(kind));
         _newParent.ItemsSource = items;
         _newParent.SelectedIndex = 0;
@@ -80,17 +81,17 @@ public sealed class CategoryManagerDialog : Window
         var name = box.Text;
         if (name.Trim() == row.Name) return;
         try { _store.RenameCategory(row.Id, name); }
-        catch (ArgumentException ex) { MessageBox.Show(ex.Message, "¤ÀÃşºŞ²z"); }
+        catch (ArgumentException ex) { MessageBox.Show(ex.Message, Loc.T("Category_Title")); }
         Dispatcher.BeginInvoke(new Action(Reload));
     }
 
     void AddNew()
     {
         var name = _newName.Text.Trim();
-        if (name.Length == 0) { MessageBox.Show("­n¥ı¿é¤J¤ÀÃş¦WºÙ¡C", "¤ÀÃşºŞ²z"); return; }
+        if (name.Length == 0) { MessageBox.Show(Loc.T("Category_NeedNameMsg"), Loc.T("Category_Title")); return; }
         var parentId = _newParent.SelectedValue is long pid && pid != 0 ? pid : (long?)null;
         try { _store.AddCategory(name, _newKind.SelectedIndex == 0 ? "expense" : "income", parentId); }
-        catch (ArgumentException ex) { MessageBox.Show(ex.Message, "¤ÀÃşºŞ²z"); return; }
+        catch (ArgumentException ex) { MessageBox.Show(ex.Message, Loc.T("Category_Title")); return; }
         _newName.Text = "";
         Reload();
         ReloadParents();
@@ -100,7 +101,7 @@ public sealed class CategoryManagerDialog : Window
     {
         public static readonly KindConverter Instance = new();
         public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-            => value as string == "income" ? "¦¬¤J" : "¤ä¥X";
+            => value as string == "income" ? Loc.T("Entry_Kind_Income") : Loc.T("Entry_Kind_Expense");
         public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
             => throw new NotSupportedException();
     }

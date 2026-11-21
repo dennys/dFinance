@@ -11,7 +11,7 @@ public class SinopacCardTests
     [Fact]
     public void Header_fields_match_the_bill()
     {
-        var s = Samples.Parse(Sample); if (s is null) return;
+        var s = Samples.Parse(Sample);
 
         Assert.Equal("永豐商業銀行", s.Issuer);
         Assert.Equal(13735m, s.TotalDue);
@@ -23,7 +23,7 @@ public class SinopacCardTests
     [Fact]
     public void Charges_add_up_to_total_due_and_the_autopay_row_is_kept()
     {
-        var s = Samples.Parse(Sample); if (s is null) return;
+        var s = Samples.Parse(Sample);
 
         Assert.Equal(13735m, s.Transactions.Where(t => t.Kind == "charge").Sum(t => t.Amount));
         var pay = Assert.Single(s.Transactions.Where(t => t.Amount == -16951m));
@@ -34,7 +34,7 @@ public class SinopacCardTests
     [Fact]
     public void Every_row_has_merchant_and_card()
     {
-        var s = Samples.Parse(Sample); if (s is null) return;
+        var s = Samples.Parse(Sample);
 
         Assert.NotEmpty(s.Transactions);
         Assert.All(s.Transactions.Where(t => t.Kind == "charge"), t =>
@@ -47,7 +47,7 @@ public class SinopacCardTests
     [Fact]
     public void Month_only_dates_are_placed_in_the_right_year()
     {
-        var s = Samples.Parse(Sample); if (s is null) return;
+        var s = Samples.Parse(Sample);
 
         // 明細只寫 MM/DD；12 月的分期是上一年（繳款截止日 2026-11-30 之前）
         Assert.Contains(s.Transactions, t => t.Date == new DateOnly(2025, 12, 23));

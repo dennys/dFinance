@@ -1,4 +1,5 @@
 using System.Windows;
+using dFinance.Data.Localization;
 using System.Windows.Controls;
 using dFinance.Data;
 
@@ -16,10 +17,10 @@ public sealed class AccountsDialog : Window
     readonly TextBox _name = new();
     readonly ComboBox _type = new();
     readonly ComboBox _currency = new();
-    readonly TextBox _rate = new() { ToolTip = "1 個外幣 = 多少台幣。留空 = 故意不折算（那個帳戶就不進淨值）" };
-    readonly TextBox _issuer = new() { ToolTip = "聯邦商銀 / 台灣電力公司 / JKO Pay…" };
-    readonly TextBox _mask = new() { ToolTip = "帳號或卡號末幾碼" };
-    readonly TextBox _opening = new() { ToolTip = "開始記帳那天有多少錢；卡的期初通常是 0，欠錢靠交易累成負數" };
+    readonly TextBox _rate = new() { ToolTip = Loc.T("Account_RateHintCCY") };
+    readonly TextBox _issuer = new() { ToolTip = Loc.T("Account_IssuerHint") };
+    readonly TextBox _mask = new() { ToolTip = Loc.T("Account_MaskHint") };
+    readonly TextBox _opening = new() { ToolTip = Loc.T("Account_OpeningHint") };
     readonly DatePicker _openingDate = new();
     readonly TextBox _limit = new();
     readonly ComboBox _autopay = new() { DisplayMemberPath = "Name", SelectedValuePath = "Id" };
@@ -28,8 +29,8 @@ public sealed class AccountsDialog : Window
         Foreground = System.Windows.Media.Brushes.Gray, TextWrapping = TextWrapping.Wrap,
         Margin = new Thickness(0, 10, 0, 0),
     };
-    readonly Button _archive = new() { Content = "歸檔", Width = 70 };
-    readonly Button _count = new() { Content = "餘額盤點…", Width = 90 };
+    readonly Button _archive = new() { Content = Loc.T("Common_Archive"), Width = 70 };
+    readonly Button _count = new() { Content = Loc.T("Account_Count"), Width = 90 };
     TextBlock _rateLabel = new(), _limitLabel = new(), _autopayLabel = new();
 
     long _id;                                       // 0 = 還在新建
@@ -39,7 +40,7 @@ public sealed class AccountsDialog : Window
     public AccountsDialog(LedgerStore store)
     {
         _store = store;
-        Title = "帳戶管理"; Width = 780; Height = 500;
+        Title = Loc.T("Account_Title"); Width = 780; Height = 500;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
         _type.ItemsSource = LedgerStore.AccountTypes.Select(t => t.Label).ToList();
@@ -52,7 +53,7 @@ public sealed class AccountsDialog : Window
         _list.SelectionChanged += (_, _) => FillForm();
 
         var left = new DockPanel { Margin = new Thickness(12, 12, 8, 0) };
-        var add = new Button { Content = "＋ 新增帳戶", Margin = new Thickness(0, 6, 0, 0) };
+        var add = new Button { Content = Loc.T("Account_Add"), Margin = new Thickness(0, 6, 0, 0) };
         add.Click += (_, _) => ClearForm();
         DockPanel.SetDock(add, Dock.Bottom);
         left.Children.Add(add);
@@ -62,22 +63,22 @@ public sealed class AccountsDialog : Window
         form.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         form.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         int i = 0;
-        Row(i++, "名稱", _name);
-        Row(i++, "類型", _type);
-        Row(i++, "幣別", _currency);
-        _rateLabel = Row(i++, "匯率", _rate);
-        Row(i++, "發行機構", _issuer);
-        Row(i++, "末幾碼", _mask);
-        Row(i++, "期初餘額", _opening);
-        Row(i++, "期初日期", _openingDate);
-        _limitLabel = Row(i++, "信用額度", _limit);
-        _autopayLabel = Row(i++, "自動扣繳", _autopay);
+        Row(i++, Loc.T("Common_Name"), _name);
+        Row(i++, Loc.T("Common_Type"), _type);
+        Row(i++, Loc.T("Common_Currency"), _currency);
+        _rateLabel = Row(i++, Loc.T("Account_Col_Rate"), _rate);
+        Row(i++, Loc.T("Account_Col_Issuer"), _issuer);
+        Row(i++, Loc.T("Account_Col_Mask"), _mask);
+        Row(i++, Loc.T("Account_Col_OpeningBalance"), _opening);
+        Row(i++, Loc.T("Account_Col_OpeningDate"), _openingDate);
+        _limitLabel = Row(i++, Loc.T("Account_Col_CreditLimit"), _limit);
+        _autopayLabel = Row(i++, Loc.T("Account_Col_AutoPay"), _autopay);
         form.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Grid.SetRow(_info, i); Grid.SetColumn(_info, 0); Grid.SetColumnSpan(_info, 2);
         form.Children.Add(_info);
 
-        var save = new Button { Content = "存檔", Width = 70, Margin = new Thickness(0, 0, 4, 0), IsDefault = true };
-        var close = new Button { Content = "關閉", Width = 70, IsCancel = true };
+        var save = new Button { Content = Loc.T("Common_Save"), Width = 70, Margin = new Thickness(0, 0, 4, 0), IsDefault = true };
+        var close = new Button { Content = Loc.T("Common_Close"), Width = 70, IsCancel = true };
         save.Click += (_, _) => Save();
         _archive.Click += (_, _) => Archive();
         _count.Click += (_, _) => Count();
@@ -125,7 +126,7 @@ public sealed class AccountsDialog : Window
     {
         if (_filling) return;
         bool card = TypeValue == "credit_card", foreign = CurrencyValue != _store.BaseCurrency;
-        _rateLabel.Text = $"匯率（1 {CurrencyValue} = ? {_store.BaseCurrency}）";   // 方向寫在標籤上，不然人不知道在填什麼
+        _rateLabel.Text = Loc.F("Account_RateLabel", CurrencyValue, _store.BaseCurrency);   // 方向寫在標籤上，不然人不知道在填什麼
         _limit.Visibility = _limitLabel.Visibility = card ? Visibility.Visible : Visibility.Collapsed;
         _autopay.Visibility = _autopayLabel.Visibility = card ? Visibility.Visible : Visibility.Collapsed;
         _rate.Visibility = _rateLabel.Visibility = foreign ? Visibility.Visible : Visibility.Collapsed;
@@ -141,7 +142,7 @@ public sealed class AccountsDialog : Window
         _filling = false;
         _list.SelectedItem = null;
         SyncFields();
-        _info.Text = "新帳戶：填好按「存檔」。現金/錢包沒有 PDF，只能從這裡建。";
+        _info.Text = Loc.T("Account_NewHint");
         _archive.IsEnabled = _count.IsEnabled = false;
     }
 
@@ -164,28 +165,28 @@ public sealed class AccountsDialog : Window
         SyncFields();
 
         var counted = _store.NetWorth().Accounts.FirstOrDefault(x => x.Id == a.Id);
-        _info.Text = $"系統推導餘額 {Money.Format(a.BalanceMinor, a.Scale)} {a.Currency}"
-                   + (a.ManualBalanceMinor is { } mb ? $"　｜　最近盤點 {Money.Format(mb, a.Scale)}（{a.ManualBalanceDate}）" : "　｜　還沒盤點過")
-                   + (counted is null ? "　｜　已歸檔，不計入淨值" : $"　｜　{counted.CountedText}");
-        _archive.Content = a.IsArchived ? "還原" : "歸檔";
+        _info.Text = Loc.F("Account_DerivedBalance", Money.Format(a.BalanceMinor, a.Scale), a.Currency)
+                   + (a.ManualBalanceMinor is { } mb ? Loc.F("Account_LastCount", Money.Format(mb, a.Scale), a.ManualBalanceDate) : Loc.T("Account_NeverCounted"))
+                   + (counted is null ? Loc.T("Account_ArchivedNote") : $"　｜　{counted.CountedText}");
+        _archive.Content = a.IsArchived ? Loc.T("Common_Restore") : Loc.T("Common_Archive");
         _archive.IsEnabled = _count.IsEnabled = true;
         _name.Focus();
     }
 
     void Save()
     {
-        if (!TryMinor(_opening.Text, out var opening)) { MessageBox.Show("期初餘額要是一個數字。", "帳戶管理"); return; }
+        if (!TryMinor(_opening.Text, out var opening)) { MessageBox.Show(Loc.T("Account_BadOpening"), Loc.T("Account_Title")); return; }
         long? limit = null;
         if (!string.IsNullOrWhiteSpace(_limit.Text))
         {
-            if (!TryMinor(_limit.Text, out var lim)) { MessageBox.Show("信用額度要是一個數字。", "帳戶管理"); return; }
+            if (!TryMinor(_limit.Text, out var lim)) { MessageBox.Show(Loc.T("Account_BadLimit"), Loc.T("Account_Title")); return; }
             limit = lim;
         }
         decimal? rate = null;
         if (!string.IsNullOrWhiteSpace(_rate.Text))
         {
             if (!decimal.TryParse(_rate.Text.Replace(",", "").Trim(), out var r) || r <= 0)
-            { MessageBox.Show("匯率要是一個大於 0 的數字（例 32.9）。", "帳戶管理"); return; }
+            { MessageBox.Show(Loc.T("Account_BadRate"), Loc.T("Account_Title")); return; }
             rate = r;
         }
 
@@ -203,7 +204,7 @@ public sealed class AccountsDialog : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "帳戶管理");                        // 驗證不過就留下來讓人補，不默默吞掉
+            MessageBox.Show(ex.Message, Loc.T("Account_Title"));                        // 驗證不過就留下來讓人補，不默默吞掉
         }
     }
 
@@ -253,23 +254,23 @@ public sealed class BalanceCountDialog : Window
     public BalanceCountDialog(LedgerStore store, LedgerStore.AccountEdit account)
     {
         _store = store; _account = account;
-        Title = $"餘額盤點 — {account.Name}"; Width = 400; SizeToContent = SizeToContent.Height;
+        Title = Loc.F("Account_CountTitle", account.Name); Width = 400; SizeToContent = SizeToContent.Height;
         ResizeMode = ResizeMode.NoResize; WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
         var panel = new StackPanel { Margin = new Thickness(12) };
         panel.Children.Add(new TextBlock
         {
-            Text = $"系統從交易算出來的是 {Money.Format(account.BalanceMinor, account.Scale)} {account.Currency}。" +
-                   "對不上通常不是算錯，是漏了交易或期初填錯。",
+            Text = Loc.F("Account_CountDerived", Money.Format(account.BalanceMinor, account.Scale), account.Currency) +
+                   Loc.T("Account_CountHint"),
             TextWrapping = TextWrapping.Wrap,
         });
-        panel.Children.Add(new TextBlock { Text = "我實際有", Margin = new Thickness(0, 10, 0, 0) });
+        panel.Children.Add(new TextBlock { Text = Loc.T("Account_Counted"), Margin = new Thickness(0, 10, 0, 0) });
         panel.Children.Add(_amount);
-        panel.Children.Add(new TextBlock { Text = "盤點日期", Margin = new Thickness(0, 8, 0, 0) });
+        panel.Children.Add(new TextBlock { Text = Loc.T("Account_CountDate"), Margin = new Thickness(0, 8, 0, 0) });
         panel.Children.Add(_date);
 
-        var ok = new Button { Content = "存檔", Width = 80, IsDefault = true, Margin = new Thickness(0, 12, 8, 0) };
-        var cancel = new Button { Content = "取消", Width = 80, IsCancel = true, Margin = new Thickness(0, 12, 0, 0) };
+        var ok = new Button { Content = Loc.T("Common_Save"), Width = 80, IsDefault = true, Margin = new Thickness(0, 12, 8, 0) };
+        var cancel = new Button { Content = Loc.T("Common_Cancel"), Width = 80, IsCancel = true, Margin = new Thickness(0, 12, 0, 0) };
         ok.Click += (_, _) => Save();
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         buttons.Children.Add(ok); buttons.Children.Add(cancel);
@@ -282,10 +283,10 @@ public sealed class BalanceCountDialog : Window
     void Save()
     {
         if (!decimal.TryParse(_amount.Text.Replace(",", "").Trim(), out var amount))
-        { MessageBox.Show("餘額要是一個數字。", "餘額盤點"); return; }
+        { MessageBox.Show(Loc.T("Account_BadCount"), Loc.T("Account_CountCaption")); return; }
         var dateText = _date.SelectedDate?.ToString("yyyy-MM-dd") ?? _date.Text;
         if (!LedgerStore.TryDate(dateText, out var date) || date is null)
-        { MessageBox.Show("日期要用 yyyy/MM/dd。", "餘額盤點"); return; }
+        { MessageBox.Show(Loc.T("Account_BadCountDate"), Loc.T("Account_CountCaption")); return; }
 
         var counted = Money.ToMinor(amount);
         try
@@ -293,18 +294,18 @@ public sealed class BalanceCountDialog : Window
             _store.AddBalanceSnapshot(_account.Id, date, _account.Currency, counted);
             var diff = counted - _account.BalanceMinor;
             if (diff != 0 && MessageBox.Show(
-                    $"盤點 {Money.Format(counted, _account.Scale)}，交易累加 {Money.Format(_account.BalanceMinor, _account.Scale)}，差 {Money.Format(diff, _account.Scale)}。\n\n" +
-                    "要記一筆調整把差額補齊嗎？（選「否」就只留快照，主頁底部會把它列成餘額不符）",
-                    "餘額盤點", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                    Loc.F("Account_CountDiff", Money.Format(counted, _account.Scale), Money.Format(_account.BalanceMinor, _account.Scale), Money.Format(diff, _account.Scale)) +
+                    Loc.T("Account_CountAsk"),
+                    Loc.T("Account_CountCaption"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
                 _store.InsertManual(new LedgerStore.ManualEntry(_account.Id, "adjustment", diff, date,
-                                                                 null, null, null, "盤點調整", _account.Currency));
+                                                                 null, null, null, Loc.T("Account_AdjustKind"), _account.Currency));
             }
             DialogResult = true;
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "餘額盤點");
+            MessageBox.Show(ex.Message, Loc.T("Account_CountCaption"));
         }
     }
 }

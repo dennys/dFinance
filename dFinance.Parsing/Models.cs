@@ -37,7 +37,11 @@ public class ParsedTransaction
 
     public decimal Amount { get; set; }
 
-    /// <summary>charge = 消費, credit = 退款/回饋（金額為負）。</summary>
+    /// <summary>
+    /// 只給人看的參考：匯入一律照金額正負號決定 entry.kind，不讀這個欄位。
+    /// 兩組用法：信用卡帳單 charge=消費 / credit=退款；存款對帳單 charge=存入 / credit=支出（銀行的借貸記法）。
+    /// shortcut: 真要拿它決定入帳之前，先把兩組語意收成一個（TODO 2b 拆 transfer 時一起做）。
+    /// </summary>
     public string Kind { get; set; } = "charge";
 
     public string Currency { get; set; } = "";

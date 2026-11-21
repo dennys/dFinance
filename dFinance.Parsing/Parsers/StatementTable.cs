@@ -51,6 +51,16 @@ public sealed class StatementTable
         return null;
     }
 
+    /// <summary>
+    /// 明細候選列：表頭那一頁、表頭下方的列，加上之後每一頁的全部列。
+    /// 銀行不一定會在第 2 頁重複表頭（富邦 115年09月.pdf 就是只出現一次），所以不能拿第一頁表頭的 Top
+    /// 當天花板 —— 那樣會把溢到下一頁的明細整頁丢光（Top 比第一頁表頭高的都被剔掉）。
+    /// 多收進來的說明/揭示文字會被各 parser 的「要有日期＋要有金額」卡掉。
+    /// </summary>
+    public static IEnumerable<Row> DetailRows(PageData data, Row header) =>
+        data.Rows.Where(r => r.Page > header.Page || (r.Page == header.Page && r.Top < header.Top))
+                 .OrderBy(r => r.Page).ThenByDescending(r => r.Top);
+
     static WordBox? Union(List<Row> band, string[] keywords)
     {
         var hits = band.SelectMany(r => r.Words).Where(w => keywords.Any(k => w.Text.Contains(k))).ToList();

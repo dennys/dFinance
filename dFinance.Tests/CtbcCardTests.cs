@@ -15,8 +15,8 @@ public class CtbcCardTests
     [Fact]
     public void 發卡行與表頭欄位讀得到()
     {
-        if (!Samples.OcrReady) return;
-        var s = Samples.Parse(PaidInFull); if (s is null) return;
+        Samples.RequireOcr();
+        var s = Samples.Parse(PaidInFull);
 
         Assert.Equal("中國信託商業銀行", s.Issuer);
         Assert.Equal("CtbcCardParser", s.Parser);
@@ -28,8 +28,8 @@ public class CtbcCardTests
     [Fact]
     public void 繳款列解析出來_商家來自_OCR()
     {
-        if (!Samples.OcrReady) return;
-        var s = Samples.Parse(PaidInFull); if (s is null) return;
+        Samples.RequireOcr();
+        var s = Samples.Parse(PaidInFull);
 
         var txn = Assert.Single(s.Transactions);
         Assert.Equal(-1166m, txn.Amount);
@@ -42,8 +42,8 @@ public class CtbcCardTests
     [Fact]
     public void 有消費的月份_合計等於應繳_卡號讀得到()   // 11507：兩筆消費 900 + 99 = 999
     {
-        if (!Samples.OcrReady) return;
-        var s = Samples.Parse(WithCharges); if (s is null) return;
+        Samples.RequireOcr();
+        var s = Samples.Parse(WithCharges);
 
         Assert.Equal(2, s.Transactions.Count);
         Assert.Equal(999m, s.TotalDue);
@@ -60,8 +60,8 @@ public class CtbcCardTests
     [Fact]
     public void 同一筆不會被文字層與_OCR_各算一次()
     {
-        if (!Samples.OcrReady) return;
-        var s = Samples.Parse(PaidInFull); if (s is null) return;
+        Samples.RequireOcr();
+        var s = Samples.Parse(PaidInFull);
 
         Assert.Equal(s.Transactions.Count, s.Transactions.Select(t => (t.Date, t.Amount)).Distinct().Count());
     }

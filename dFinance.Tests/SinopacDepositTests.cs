@@ -11,7 +11,7 @@ public class SinopacDepositTests
     [Fact]
     public void Deposit_rows_balance_to_zero_and_keep_the_note_column()
     {
-        var s = Samples.Parse(Sample); if (s is null) return;
+        var s = Samples.Parse(Sample);
 
         Assert.Equal("永豐商業銀行", s.Issuer);
         Assert.Equal("198-01*-**53769-*", s.AccountMask);
@@ -24,7 +24,7 @@ public class SinopacDepositTests
     [Fact]
     public void Other_banks_named_on_the_bill_do_not_take_over()
     {
-        var s = Samples.Parse(Sample); if (s is null) return;
+        var s = Samples.Parse(Sample);
 
         // 單內也列了聯邦/兆豐/中信的信用卡應繳，銀行不能被它們搶走
         Assert.Equal("永豐商業銀行", s.Issuer);
@@ -35,7 +35,7 @@ public class SinopacDepositTests
     [Fact]
     public void Long_counterparty_account_numbers_are_not_the_merchant()
     {
-        var s = Samples.Parse(Sample); if (s is null) return;
+        var s = Samples.Parse(Sample);
         Assert.All(s.Transactions, t =>
         {
             Assert.False(string.IsNullOrWhiteSpace(t.Merchant), "商家是空的：" + t.RawLine);

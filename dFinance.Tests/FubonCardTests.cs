@@ -11,7 +11,7 @@ public class FubonCardTests
     [InlineData("115年09月.pdf", 2404, 800, 2026, 9, 26, 3)]
     public void Header_and_charges_match_the_bill(string file, int total, int min, int y, int m, int d, int charges)
     {
-        var s = Samples.Parse(file); if (s is null) return;
+        var s = Samples.Parse(file);
 
         Assert.Equal("台北富邦商業銀行", s.Issuer);
         Assert.Equal(total, s.TotalDue);
@@ -32,7 +32,7 @@ public class FubonCardTests
     [Fact]
     public void Two_cards_are_kept_apart()
     {
-        var s = Samples.Parse("115年09月.pdf"); if (s is null) return;
+        var s = Samples.Parse("115年09月.pdf");
         Assert.Equal(new[] { "5362", "8043" }, s.Transactions.Select(t => t.Card).Where(c => c != "").Distinct().OrderBy(x => x));
     }
 }

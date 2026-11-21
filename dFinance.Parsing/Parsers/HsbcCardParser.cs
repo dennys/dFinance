@@ -44,16 +44,22 @@ public sealed class HsbcCardParser : IStatementParser
                                                && r.Words.Any(w => w.Text.Contains("新台幣")));
         if (header is null) { s.Warnings.Add("找不到消費明細表頭（簽帳日期/新台幣金額）—— OCR 沒跑到或版面不同。"); return; }
 
-        var dateCol = header.Words.First(w => w.Text.Contains("簽帳"));
-        var postCol = header.Words.First(w => w.Text.Contains("入帳"));
-        var amountCol = header.Words.Where(w => w.Text.Contains("新台幣")).OrderByDescending(w => w.Left).First();
+        // 表頭關鍵字是 OCR 讀的，比對要寬；也別用 .First()：找不到就丢例外會害整份檔案匯不進去。
+        var dateCol = header.LabelLike("簽帳");
+        var postCol = header.LabelLike("入帳");
+        var amountCol = header.Words.Where(w => w.Text.Contains("新台幣")).OrderByDescending(w => w.Left).FirstOrDefault();
+        if (dateCol is null || postCol is null || amountCol is null)
+        {
+            s.Warnings.Add($"消費明細表頭少了欄位（缺 {header.MissingLabelsLike("簽帳", "入帳")}{(amountCol is null ? "、新台幣金額" : "")}）—— OCR 沒跑到或版面不同。");
+            return;
+        }
         // 商家欄右界：表頭的「消費地」常常比實際商家格右邊一點，取雨者中間比較不會把外幣金額欄併進來。
         var rightCol = header.Words.Where(w => w.Text.Contains("消費地")).OrderBy(w => w.Left).FirstOrDefault();
         double merchantRight = Math.Min(rightCol?.Left ?? amountCol.Left, (postCol.Right + amountCol.Left) / 2);
 
         double merchantLeft = postCol.Right;
         var seen = new HashSet<(DateOnly, decimal)>();       // 同一筆常被文字層列和 OCR 列各算一次
-        foreach (var row in data.Rows.Where(r => r.Page == header.Page && r.Top < header.Top).OrderByDescending(r => r.Top))
+        foreach (var row in StatementTable.DetailRows(data, header))
         {
             var text = row.Words.Where(w => !w.FromOcr).ToList();       // 文字層：錢與日期的權威來源
             var ocr = row.Words.Where(w => w.FromOcr).ToList();

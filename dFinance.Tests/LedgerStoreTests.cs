@@ -1,4 +1,5 @@
 using dFinance.Data;
+using dFinance.Data.Localization;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
@@ -238,12 +239,95 @@ public sealed class LedgerStoreTests : IDisposable
     {
         var acct = Account("現金", "cash");
         var id = Entry("expense", acct, 1_000, "2026-11-01");
-        var cat = _store.Categories("expense").First();
+        var cat = _store.Categories("expense", leavesOnly: true).First();   // 標分類的下拉只給最底層
 
         _store.SetCategory(id, cat.Id);
 
         Assert.NotNull(Db.Scalar(_db, "SELECT edited_at FROM entry WHERE id=$id;", ("$id", id)));
         Assert.Equal(cat.Id, Db.Scalar(_db, "SELECT category_id FROM entry WHERE id=$id;", ("$id", id)));
+    }
+
+    [Fact]
+    public void 分類報表只算基準幣而且未分類另成一列()
+    {
+        var twd = Account("台幣戶", "bank");
+        var usd = Account("美元戶", "bank", "USD", 100_000);
+        var cat = _store.AddCategory("餐飲", "expense");
+        Entry("expense", twd, 1_000, "2026-11-01", categoryId: cat);
+        Entry("expense", twd, 2_000, "2026-11-05", categoryId: cat);
+        Entry("expense", usd, 9_999, "2026-11-02", currency: "USD");              // 非基準幣：没折算就不能進總額
+        Entry("expense", twd, 3_000, null);                      // 沒消費日的列沒有月可以放
+        Entry("expense", twd, 700, "2026-10-31");                // 未分類
+
+        var pivot = _store.CategoryPivot();
+        Assert.Equal(3_000, pivot.Cells.Single(c => c.CategoryId == cat && c.Month == "2026-11").TotalMinor);
+        Assert.Contains(pivot.Cells, c => c.CategoryId == 0 && c.TotalMinor == 700);   // 未分類那列
+        Assert.Equal(3_700, pivot.Cells.Sum(c => c.TotalMinor));                       // 美元 9,999 和沒日期的 3,000 都不在表裡
+        Assert.Equal(1, pivot.SkippedForeignEntries);                                  // 但要让人看到少了幾筆
+        Assert.Equal(["2026-10", "2026-11"], PivotTree.Months(pivot.Cells));
+        Assert.Equal(0, _store.BaseCurrencyScale);                                     // 種子 TWD scale=0
+    }
+
+    [Fact]
+    public void 跨收支方向的子分類會被擋而且訊息不是亂碼()
+    {
+        var exp = _store.AddCategory("交通", "expense");
+        var ex = Assert.Throws<SqliteException>(() =>
+            Db.Exec(_db, "INSERT INTO category(name, kind, parent_id) VALUES('外幣利息','income',$p);", ("$p", exp)));
+        Assert.Contains("同方向", ex.Message);      // 0004 是 Big5 存的，RAISE 的文字會變亂碼；0007 重建後才對，這裡鎖住
+    }
+
+    [Fact]
+    public void 分類只能標到最底層_父類會被擋()
+    {
+        var acct = Account("現金", "cash");
+        var id = Entry("expense", acct, 1_000, "2026-11-01");
+        var parent = _store.AddCategory("交通", "expense");
+        var leaf = _store.AddCategory("油費", "expense", parent);
+
+        Assert.Throws<InvalidOperationException>(() => _store.SetCategory(id, parent));
+        Assert.Null(Db.Scalar(_db, "SELECT category_id FROM entry WHERE id=$id;", ("$id", id)));   // 擋下来就不能偷偷寫進去
+
+        _store.SetCategory(id, leaf);                                                             // 最底層照樣能標
+        Assert.Equal(leaf, Db.Scalar(_db, "SELECT category_id FROM entry WHERE id=$id;", ("$id", id)));
+
+        // 標分類的下拉不列父類；篩選下拉要列（筛「交通」要連子類一起筛到）
+        Assert.DoesNotContain("交通", _store.Categories("expense", leavesOnly: true).Select(c => c.Name));
+        Assert.Contains("交通／油費", _store.Categories("expense", leavesOnly: true).Select(c => c.Name));
+        Assert.Contains("交通", _store.Categories("expense").Select(c => c.Name));
+    }
+
+    [Fact]
+    public void 建議分類要一商家一列而且帳戶筛選要有效()
+    {
+        var a = Account("渣打", "credit_card");
+        var b = Account("現金", "cash");
+        Entry("expense", a, 100, "2026-11-01", merchant: "Uber");
+        Entry("expense", a, 200, "2026-11-02", merchant: "Uber");
+        Entry("expense", b, 300, "2026-11-03", merchant: "全聯");
+        Entry("expense", b, 400, "2026-11-04", merchant: null);
+
+        var all = _store.UncategorizedMerchants();
+        Assert.Equal(3, all.Count);
+        Assert.Equal(2, all.First(m => m.Merchant == "Uber").Count);
+        Assert.Contains(Loc.T("Store_Unnamed"), all.Select(m => m.Merchant));   // 無店名那列的 label 要跟著語系
+
+        Assert.Single(_store.UncategorizedMerchants(accountId: a));             // 帳戶筛選之前根本沒進 SQL
+    }
+
+    [Fact]
+    public void 依商家批次補分類只動看到的帳戶也受最底層限制()
+    {
+        var a = Account("渣打", "credit_card");
+        var b = Account("現金", "cash");
+        Entry("expense", a, 100, "2026-11-01", merchant: "Uber");
+        Entry("expense", b, 200, "2026-11-02", merchant: "Uber");
+        var parent = _store.AddCategory("交通", "expense");
+        var leaf = _store.AddCategory("車票", "expense", parent);
+
+        Assert.Equal(1, _store.SetCategoryForMerchant("Uber", leaf, accountId: a));
+        Assert.Equal(1L, Db.Scalar(_db, "SELECT COUNT(*) FROM entry WHERE category_id=$c;", ("$c", leaf)));
+        Assert.Throws<InvalidOperationException>(() => _store.SetCategoryForMerchant("Uber", parent));
     }
 
     [Fact]
@@ -271,7 +355,7 @@ public sealed class LedgerStoreTests : IDisposable
         var bank = Account("活存", "bank");
         var card = Account("卡", "credit_card");
         var id = Entry("transfer", bank, 1_000, "2026-11-01", toAccountId: card);
-        var cat = _store.Categories("expense").First();
+        var cat = _store.Categories("expense", leavesOnly: true).First();   // 標分類的下拉只給最底層
 
         var row = Assert.Single(_store.List(new LedgerStore.Filter()));
         Assert.False(row.CanPickCategory);
@@ -282,7 +366,7 @@ public sealed class LedgerStoreTests : IDisposable
     public void 手動記一筆直接算數而且擋掉不合理的輸入()
     {
         var acct = Account("錢包", "wallet");
-        var cat = _store.Categories("expense").First();
+        var cat = _store.Categories("expense", leavesOnly: true).First();   // 標分類的下拉只給最底層
 
         _store.InsertManual(new LedgerStore.ManualEntry(acct, "expense", 1_234, "2026-11-06", "路邊攤", cat.Id, Note: "附註"));
 

@@ -1,0 +1,1086 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Common_Save" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>キャンセル</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>閉じる</value>
+  </data>
+  <data name="Common_Date" xml:space="preserve">
+    <value>日付</value>
+  </data>
+  <data name="Common_Amount" xml:space="preserve">
+    <value>金額</value>
+  </data>
+  <data name="Common_Merchant" xml:space="preserve">
+    <value>店舗</value>
+  </data>
+  <data name="Common_Category" xml:space="preserve">
+    <value>カテゴリ</value>
+  </data>
+  <data name="Common_Account" xml:space="preserve">
+    <value>口座</value>
+  </data>
+  <data name="Common_Currency" xml:space="preserve">
+    <value>通貨</value>
+  </data>
+  <data name="Common_Type" xml:space="preserve">
+    <value>種別</value>
+  </data>
+  <data name="Common_Kind" xml:space="preserve">
+    <value>種別</value>
+  </data>
+  <data name="Common_Note" xml:space="preserve">
+    <value>備考</value>
+  </data>
+  <data name="Common_Balance" xml:space="preserve">
+    <value>残高</value>
+  </data>
+  <data name="Common_Total" xml:space="preserve">
+    <value>合計</value>
+  </data>
+  <data name="Common_Name" xml:space="preserve">
+    <value>名称</value>
+  </data>
+  <data name="Common_Code" xml:space="preserve">
+    <value>コード</value>
+  </data>
+  <data name="Common_Status" xml:space="preserve">
+    <value>状態</value>
+  </data>
+  <data name="Common_Restore" xml:space="preserve">
+    <value>復元</value>
+  </data>
+  <data name="Common_Archive" xml:space="preserve">
+    <value>アーカイブ</value>
+  </data>
+  <data name="Common_Scale" xml:space="preserve">
+    <value>小数桁</value>
+  </data>
+  <data name="Common_Source" xml:space="preserve">
+    <value>出典</value>
+  </data>
+  <data name="Common_None" xml:space="preserve">
+    <value>（なし）</value>
+  </data>
+  <data name="Common_All" xml:space="preserve">
+    <value>すべて</value>
+  </data>
+  <data name="Common_Custom" xml:space="preserve">
+    <value>カスタム</value>
+  </data>
+  <data name="Common_ThisMonth" xml:space="preserve">
+    <value>今月</value>
+  </data>
+  <data name="Common_LastMonth" xml:space="preserve">
+    <value>先月</value>
+  </data>
+  <data name="Common_ThisYear" xml:space="preserve">
+    <value>本年</value>
+  </data>
+  <data name="Common_BankSlip" xml:space="preserve">
+    <value>預金明細書</value>
+  </data>
+  <data name="Menu_File" xml:space="preserve">
+    <value>ファイル(_F)</value>
+  </data>
+  <data name="Menu_NewDb" xml:space="preserve">
+    <value>新規データベース…</value>
+  </data>
+  <data name="Menu_OpenDb" xml:space="preserve">
+    <value>データベースを開く…</value>
+  </data>
+  <data name="Menu_SaveDbAs" xml:space="preserve">
+    <value>データベース名前を付けて保存…</value>
+  </data>
+  <data name="Menu_Recent" xml:space="preserve">
+    <value>最近開いたファイル</value>
+  </data>
+  <data name="Menu_ClearRecent" xml:space="preserve">
+    <value>最近を開かないようにする</value>
+  </data>
+  <data name="Menu_Exit" xml:space="preserve">
+    <value>終了</value>
+  </data>
+  <data name="Menu_Reports" xml:space="preserve">
+    <value>レポート(_R)</value>
+  </data>
+  <data name="Menu_CategoryReport" xml:space="preserve">
+    <value>分類別帳簿</value>
+  </data>
+  <data name="Menu_Tools" xml:space="preserve">
+    <value>ツール(_T)</value>
+  </data>
+  <data name="Menu_CategoryManager" xml:space="preserve">
+    <value>分類管理…</value>
+  </data>
+  <data name="Menu_Currency" xml:space="preserve">
+    <value>通貨…</value>
+  </data>
+  <data name="Menu_Language" xml:space="preserve">
+    <value>言語…</value>
+  </data>
+  <data name="Menu_Help" xml:space="preserve">
+    <value>ヘルプ(_H)</value>
+  </data>
+  <data name="Menu_About" xml:space="preserve">
+    <value>dFinance について</value>
+  </data>
+  <data name="Tab_Home" xml:space="preserve">
+    <value>ホーム</value>
+  </data>
+  <data name="Tab_Import" xml:space="preserve">
+    <value>PDF インポート</value>
+  </data>
+  <data name="Tab_CloseHint" xml:space="preserve">
+    <value>このタブを閉じる</value>
+  </data>
+  <data name="Tab_CloseHintKey" xml:space="preserve">
+    <value>このタブを閉じる（Ctrl+W）</value>
+  </data>
+  <data name="Db_BackupFailed" xml:space="preserve">
+    <value>バックアップに失敗（{0}）しましたが、帳簿は開きました。</value>
+  </data>
+  <data name="Db_BackupTitle" xml:space="preserve">
+    <value>バックアップ</value>
+  </data>
+  <data name="Db_NotDFinance" xml:space="preserve">
+    <value>このファイルは dFinance データベースではありません。</value>
+  </data>
+  <data name="Db_OpenTitle" xml:space="preserve">
+    <value>データベースを開く</value>
+  </data>
+  <data name="Db_PathLine" xml:space="preserve">
+    <value>データベース：{0}    保管 PDF：{1}</value>
+  </data>
+  <data name="Db_OpenFailedHead" xml:space="preserve">
+    <value>データベースを開けません：\n</value>
+  </data>
+  <data name="Db_OpenFailedImport" xml:space="preserve">
+    <value>データベースを開けないため、インポートは一時的に使えません。</value>
+  </data>
+  <data name="Db_OpenFailedLog" xml:space="preserve">
+    <value>データベース開封失敗：</value>
+  </data>
+  <data name="Db_OpenFailed" xml:space="preserve">
+    <value>開けません：{0}</value>
+  </data>
+  <data name="Db_BaseCurrencyMissing" xml:space="preserve">
+    <value>基準通貨を取得できません</value>
+  </data>
+  <data name="Db_SameAsCurrent" xml:space="preserve">
+    <value>これは既に開いているデータベースです。新規作成不要。</value>
+  </data>
+  <data name="Db_NewTitle" xml:space="preserve">
+    <value>新規データベース</value>
+  </data>
+  <data name="Db_Filter" xml:space="preserve">
+    <value>dFinance データベース|*.db</value>
+  </data>
+  <data name="Db_FilterAll" xml:space="preserve">
+    <value>dFinance データベース|*.db|すべてのファイル|*.*</value>
+  </data>
+  <data name="About_Line" xml:space="preserve">
+    <value>データベース：{0}
+フォルダ：{1}
+
+手元記帳、PDF を保管、データは外部送出なし。</value>
+  </data>
+  <data name="Db_SaveAsTitle" xml:space="preserve">
+    <value>データベース名前を付けて保存</value>
+  </data>
+  <data name="Db_NoneOpen" xml:space="preserve">
+    <value>（未開く）</value>
+  </data>
+  <data name="Import_Pick" xml:space="preserve">
+    <value>参照…</value>
+  </data>
+  <data name="Import_Password" xml:space="preserve">
+    <value>パスワード</value>
+  </data>
+  <data name="Import_PasswordHint" xml:space="preserve">
+    <value>直接入力してください（UI は .env を読みません）。複数パスワードはカンマ区切りで、順に試します。</value>
+  </data>
+  <data name="Import_Parse" xml:space="preserve">
+    <value>解析</value>
+  </data>
+  <data name="Import_Parsing" xml:space="preserve">
+    <value>認識中…</value>
+  </data>
+  <data name="Import_ToDb" xml:space="preserve">
+    <value>データベースへ取込</value>
+  </data>
+  <data name="Import_ToDbHint" xml:space="preserve">
+    <value>This PDF を保管してデータベースに書きます（同一ファイルの再取込は自動拒否）</value>
+  </data>
+  <data name="Import_Folder" xml:space="preserve">
+    <value>フォルダを一括取込…</value>
+  </data>
+  <data name="Import_LogHint" xml:space="preserve">
+    <value>取込結果：ファイル別の新規／更新／スキップと警告</value>
+  </data>
+  <data name="Import_RawHint" xml:space="preserve">
+    <value>PdfPig が抽出した生のテキスト層。解析結果の照合用</value>
+  </data>
+  <data name="Import_Col_SpendDate" xml:space="preserve">
+    <value>利用日</value>
+  </data>
+  <data name="Import_Col_PostingDate" xml:space="preserve">
+    <value>入金日</value>
+  </data>
+  <data name="Import_Col_Card" xml:space="preserve">
+    <value>カード</value>
+  </data>
+  <data name="Import_Col_Kind" xml:space="preserve">
+    <value>区分</value>
+  </data>
+  <data name="Import_Col_Page" xml:space="preserve">
+    <value>頁</value>
+  </data>
+  <data name="Import_Filter" xml:space="preserve">
+    <value>PDF 明細書|*.pdf</value>
+  </data>
+  <data name="Import_NoFile" xml:space="preserve">
+    <value>存在する PDF ファイルを選択してください。</value>
+  </data>
+  <data name="Import_FolderTitle" xml:space="preserve">
+    <value>請求明細 PDF が入ったフォルダを選択</value>
+  </data>
+  <data name="Import_FolderEmpty" xml:space="preserve">
+    <value>{0} に PDF がありません。</value>
+  </data>
+  <data name="Import_FileFailed" xml:space="preserve">
+    <value>{0}：失敗 — {1}</value>
+  </data>
+  <data name="Import_BadPassword" xml:space="preserve">
+    <value>パスワード誤り、または PDF を開けません：{0}</value>
+  </data>
+  <data name="Import_SummaryHead" xml:space="preserve">
+    <value>発行元：{0}    請求期間：{1} ~ {2}
+支払期限：{3}    今回請求額：{4}    最低支払額：{5}    口座：{6}</value>
+  </data>
+  <data name="Import_CheckOk" xml:space="preserve">
+    <value>明細 {0} 件、合計 {1} — 今回請求額と一致</value>
+  </data>
+  <data name="Import_CheckDiff" xml:space="preserve">
+    <value>明細 {0} 件、合計 {1} — 今回請求額 {2} と {3} の差あり、解析漏れの可能性</value>
+  </data>
+  <data name="Ledger_AddEntry" xml:space="preserve">
+    <value>＋ 仕訳入力</value>
+  </data>
+  <data name="Ledger_AddEntryHint" xml:space="preserve">
+    <value>現金／財布には PDF がありません。ここで補記</value>
+  </data>
+  <data name="Ledger_OpenAccount" xml:space="preserve">
+    <value>口座タブを開く</value>
+  </data>
+  <data name="Ledger_OpenAccountHint" xml:space="preserve">
+    <value>この行の口座を別タブで開き、比較しやすくします</value>
+  </data>
+  <data name="Ledger_SearchHint" xml:space="preserve">
+    <value>店舗キーワード、Enter で検索</value>
+  </data>
+  <data name="Ledger_Reset" xml:space="preserve">
+    <value>リセット</value>
+  </data>
+  <data name="Ledger_AmountReadonly" xml:space="preserve">
+    <value>金額は読み取り専用。修正は「＋ 仕訳入力」の調整で　　</value>
+  </data>
+  <data name="Ledger_Settle" xml:space="preserve">
+    <value>支払済</value>
+  </data>
+  <data name="Ledger_Ignore" xml:space="preserve">
+    <value>無視</value>
+  </data>
+  <data name="Ledger_Duplicate" xml:space="preserve">
+    <value>重複</value>
+  </data>
+  <data name="Ledger_DuplicateHint" xml:space="preserve">
+    <value>重複にするとレポートから除外されます（データは残り、削除しません）</value>
+  </data>
+  <data name="Ledger_Delete" xml:space="preserve">
+    <value>削除</value>
+  </data>
+  <data name="Ledger_DeleteHint" xml:space="preserve">
+    <value>ソフト削除（deleted_at）。上の状態フィルタ「削除済」で戻せます</value>
+  </data>
+  <data name="Ledger_AddCategory" xml:space="preserve">
+    <value>＋ 分類</value>
+  </data>
+  <data name="Ledger_Accounts" xml:space="preserve">
+    <value>口座…</value>
+  </data>
+  <data name="Ledger_AccountsHint" xml:space="preserve">
+    <value>口座の追加／編集、期首残高、与信枠と自動引落し、残高棚卸（現金／財布は PDF がないためここで作成）</value>
+  </data>
+  <data name="Ledger_Suggest" xml:space="preserve">
+    <value>分類を提案…</value>
+  </data>
+  <data name="Ledger_SuggestHint" xml:space="preserve">
+    <value>店舗キーワードで未分類の行を提案、チェックして適用（未分類行のみ対象）</value>
+  </data>
+  <data name="Ledger_OrphanHint" xml:space="preserve">
+    <value>現行 parser が生成しなくなった行（解析漏れの可能性があるので削除禁止）</value>
+  </data>
+  <data name="Ledger_DupGroupHint" xml:space="preserve">
+    <value>ファイル間で同額同日のカード行：表示のみ、データは変更しません</value>
+  </data>
+  <data name="Ledger_MismatchHint" xml:space="preserve">
+    <value>預金明細書の残高スナップショットと累計の不一致 = parser の行漏れ</value>
+  </data>
+  <data name="Ledger_Col_Lineage" xml:space="preserve">
+    <value>出所</value>
+  </data>
+  <data name="Ledger_OpenPdf" xml:space="preserve">
+    <value>保管 PDF を開く</value>
+  </data>
+  <data name="Ledger_OpenPdfHint" xml:space="preserve">
+    <value>保管ファイルは元の形です（元々暗号化ならそのまま）。見直すにはパスワード再入力が必要</value>
+  </data>
+  <data name="Ledger_LineageHint" xml:space="preserve">
+    <value>この行がどのファイル・どのページ・元のどの行か — 解析の照合はこれ頼み</value>
+  </data>
+  <data name="Home_NetWorth" xml:space="preserve">
+    <value>純資産明細</value>
+  </data>
+  <data name="Home_NetWorthHint" xml:space="preserve">
+    <value>行をクリックするとその口座タブを開きます</value>
+  </data>
+  <data name="Home_Converted" xml:space="preserve">
+    <value>換算後</value>
+  </data>
+  <data name="Home_CountedIn" xml:space="preserve">
+    <value>純資産に算入</value>
+  </data>
+  <data name="Home_MonthlyAssets" xml:space="preserve">
+    <value>月別総資産</value>
+  </data>
+  <data name="Home_Upcoming" xml:space="preserve">
+    <value>今後の請求（未到期）</value>
+  </data>
+  <data name="Home_Item" xml:space="preserve">
+    <value>項目</value>
+  </data>
+  <data name="Home_DbUnavailable" xml:space="preserve">
+    <value>データベースを開けないため、帳簿は一時的に使えません。</value>
+  </data>
+  <data name="Ledger_AllAccounts" xml:space="preserve">
+    <value>すべての口座</value>
+  </data>
+  <data name="Ledger_ArchivedSuffix" xml:space="preserve">
+    <value>（アーカイブ済）</value>
+  </data>
+  <data name="Ledger_AllCategories" xml:space="preserve">
+    <value>すべての分類</value>
+  </data>
+  <data name="Ledger_Uncategorized" xml:space="preserve">
+    <value>未分類</value>
+  </data>
+  <data name="Ledger_Status_Ledger" xml:space="preserve">
+    <value>帳簿</value>
+  </data>
+  <data name="Ledger_Status_Imported" xml:space="preserve">
+    <value>分類未設定</value>
+  </data>
+  <data name="Ledger_Status_Orphan" xml:space="preserve">
+    <value>孤立行</value>
+  </data>
+  <data name="Ledger_Status_DupGroup" xml:space="preserve">
+    <value>重複の疑い</value>
+  </data>
+  <data name="Ledger_Status_Duplicate" xml:space="preserve">
+    <value>重複設定済</value>
+  </data>
+  <data name="Ledger_Status_Ignored" xml:space="preserve">
+    <value>無視済</value>
+  </data>
+  <data name="Ledger_Status_Deleted" xml:space="preserve">
+    <value>削除済</value>
+  </data>
+  <data name="Ledger_Status_All" xml:space="preserve">
+    <value>すべて（未発生含む）</value>
+  </data>
+  <data name="Ledger_Rows" xml:space="preserve">
+    <value>{0} 行</value>
+  </data>
+  <data name="Ledger_Truncated" xml:space="preserve">
+    <value>（切り詰められました。範囲を狭めてください）</value>
+  </data>
+  <data name="Ledger_AccountHeader" xml:space="preserve">
+    <value>{0}（{1} {2}）残高 {3}</value>
+  </data>
+  <data name="Ledger_AccountUnconverted" xml:space="preserve">
+    <value>　— 未換算（{0} → {1} のレートなし）</value>
+  </data>
+  <data name="Home_PlotTitle" xml:space="preserve">
+    <value>月別総資産（{0}）</value>
+  </data>
+  <data name="Ledger_Rollup" xml:space="preserve">
+    <value>{0}（子分類含む）</value>
+  </data>
+  <data name="Report_LastMonths" xml:space="preserve">
+    <value>直近 {0} カ月</value>
+  </data>
+  <data name="Report_AllMonths" xml:space="preserve">
+    <value>全期間</value>
+  </data>
+  <data name="Report_ForeignSkipped" xml:space="preserve">
+    <value>基準通貨以外（{1}）の {0} 件は換算前のため合計に含みません。</value>
+  </data>
+  <data name="Ledger_Col_CategoryPath" xml:space="preserve">
+    <value>分類パス</value>
+  </data>
+  <data name="Ledger_Kpi_Income" xml:space="preserve">
+    <value>今月の収入</value>
+  </data>
+  <data name="Ledger_Kpi_Expense" xml:space="preserve">
+    <value>今月の支出</value>
+  </data>
+  <data name="Ledger_Kpi_Net" xml:space="preserve">
+    <value>純額</value>
+  </data>
+  <data name="Ledger_Kpi_Uncategorized" xml:space="preserve">
+    <value>分類未済</value>
+  </data>
+  <data name="Ledger_Kpi_NetWorth" xml:space="preserve">
+    <value>純資産</value>
+  </data>
+  <data name="Ledger_Kpi_CardUnpaid" xml:space="preserve">
+    <value>カード未払</value>
+  </data>
+  <data name="Ledger_Kpi_Unconverted" xml:space="preserve">
+    <value>未換算</value>
+  </data>
+  <data name="Ledger_Count" xml:space="preserve">
+    <value>{0} 件</value>
+  </data>
+  <data name="Ledger_AssetsLiabilities" xml:space="preserve">
+    <value>資産 {0}　負債 {1}</value>
+  </data>
+  <data name="Ledger_AccountCount" xml:space="preserve">
+    <value>{0} 件の口座</value>
+  </data>
+  <data name="Ledger_UnconvertedNote" xml:space="preserve">
+    <value>他通貨でレート元がないため、純資産に算入していません</value>
+  </data>
+  <data name="Ledger_OrphanButton" xml:space="preserve">
+    <value>孤立行 {0} 件</value>
+  </data>
+  <data name="Ledger_DupButton" xml:space="preserve">
+    <value>重複の疑い {0} 組</value>
+  </data>
+  <data name="Ledger_MismatchButton" xml:space="preserve">
+    <value>残高不一致 {0} 件の口座</value>
+  </data>
+  <data name="Ledger_MismatchButtonSuffix" xml:space="preserve">
+    <value>：{0}</value>
+  </data>
+  <data name="Ledger_MismatchTip" xml:space="preserve">
+    <value>残高スナップショット（預金明細書または手動棚卸）が累計と一致しません</value>
+  </data>
+  <data name="Ledger_MismatchAllOk" xml:space="preserve">
+    <value>すべて一致しています。</value>
+  </data>
+  <data name="Ledger_MismatchLine" xml:space="preserve">
+    <value>{0}：{1} {2} が累計より {3} 多い</value>
+  </data>
+  <data name="Ledger_MismatchFooter" xml:space="preserve">
+    <value>
+不一致は通常、取引漏れまたは期首残力の入力ミスです。「口座…」で棚卸しし直すか期首残高を直してください。</value>
+  </data>
+  <data name="Ledger_MismatchTitle" xml:space="preserve">
+    <value>残高スナップショット vs 累計</value>
+  </data>
+  <data name="Ledger_Lineage_Merchant" xml:space="preserve">
+    <value>店舗       {0}</value>
+  </data>
+  <data name="Ledger_Lineage_Amount" xml:space="preserve">
+    <value>金額       {0} {1}</value>
+  </data>
+  <data name="Ledger_Lineage_Orig" xml:space="preserve">
+    <value>（原通貨 {0}）</value>
+  </data>
+  <data name="Ledger_Lineage_Account" xml:space="preserve">
+    <value>口座       {0}（{1}）</value>
+  </data>
+  <data name="Ledger_Lineage_Kind" xml:space="preserve">
+    <value>種別       {0}　状態 {1}</value>
+  </data>
+  <data name="Ledger_Lineage_Orphan" xml:space="preserve">
+    <value>　孤立</value>
+  </data>
+  <data name="Ledger_Lineage_Edited" xml:space="preserve">
+    <value>　手動編集済</value>
+  </data>
+  <data name="Ledger_Lineage_Source" xml:space="preserve">
+    <value>出典       {0}</value>
+  </data>
+  <data name="Ledger_Lineage_Manual" xml:space="preserve">
+    <value>（手入力）</value>
+  </data>
+  <data name="Ledger_Lineage_Page" xml:space="preserve">
+    <value> {0} ページ</value>
+  </data>
+  <data name="Ledger_Lineage_Issuer" xml:space="preserve">
+    <value>発行元     {0}</value>
+  </data>
+  <data name="Ledger_Lineage_Archived" xml:space="preserve">
+    <value>保管       {0}</value>
+  </data>
+  <data name="Ledger_Lineage_Raw" xml:space="preserve">
+    <value>原文
+{0}</value>
+  </data>
+  <data name="Ledger_BadCategoryTitle" xml:space="preserve">
+    <value>分類を設定できません</value>
+  </data>
+  <data name="Ledger_BadDateMsg" xml:space="preserve">
+    <value>利用日は yyyy/MM/dd（例 2026-11-03）。空にすると後で補えます。</value>
+  </data>
+  <data name="Ledger_BadDateTitle" xml:space="preserve">
+    <value>日付の形式エラー</value>
+  </data>
+  <data name="Ledger_NoPdf" xml:space="preserve">
+    <value>この行に保管 PDF がありません（手入力、または保管パスなし）。</value>
+  </data>
+  <data name="Ledger_PdfMissing" xml:space="preserve">
+    <value>保管ファイルが見つかりません：</value>
+  </data>
+  <data name="Ledger_Sep" xml:space="preserve">
+    <value>　｜　</value>
+  </data>
+  <data name="Ledger_DiffShort" xml:space="preserve">
+    <value>差 {0}</value>
+  </data>
+  <data name="Entry_Title" xml:space="preserve">
+    <value>仕訳入力</value>
+  </data>
+  <data name="Entry_ToAccount" xml:space="preserve">
+    <value>振込先口座</value>
+  </data>
+  <data name="Entry_Kind_Expense" xml:space="preserve">
+    <value>支出</value>
+  </data>
+  <data name="Entry_Kind_Income" xml:space="preserve">
+    <value>収入</value>
+  </data>
+  <data name="Entry_Kind_Refund" xml:space="preserve">
+    <value>返金</value>
+  </data>
+  <data name="Entry_Kind_Adjustment" xml:space="preserve">
+    <value>調整</value>
+  </data>
+  <data name="Entry_Kind_Transfer" xml:space="preserve">
+    <value>振替</value>
+  </data>
+  <data name="Entry_KindHint" xml:space="preserve">
+    <value>正数のみ。返金は「返金」、帳簿の修正は「調整」を選んでください</value>
+  </data>
+  <data name="Entry_BadDate" xml:space="preserve">
+    <value>日付は yyyy/MM/dd で入力してください。</value>
+  </data>
+  <data name="Entry_BadAmount" xml:space="preserve">
+    <value>金額は数値で入力してください。</value>
+  </data>
+  <data name="Category_Add" xml:space="preserve">
+    <value>分類を追加</value>
+  </data>
+  <data name="Category_NeedName" xml:space="preserve">
+    <value>名前を入力してください。</value>
+  </data>
+  <data name="Category_Title" xml:space="preserve">
+    <value>分類管理</value>
+  </data>
+  <data name="Category_Direction" xml:space="preserve">
+    <value>区分</value>
+  </data>
+  <data name="Category_Hierarchy" xml:space="preserve">
+    <value>階層</value>
+  </data>
+  <data name="Category_NameEditable" xml:space="preserve">
+    <value>名称（編集可）</value>
+  </data>
+  <data name="Category_Uses" xml:space="preserve">
+    <value>件数</value>
+  </data>
+  <data name="Category_Add_Btn" xml:space="preserve">
+    <value>追加</value>
+  </data>
+  <data name="Category_NewLabel" xml:space="preserve">
+    <value>新分類：</value>
+  </data>
+  <data name="Category_ParentLabel" xml:space="preserve">
+    <value> 親分類：</value>
+  </data>
+  <data name="Category_NameLabel" xml:space="preserve">
+    <value> 名称：</value>
+  </data>
+  <data name="Category_TopLevel" xml:space="preserve">
+    <value>（最上位）</value>
+  </data>
+  <data name="Category_NeedNameMsg" xml:space="preserve">
+    <value>分類名を入力してください。</value>
+  </data>
+  <data name="Suggest_NoCategory" xml:space="preserve">
+    <value>（分類なし）</value>
+  </data>
+  <data name="Suggest_Title" xml:space="preserve">
+    <value>分類の提案</value>
+  </data>
+  <data name="Suggest_TitleRange" xml:space="preserve">
+    <value>分類の提案（{0} ～ {1}）</value>
+  </data>
+  <data name="Suggest_Earliest" xml:space="preserve">
+    <value>開始</value>
+  </data>
+  <data name="Suggest_Latest" xml:space="preserve">
+    <value>終了</value>
+  </data>
+  <data name="Suggest_Apply" xml:space="preserve">
+    <value>適用</value>
+  </data>
+  <data name="Suggest_Count" xml:space="preserve">
+    <value>件数</value>
+  </data>
+  <data name="Suggest_Hint" xml:space="preserve">
+    <value>未分類 {0} 件、店舗 {1} 件（同一店舗の件数は 1 行にまとめてあります）。適用する店舗にチェックを付け、「分類」列をクリックすると変更できます。チェックを外すか「（分類なし）」を選ぶと適用しません。</value>
+  </data>
+  <data name="Account_Title" xml:space="preserve">
+    <value>口座管理</value>
+  </data>
+  <data name="Account_Add" xml:space="preserve">
+    <value>＋ 口座を追加</value>
+  </data>
+  <data name="Account_RateHintCCY" xml:space="preserve">
+    <value>外貨 1 単位＝何{0}相当か。空欄＝あえて換算しない（その口座は純資産に入りません）</value>
+  </data>
+  <data name="Account_IssuerHint" xml:space="preserve">
+    <value>連合銀行／台湾電力／JKO Pay…</value>
+  </data>
+  <data name="Account_MaskHint" xml:space="preserve">
+    <value>口座番号／カード番号の下桁</value>
+  </data>
+  <data name="Account_OpeningHint" xml:space="preserve">
+    <value>記帳開始日持有额。カードは通常 0 から始まり、使うと負に累積します</value>
+  </data>
+  <data name="Account_Count" xml:space="preserve">
+    <value>残高棚卸…</value>
+  </data>
+  <data name="Account_Col_Issuer" xml:space="preserve">
+    <value>発行体</value>
+  </data>
+  <data name="Account_Col_Mask" xml:space="preserve">
+    <value>下桁</value>
+  </data>
+  <data name="Account_Col_OpeningBalance" xml:space="preserve">
+    <value>期首残高</value>
+  </data>
+  <data name="Account_Col_OpeningDate" xml:space="preserve">
+    <value>期首日</value>
+  </data>
+  <data name="Account_Col_CreditLimit" xml:space="preserve">
+    <value>与信枠</value>
+  </data>
+  <data name="Account_Col_AutoPay" xml:space="preserve">
+    <value>自動引落し</value>
+  </data>
+  <data name="Account_Col_Rate" xml:space="preserve">
+    <value>レート</value>
+  </data>
+  <data name="Account_RateLabel" xml:space="preserve">
+    <value>レート（1 {0} = ? {1}）</value>
+  </data>
+  <data name="Account_NewHint" xml:space="preserve">
+    <value>新規口座：入力して「保存」を押してください。現金／財布は PDF がないため、ここで作成します。</value>
+  </data>
+  <data name="Account_DerivedBalance" xml:space="preserve">
+    <value>システム算出残高 {0} {1}</value>
+  </data>
+  <data name="Account_LastCount" xml:space="preserve">
+    <value>　｜　直近棚卸 {0}（{1}）</value>
+  </data>
+  <data name="Account_NeverCounted" xml:space="preserve">
+    <value>　｜　未棚卸</value>
+  </data>
+  <data name="Account_ArchivedNote" xml:space="preserve">
+    <value>　｜　アーカイブ済、純資産外</value>
+  </data>
+  <data name="Account_BadOpening" xml:space="preserve">
+    <value>期首残高は数値で入力してください。</value>
+  </data>
+  <data name="Account_BadLimit" xml:space="preserve">
+    <value>与信枠は数値で入力してください。</value>
+  </data>
+  <data name="Account_BadRate" xml:space="preserve">
+    <value>レートは 0 より大きい数値（例 32.9）で入力してください。</value>
+  </data>
+  <data name="Account_CountTitle" xml:space="preserve">
+    <value>残高棚卸 — {0}</value>
+  </data>
+  <data name="Account_CountDerived" xml:space="preserve">
+    <value>取引からの算出残高は {0} {1} です。</value>
+  </data>
+  <data name="Account_CountHint" xml:space="preserve">
+    <value>一致しないのは大抵、取引漏れか期首残高の入力ミスです。</value>
+  </data>
+  <data name="Account_Counted" xml:space="preserve">
+    <value>実際の残高</value>
+  </data>
+  <data name="Account_CountDate" xml:space="preserve">
+    <value>棚卸日</value>
+  </data>
+  <data name="Account_BadCount" xml:space="preserve">
+    <value>残高は数値で入力してください。</value>
+  </data>
+  <data name="Account_BadCountDate" xml:space="preserve">
+    <value>日付は yyyy/MM/dd で入力してください。</value>
+  </data>
+  <data name="Account_CountDiff" xml:space="preserve">
+    <value>棚卸 {0}、取引累計 {1}、差 {2}。
+
+</value>
+  </data>
+  <data name="Account_CountAsk" xml:space="preserve">
+    <value>調整仕訳を記帳して差額を埋めますか？「いいえ」ならスナップショットだけ残し、ホーム下部に残高不一致として表示します。</value>
+  </data>
+  <data name="Account_CountCaption" xml:space="preserve">
+    <value>残高棚卸</value>
+  </data>
+  <data name="Account_AdjustKind" xml:space="preserve">
+    <value>棚卸調整</value>
+  </data>
+  <data name="Ccy_Title" xml:space="preserve">
+    <value>通貨とレート</value>
+  </data>
+  <data name="Ccy_Base" xml:space="preserve">
+    <value>基準通貨</value>
+  </data>
+  <data name="Ccy_BaseHint" xml:space="preserve">
+    <value>純資産と月別総資産はこの通貨で表示</value>
+  </data>
+  <data name="Ccy_CodeHint" xml:space="preserve">
+    <value>例 USD</value>
+  </data>
+  <data name="Ccy_RateHint" xml:space="preserve">
+    <value>上の通貨 1 単位＝基準通貨何単位か</value>
+  </data>
+  <data name="Ccy_ProxyHint" xml:space="preserve">
+    <value>例 http://10.191.190.5:3128；空欄 = 直接接続（社内網では直接接続できません）</value>
+  </data>
+  <data name="Ccy_PairHint" xml:space="preserve">
+    <value>レートは「外貨 1＝基準通貨いくらか」を通貨ペアで保存するため、基準通貨を変えても既存レートは汚れません。</value>
+  </data>
+  <data name="Ccy_Dictionary" xml:space="preserve">
+    <value>通貨辞書</value>
+  </data>
+  <data name="Ccy_Rates" xml:space="preserve">
+    <value>レート</value>
+  </data>
+  <data name="Ccy_BaseChanged" xml:space="preserve">
+    <value>基準通貨を {0} に変更。レートのない口座は当面純資産に算入しません（1:1 と勝手に換算しません）。</value>
+  </data>
+  <data name="Ccy_ReportCcy" xml:space="preserve">
+    <value>レポート通貨</value>
+  </data>
+  <data name="Ccy_BaseNote" xml:space="preserve">
+    <value>　基準通貨は表示の基準だけ。レートは通貨ペアに保存するので、変えても既存の数字は汚れません</value>
+  </data>
+  <data name="Ccy_Aliases" xml:space="preserve">
+    <value>別名（明細書に書かれた表記）</value>
+  </data>
+  <data name="Ccy_AliasHint" xml:space="preserve">
+    <value>取込時に明細書へ書かれた原文。| で区切る</value>
+  </data>
+  <data name="Ccy_SaveCurrency" xml:space="preserve">
+    <value>通貨を保存</value>
+  </data>
+  <data name="Ccy_Saved" xml:space="preserve">
+    <value>通貨 {0} を保存しました。</value>
+  </data>
+  <data name="Ccy_Label_Name" xml:space="preserve">
+    <value> 名称</value>
+  </data>
+  <data name="Ccy_Label_Scale" xml:space="preserve">
+    <value> 小数桁</value>
+  </data>
+  <data name="Ccy_Label_Alias" xml:space="preserve">
+    <value> 別名</value>
+  </data>
+  <data name="Ccy_Col_From" xml:space="preserve">
+    <value>外貨</value>
+  </data>
+  <data name="Ccy_Col_To" xml:space="preserve">
+    <value>→ 基準通貨</value>
+  </data>
+  <data name="Ccy_Col_RateDate" xml:space="preserve">
+    <value>基準日</value>
+  </data>
+  <data name="Ccy_Manual" xml:space="preserve">
+    <value>手入力</value>
+  </data>
+  <data name="Ccy_ClearRateHint" xml:space="preserve">
+    <value>行を選択して空欄でこのボタン＝あえて換算しない（その口座は純資産外）</value>
+  </data>
+  <data name="Ccy_BadRate" xml:space="preserve">
+    <value>レートは 0 より大きい数値（例 32.9）、または空欄で換算なし。</value>
+  </data>
+  <data name="Ccy_RateSaved" xml:space="preserve">
+    <value>{0} → {1} を記録しました。</value>
+  </data>
+  <data name="Ccy_Fetch" xml:space="preserve">
+    <value>レート取得（口座に必要な通貨ペア）</value>
+  </data>
+  <data name="Ccy_Fetching" xml:space="preserve">
+    <value>レート取得中…</value>
+  </data>
+  <data name="Ccy_FetchOk" xml:space="preserve">
+    <value>{0} 通貨ペアを更新しました。</value>
+  </data>
+  <data name="Ccy_FetchPartial" xml:space="preserve">
+    <value>{0} 件更新；</value>
+  </data>
+  <data name="Ccy_Test" xml:space="preserve">
+    <value>接続テスト</value>
+  </data>
+  <data name="Ccy_TestHint" xml:space="preserve">
+    <value>通貨ペアを 1 つ試して返り値を確認（200/429/404/接続不可）</value>
+  </data>
+  <data name="Ccy_Testing" xml:space="preserve">
+    <value>テスト中…</value>
+  </data>
+  <data name="Ccy_Split" xml:space="preserve">
+    <value>通貨不一致の行を正しい口座へ分離</value>
+  </data>
+  <data name="Ccy_SplitHint" xml:space="preserve">
+    <value>旧データ用：米ドル行をそのまま基準通貨口座に入れた場合（その金額は基準通貨として純資産に入っています）</value>
+  </data>
+  <data name="Ccy_SplitNone" xml:space="preserve">
+    <value>通貨と口座が一致しない行はありません。</value>
+  </data>
+  <data name="Ccy_SplitDone" xml:space="preserve">
+    <value>{0} 件を各自の通貨の口座へ移しました（問題があれば data\backups から復元）。</value>
+  </data>
+  <data name="Store_Status_Settled" xml:space="preserve">
+    <value>支払済</value>
+  </data>
+  <data name="Store_Status_Pending" xml:space="preserve">
+    <value>未完了</value>
+  </data>
+  <data name="Store_Status_NotYet" xml:space="preserve">
+    <value>未発生</value>
+  </data>
+  <data name="Store_Status_Ignored" xml:space="preserve">
+    <value>無視</value>
+  </data>
+  <data name="Store_Status_Duplicate" xml:space="preserve">
+    <value>重複</value>
+  </data>
+  <data name="Store_BalanceForeign" xml:space="preserve">
+    <value>　⚠ 通貨不一致の行 {0} 件を含む（口座の通貨で計算）</value>
+  </data>
+  <data name="Store_Unconverted" xml:space="preserve">
+    <value>未換算（{0} → {1} にレートなし）</value>
+  </data>
+  <data name="Store_Group_Bank" xml:space="preserve">
+    <value>銀行</value>
+  </data>
+  <data name="Store_Group_Card" xml:space="preserve">
+    <value>クレジットカード</value>
+  </data>
+  <data name="Store_Group_Other" xml:space="preserve">
+    <value>その他</value>
+  </data>
+  <data name="Store_Type_Cash" xml:space="preserve">
+    <value>現金</value>
+  </data>
+  <data name="Store_Type_Bank" xml:space="preserve">
+    <value>銀行</value>
+  </data>
+  <data name="Store_Type_Wallet" xml:space="preserve">
+    <value>財布</value>
+  </data>
+  <data name="Store_Type_Card" xml:space="preserve">
+    <value>クレジットカード</value>
+  </data>
+  <data name="Store_Type_Deposit" xml:space="preserve">
+    <value>定期預金</value>
+  </data>
+  <data name="Store_Type_Investment" xml:space="preserve">
+    <value>投資</value>
+  </data>
+  <data name="Store_Type_Loan" xml:space="preserve">
+    <value>ローン</value>
+  </data>
+  <data name="Store_Type_Asset" xml:space="preserve">
+    <value>資産</value>
+  </data>
+  <data name="Store_ArchivedSuffix" xml:space="preserve">
+    <value>　（アーカイブ済）</value>
+  </data>
+  <data name="Store_BadCurrencyCode" xml:space="preserve">
+    <value>コードは大文字 3 文字（例 USD）。</value>
+  </data>
+  <data name="Store_BadScale" xml:space="preserve">
+    <value>表示小数桁は 0〜4 のみ。</value>
+  </data>
+  <data name="Store_Stale" xml:space="preserve">
+    <value>⚠ {0} 日以上更新なし</value>
+  </data>
+  <data name="Store_BadParent" xml:space="preserve">
+    <value>親分類は同一区分の既存分類である必要があります。</value>
+  </data>
+  <data name="Store_NeedCategoryName" xml:space="preserve">
+    <value>分類に名前が必要です。</value>
+  </data>
+  <data name="Store_CategoryNotFound" xml:space="preserve">
+    <value>分類が見つかりません。</value>
+  </data>
+  <data name="Store_DuplicateCategory" xml:space="preserve">
+    <value>「{0}」という{1}分類が既にあります。</value>
+  </data>
+  <data name="Store_NeedAccountName" xml:space="preserve">
+    <value>口座に名前が必要です。</value>
+  </data>
+  <data name="Store_UnknownType" xml:space="preserve">
+    <value>不明な口座種別：{0}</value>
+  </data>
+  <data name="Store_NeedCurrency" xml:space="preserve">
+    <value>通貨を選択してください。</value>
+  </data>
+  <data name="Store_BadOpeningDate" xml:space="preserve">
+    <value>期首日付は yyyy/MM/dd。</value>
+  </data>
+  <data name="Store_BadAutoPay" xml:space="preserve">
+    <value>自動引落し口座が存在しないか、自分自身を指定できません。</value>
+  </data>
+  <data name="Store_DuplicateAccount" xml:space="preserve">
+    <value>「{0}」という口座が既にあります（アーカイブ済も含む）。</value>
+  </data>
+  <data name="Store_NoAccountSelected" xml:space="preserve">
+    <value>口座が未選択のため保存できません（新規は「追加」）。</value>
+  </data>
+  <data name="Store_BadCountDate" xml:space="preserve">
+    <value>棚卸日は yyyy/MM/dd。</value>
+  </data>
+  <data name="Store_Unnamed" xml:space="preserve">
+    <value>（名称未設定）</value>
+  </data>
+  <data name="Store_NotLeafCategory" xml:space="preserve">
+    <value>分類は最下位カテゴリのみ設定できます。サブカテゴリを選択してください（ツール &gt; 分類 で作成できます）。</value>
+  </data>
+  <data name="Store_UnknownStatus" xml:space="preserve">
+    <value>不明な状態：{0}</value>
+  </data>
+  <data name="Store_UnknownKind" xml:space="preserve">
+    <value>不明な種別：{0}</value>
+  </data>
+  <data name="Store_AmountPositive" xml:space="preserve">
+    <value>金額は 0 より大きく（返金は refund、調整は adjustment）</value>
+  </data>
+  <data name="Store_AmountNonZero" xml:space="preserve">
+    <value>金額に 0 は使えません</value>
+  </data>
+  <data name="Store_TransferTarget" xml:space="preserve">
+    <value>A 振替には振込先口座が必要で、元口座と同じにはできません</value>
+  </data>
+  <data name="Store_TransferNoCategory" xml:space="preserve">
+    <value>振替に分類は付けられません</value>
+  </data>
+  <data name="Store_NotConvertedShort" xml:space="preserve">
+    <value>未換算</value>
+  </data>
+  <data name="Rate_NoConnect" xml:space="preserve">
+    <value>接続できません：{0}（proxy は必要ですか？）</value>
+  </data>
+  <data name="Rate_NotJson" xml:space="preserve">
+    <value>応答が JSON でありません：{0}</value>
+  </data>
+  <data name="Rate_NotFoundDetail" xml:space="preserve">
+    <value>{0}→{1} が見つかりません（{2}）</value>
+  </data>
+  <data name="Rate_NoQuote" xml:space="preserve">
+    <value>{0}→{1} の相場が見つかりません</value>
+  </data>
+  <data name="Rate_NoLive" xml:space="preserve">
+    <value>{0}→{1} に即時価格なし（市場休止かシンボル誤り）</value>
+  </data>
+  <data name="Rate_WrongCcy" xml:space="preserve">
+    <value>{0}→{1} の応答は {2} の価格で一致しないため書き込みませんでした</value>
+  </data>
+  <data name="Imp_Skipped" xml:space="preserve">
+    <value>{0}：スキップ — {1}</value>
+  </data>
+  <data name="Imp_Line" xml:space="preserve">
+    <value>{0}：{1} {2} — 新規 {3} 件、更新 {4} 件</value>
+  </data>
+  <data name="Imp_SkippedZero" xml:space="preserve">
+    <value>（金額 0 の {0} 件をスキップ）</value>
+  </data>
+  <data name="Imp_AutoCreated" xml:space="preserve">
+    <value>、口座を {0} 件自動作成</value>
+  </data>
+    <data name="Home_CardBillLabel" xml:space="preserve">
+    <value>クレジットカード請求</value>
+  </data>
+  <data name="Imp_SeenSeparator" xml:space="preserve">
+    <value> 由来 </value>
+  </data>
+<data name="Imp_DuplicateFile" xml:space="preserve">
+    <value>このファイルは既にインポート済み（{0}）</value>
+  </data>
+  <data name="Imp_NoDate" xml:space="preserve">
+    <value>1 件利用日が取得できません（{0} {1}）。空で保存、後で補ってください。</value>
+  </data>
+  <data name="Imp_NegativeRows" xml:space="preserve">
+    <value>負額の行は当面 refund として計上。納付行の可能性があり、parser が「納付／利用」を区別でき次第 transfer に変更します。</value>
+  </data>
+  <data name="Imp_Superseded" xml:space="preserve">
+    <value>同一帳期の旧インポート {0} 件を置き換えました</value>
+  </data>
+  <data name="Imp_NoPassword" xml:space="preserve">
+    <value>（パスワードなし）</value>
+  </data>
+  <data name="Imp_BadPassword" xml:space="preserve">
+    <value>パスワード誤りまたはこの PDF を開けません（{0} 組試行：{1}）</value>
+  </data>
+  <data name="Imp_UnknownIssuer" xml:space="preserve">
+    <value>（発行元不明）</value>
+  </data>
+  <data name="Imp_AutoCreatedAccount" xml:space="preserve">
+    <value>口座を自動作成しました。既存口座でないか確認してください。</value>
+  </data>
+  <data name="Imp_NoBankAccount" xml:space="preserve">
+    <value>銀行口座がないため、公共料金は新規現金口座に計上しました（既定の支払口座は後で変更できます）。</value>
+  </data>
+  <data name="Imp_CurrencyUnmatched" xml:space="preserve">
+    <value>「{0}」に対応する通貨コードがありません。基準通貨 {1} で計上しました。「ツール→通貨…」で別名を追加するか、この行を直してください。</value>
+  </data>
+  <data name="Imp_CurrencyCreated" xml:space="preserve">
+    <value>通貨 {0} は初めての確認のため、小数 2 桁で作成しました。表示桁は「通貨…」で変更できます。</value>
+  </data>
+  <data name="Imp_NoStatementEnd" xml:space="preserve">
+    <value>請求期末日が取得できないため、このカード明細の請求レコードは作成しません。</value>
+  </data>
+  <data name="Store_CurrencyLocked" xml:space="preserve">
+    <value>この口座にはすでに {0} 件の取引があるため、通貨を変更できません —— 既存の金額が別の通貨として為替レートでもう一度換算され、純資産が狂います。新しい口座を作成し、こちらをアーカイブしてください。</value>
+  </data>
+  <data name="Store_TypeLocked" xml:space="preserve">
+    <value>この口座にはすでに {0} 件の取引があるため、種類を変更できません —— 種類は純資産・重複疑い・自動引落しの計算に影響します。新しい口座を作成し、こちらをアーカイブしてください。</value>
+  </data>
+  <data name="Home_MarkPaid" xml:space="preserve">
+    <value>支払済</value>
+  </data>
+  <data name="Home_MarkPaidHint" xml:space="preserve">
+    <value>この請求書を支払済みにします（既定は全額）。「カード未払い」と「請求予定」から外れます</value>
+  </data>
+  <data name="Imp_Identifying" xml:space="preserve">
+    <value>認識中：{0}</value>
+  </data>
+</root>

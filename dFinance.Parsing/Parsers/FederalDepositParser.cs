@@ -24,14 +24,22 @@ public sealed class FederalDepositParser : IStatementParser
             return s;
         }
 
-        WordBox Col(string key) => header.Words.First(w => w.Text.Contains(key));
+        // 表頭少一個欄位名就丢例外（.First()）會讓整份檔案一筆都進不去：記警告就好。
+        string[] need = ["交易日期", "摘要", "支出金額", "收入金額", "餘額"];
+        var missing = header.MissingLabelsLike(need);
+        if (missing.Length > 0)
+        {
+            s.Warnings.Add($"交易明細表頭少了欄位（缺 {missing}），這份不拆明細。");
+            return s;
+        }
+        WordBox Col(string key) => header.LabelLike(key)!;                      // 上面查過了
         var dateCol = Col("交易日期");
         var summaryCol = Col("摘要");
         var outCol = Col("支出金額");
         var inCol = Col("收入金額");
         var balanceCol = Col("餘額");
 
-        foreach (var row in data.Rows.Where(r => r.Top < header.Top).OrderBy(r => r.Page).ThenByDescending(r => r.Top))
+        foreach (var row in StatementTable.DetailRows(data, header))
         {
             var date = row.Words.Where(w => w.Overlaps(dateCol)).Select(w => PdfText.ToDate(w.Text)).FirstOrDefault(d => d is not null);
             var income = row.Words.Where(w => w.Overlaps(inCol)).Select(w => PdfText.ToDecimal(w.Text)).FirstOrDefault(a => a is not null);

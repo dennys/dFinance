@@ -15,8 +15,8 @@ public class HsbcCardTests
     [Fact]
     public void 表頭欄位與卡號讀得到()
     {
-        if (!Samples.OcrReady) return;
-        var s = Samples.Parse(PaidInFull); if (s is null) return;
+        Samples.RequireOcr();
+        var s = Samples.Parse(PaidInFull);
 
         Assert.Equal("匯豐銀行", s.Issuer);
         Assert.Equal("HsbcCardParser", s.Parser);
@@ -31,8 +31,8 @@ public class HsbcCardTests
     [Fact]
     public void 明細合計等於本期應繳總金額()
     {
-        if (!Samples.OcrReady) return;
-        var s = Samples.Parse(PaidInFull); if (s is null) return;
+        Samples.RequireOcr();
+        var s = Samples.Parse(PaidInFull);
 
         Assert.Equal(4, s.Transactions.Count);
         Assert.Equal(2769m, s.Transactions.Sum(t => t.Amount));
@@ -42,8 +42,8 @@ public class HsbcCardTests
     [Fact]
     public void 商家是圖片但被_OCR_讀出來()
     {
-        if (!Samples.OcrReady) return;
-        var s = Samples.Parse(PaidInFull); if (s is null) return;
+        Samples.RequireOcr();
+        var s = Samples.Parse(PaidInFull);
 
         var paypal = s.Transactions.First(t => t.Amount == 1363m);
         Assert.Contains("PAYPAL", paypal.Merchant);
@@ -53,8 +53,8 @@ public class HsbcCardTests
     [Fact]
     public void 有消費有繳款的月份也解析出繳款列()
     {
-        if (!Samples.OcrReady) return;
-        var s = Samples.Parse(Monthly); if (s is null) return;
+        Samples.RequireOcr();
+        var s = Samples.Parse(Monthly);
 
         Assert.Contains(s.Transactions, t => t.Amount < 0);       // 繳款/退款列
     }

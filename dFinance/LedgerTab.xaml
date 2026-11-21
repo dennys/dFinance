@@ -12,6 +12,7 @@
         <DataTrigger Binding="{Binding Status}" Value="duplicate"><Setter Property="Foreground" Value="#8A8A8A"/></DataTrigger>
       </Style.Triggers>
     </Style>
+    <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     <Style x:Key="AmountCell" TargetType="TextBlock">
       <Setter Property="TextAlignment" Value="Right"/>
       <Setter Property="FontFamily" Value="Consolas"/>
@@ -33,29 +34,29 @@
 
     <!-- 篩選列 -->
     <DockPanel x:Name="FilterBar" DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,4">
-      <Button x:Name="AddButton" DockPanel.Dock="Right" Content="＋ 記一筆" Width="80" Margin="6,0,0,0"
-              FontWeight="Bold" Click="Add_Click" ToolTip="現金/錢包一定沒有 PDF，用這個補一筆"/>
-      <Button x:Name="OpenAccountButton" DockPanel.Dock="Right" Content="開帳戶分頁" Width="90" Margin="6,0,0,0"
-              Click="OpenAccount_Click" ToolTip="把這列的帳戶開成一個獨立分頁，方便兩邊對比"/>
+      <Button x:Name="AddButton" DockPanel.Dock="Right" Content="{Binding [Ledger_AddEntry], Source={StaticResource Loc}}" Width="80" Margin="6,0,0,0"
+              FontWeight="Bold" Click="Add_Click" ToolTip="{Binding [Ledger_AddEntryHint], Source={StaticResource Loc}}"/>
+      <Button x:Name="OpenAccountButton" DockPanel.Dock="Right" Content="{Binding [Ledger_OpenAccount], Source={StaticResource Loc}}" Width="90" Margin="6,0,0,0"
+              Click="OpenAccount_Click" ToolTip="{Binding [Ledger_OpenAccountHint], Source={StaticResource Loc}}"/>
       <StackPanel Orientation="Horizontal">
-        <TextBlock Text="日期" VerticalAlignment="Center" Margin="0,0,4,0"/>
+        <TextBlock Text="{Binding [Common_Date], Source={StaticResource Loc}}" VerticalAlignment="Center" Margin="0,0,4,0"/>
         <ComboBox x:Name="PresetBox" Width="72" VerticalAlignment="Center" SelectionChanged="Preset_Changed"/>
         <DatePicker x:Name="FromBox" Width="112" Margin="6,0,0,0" VerticalAlignment="Center" SelectedDateChanged="Range_Changed"/>
         <TextBlock Text="~" Margin="4,0" VerticalAlignment="Center"/>
         <DatePicker x:Name="ToBox" Width="112" VerticalAlignment="Center" SelectedDateChanged="Range_Changed"/>
 
-        <TextBlock x:Name="AccountLabel" Text="帳戶" VerticalAlignment="Center" Margin="12,0,4,0"/>
+        <TextBlock x:Name="AccountLabel" Text="{Binding [Common_Account], Source={StaticResource Loc}}" VerticalAlignment="Center" Margin="12,0,4,0"/>
         <ComboBox x:Name="AccountBox" Width="190" VerticalAlignment="Center" SelectionChanged="Filter_Changed"
                   DisplayMemberPath="Label" SelectedValuePath="Id"/>
-        <TextBlock Text="分類" VerticalAlignment="Center" Margin="12,0,4,0"/>
+        <TextBlock Text="{Binding [Common_Category], Source={StaticResource Loc}}" VerticalAlignment="Center" Margin="12,0,4,0"/>
         <ComboBox x:Name="CategoryBox" Width="150" VerticalAlignment="Center" SelectionChanged="Filter_Changed"
                   DisplayMemberPath="Label" SelectedValuePath="Id"/>
-        <TextBlock Text="狀態" VerticalAlignment="Center" Margin="12,0,4,0"/>
+        <TextBlock Text="{Binding [Common_Status], Source={StaticResource Loc}}" VerticalAlignment="Center" Margin="12,0,4,0"/>
         <ComboBox x:Name="StatusBox" Width="104" VerticalAlignment="Center" SelectionChanged="Filter_Changed"
                   DisplayMemberPath="Label" SelectedValuePath="Mode"/>
         <TextBox x:Name="SearchBox" Width="150" Margin="12,0,0,0" VerticalAlignment="Center" KeyUp="Search_KeyUp"
-                 ToolTip="商家關鍵字，按 Enter 搜尋"/>
-        <Button Content="重設" Width="52" Margin="6,0,0,0" Click="Reset_Click"/>
+                 ToolTip="{Binding [Ledger_SearchHint], Source={StaticResource Loc}}"/>
+        <Button Content="{Binding [Ledger_Reset], Source={StaticResource Loc}}" Width="52" Margin="6,0,0,0" Click="Reset_Click"/>
       </StackPanel>
     </DockPanel>
 
@@ -63,20 +64,20 @@
     <DockPanel x:Name="ActionBar" DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,4">
       <TextBlock x:Name="CountText" DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="#555"/>
       <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="#888" Margin="0,0,10,0"
-                 Text="金額唯讀：要調帳用「＋ 記一筆」的調整　　"/>
+                 Text="{Binding [Ledger_AmountReadonly], Source={StaticResource Loc}}"/>
       <StackPanel Orientation="Horizontal">
-        <Button Content="核銷" Width="52" Click="Status_Click" Tag="cleared"/>
-        <Button Content="忽略" Width="52" Margin="4,0,0,0" Click="Status_Click" Tag="ignored"/>
-        <Button Content="重複" Width="52" Margin="4,0,0,0" Click="Status_Click" Tag="duplicate"
-                ToolTip="標成重複後報表就不算它（資料留着，不是刪掉）"/>
-        <Button Content="刪除" Width="52" Margin="4,0,0,0" Click="Delete_Click"
-                ToolTip="軟刪除（deleted_at），用上面的狀態篩選「已刪除」找得回來"/>
-        <Button Content="還原" Width="52" Margin="4,0,0,0" Click="Restore_Click"/>
-        <Button Content="＋ 分類" Width="60" Margin="10,0,0,0" Click="AddCategory_Click"/>
-        <Button Content="帳戶…" Width="60" Margin="10,0,0,0" Click="Accounts_Click"
-                ToolTip="新增/編輯帳戶、期初餘額、信用額度與自動扣繳、餘額盤點（現金/錢包沒有 PDF，只能從這裡建）"/>
-        <Button Content="建議分類…" Width="80" Margin="10,0,0,0" Click="Suggest_Click"
-                ToolTip="依商家關鍵字建議未分類的列，勾選後套用（只動未分類的列）"/>
+        <Button Content="{Binding [Ledger_Settle], Source={StaticResource Loc}}" Width="52" Click="Status_Click" Tag="cleared"/>
+        <Button Content="{Binding [Ledger_Ignore], Source={StaticResource Loc}}" Width="52" Margin="4,0,0,0" Click="Status_Click" Tag="ignored"/>
+        <Button Content="{Binding [Ledger_Duplicate], Source={StaticResource Loc}}" Width="52" Margin="4,0,0,0" Click="Status_Click" Tag="duplicate"
+                ToolTip="{Binding [Ledger_DuplicateHint], Source={StaticResource Loc}}"/>
+        <Button Content="{Binding [Ledger_Delete], Source={StaticResource Loc}}" Width="52" Margin="4,0,0,0" Click="Delete_Click"
+                ToolTip="{Binding [Ledger_DeleteHint], Source={StaticResource Loc}}"/>
+        <Button Content="{Binding [Common_Restore], Source={StaticResource Loc}}" Width="52" Margin="4,0,0,0" Click="Restore_Click"/>
+        <Button Content="{Binding [Ledger_AddCategory], Source={StaticResource Loc}}" Width="60" Margin="10,0,0,0" Click="AddCategory_Click"/>
+        <Button Content="{Binding [Ledger_Accounts], Source={StaticResource Loc}}" Width="60" Margin="10,0,0,0" Click="Accounts_Click"
+                ToolTip="{Binding [Ledger_AccountsHint], Source={StaticResource Loc}}"/>
+        <Button Content="{Binding [Ledger_Suggest], Source={StaticResource Loc}}" Width="80" Margin="10,0,0,0" Click="Suggest_Click"
+                ToolTip="{Binding [Ledger_SuggestHint], Source={StaticResource Loc}}"/>
       </StackPanel>
     </DockPanel>
 
@@ -88,28 +89,41 @@
       </StackPanel>
     </Border>
 
-    <!-- 分類帳報表：月×分類透視表 -->
+    <!-- 分類帳報表：分類（樹）× 月 透視表。這裡不能包 ScrollViewer：外層給了無限高度，
+         DataGrid 的列/欄虛擬化就會整個失效（幾百列 × 幾十欄會卡）。 -->
     <Border DockPanel.Dock="Top" BorderBrush="#DDD" BorderThickness="0,0,0,1" Padding="0,4" Margin="0,0,0,4">
-      <ScrollViewer>
-        <DataGrid x:Name="CategoryReportGrid"
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <DockPanel Grid.Row="0" Margin="4,0">
+          <ComboBox x:Name="ReportRangeBox" Width="110" DockPanel.Dock="Left" SelectionChanged="ReportRange_SelectionChanged"/>
+          <TextBlock x:Name="ReportNote" Foreground="#B00000" VerticalAlignment="Center" Margin="10,0,0,0" TextWrapping="Wrap"/>
+        </DockPanel>
+        <DataGrid x:Name="CategoryReportGrid" Grid.Row="1"
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
                   HeadersVisibility="Column"
                   FontSize="13"
                   Margin="4"
+                  EnableRowVirtualization="True"
+                  EnableColumnVirtualization="True"
+                  VirtualizingPanel.ScrollUnit="Pixel"
+                  Sorting="Report_Sorting"
                   PreviewMouseLeftButtonUp="CategoryReport_CellClick"/>
-      </ScrollViewer>
+      </Grid>
     </Border>
 
     <!-- 警示列：點了就把它變成篩選 -->
     <Border DockPanel.Dock="Bottom" BorderBrush="#DDD" BorderThickness="0,1,0,0" Padding="0,4" Margin="0,4,0,0">
       <WrapPanel>
         <Button x:Name="OrphanButton" Margin="0,0,8,0" Click="Orphan_Click"
-                ToolTip="新版 parser 不再出現的列（可能只是漏解析，所以不准刪）"/>
+                ToolTip="{Binding [Ledger_OrphanHint], Source={StaticResource Loc}}"/>
         <Button x:Name="DuplicateButton" Margin="0,0,8,0" Click="Duplicate_Click"
-                ToolTip="跨檔案同額同日的信用卡列：只標記，不改任何資料"/>
+                ToolTip="{Binding [Ledger_DupGroupHint], Source={StaticResource Loc}}"/>
         <Button x:Name="BalanceButton" Margin="0,0,8,0" Click="Balance_Click"
-                ToolTip="存款單餘額快照 vs 交易累加對不上 = parser 漏列"/>
+                ToolTip="{Binding [Ledger_MismatchHint], Source={StaticResource Loc}}"/>
         <TextBlock x:Name="StatusText" VerticalAlignment="Center" Foreground="#555" FontSize="11"/>
       </WrapPanel>
     </Border>
@@ -128,10 +142,10 @@
         <DataGrid.Columns>
           <DataGridTextColumn Binding="{Binding Dot}" Width="22" IsReadOnly="True"
                               ElementStyle="{StaticResource DateCell}"/>
-          <DataGridTextColumn x:Name="DateCol" Header="消費日" Binding="{Binding Date}" Width="92"
+          <DataGridTextColumn x:Name="DateCol" Header="{Binding [Import_Col_SpendDate], Source={StaticResource Loc}}" Binding="{Binding Date}" Width="92"
                               ElementStyle="{StaticResource DateCell}" EditingElementStyle="{StaticResource DateCell}"/>
-          <DataGridTextColumn x:Name="MerchantCol" Header="商家" Binding="{Binding Merchant}" Width="2*"/>
-          <DataGridTemplateColumn x:Name="CategoryCol" Header="分類" Width="150">
+          <DataGridTextColumn x:Name="MerchantCol" Header="{Binding [Common_Merchant], Source={StaticResource Loc}}" Binding="{Binding Merchant}" Width="2*"/>
+          <DataGridTemplateColumn x:Name="CategoryCol" Header="{Binding [Common_Category], Source={StaticResource Loc}}" Width="150">
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate><TextBlock Text="{Binding Category}" VerticalAlignment="Center"/></DataTemplate>
             </DataGridTemplateColumn.CellTemplate>
@@ -142,24 +156,24 @@
               </DataTemplate>
             </DataGridTemplateColumn.CellEditingTemplate>
           </DataGridTemplateColumn>
-          <DataGridTextColumn Header="金額" Binding="{Binding AmountText}" Width="90" IsReadOnly="True"
+          <DataGridTextColumn Header="{Binding [Common_Amount], Source={StaticResource Loc}}" Binding="{Binding AmountText}" Width="90" IsReadOnly="True"
                               ElementStyle="{StaticResource AmountCell}"/>
-          <DataGridTextColumn x:Name="AccountCol" Header="帳戶" Binding="{Binding Account}" Width="140" IsReadOnly="True"/>
-          <DataGridTextColumn Header="狀態" Binding="{Binding StatusText}" Width="54" IsReadOnly="True"/>
-          <DataGridTextColumn x:Name="NoteCol" Header="備註" Binding="{Binding Note}" Width="*"/>
+          <DataGridTextColumn x:Name="AccountCol" Header="{Binding [Common_Account], Source={StaticResource Loc}}" Binding="{Binding Account}" Width="140" IsReadOnly="True"/>
+          <DataGridTextColumn Header="{Binding [Common_Status], Source={StaticResource Loc}}" Binding="{Binding StatusText}" Width="54" IsReadOnly="True"/>
+          <DataGridTextColumn x:Name="NoteCol" Header="{Binding [Common_Note], Source={StaticResource Loc}}" Binding="{Binding Note}" Width="*"/>
         </DataGrid.Columns>
       </DataGrid>
 
       <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" Background="#DDD"/>
 
       <DockPanel Grid.Column="2" Margin="0">
-        <TextBlock DockPanel.Dock="Top" Text="來源血統" FontWeight="Bold" Margin="0,0,0,4"/>
-        <Button x:Name="OpenPdfButton" DockPanel.Dock="Bottom" Content="開啟留底 PDF" Margin="0,4,0,0"
+        <TextBlock DockPanel.Dock="Top" Text="{Binding [Ledger_Col_Lineage], Source={StaticResource Loc}}" FontWeight="Bold" Margin="0,0,0,4"/>
+        <Button x:Name="OpenPdfButton" DockPanel.Dock="Bottom" Content="{Binding [Ledger_OpenPdf], Source={StaticResource Loc}}" Margin="0,4,0,0"
                 HorizontalAlignment="Left" Width="120" Click="OpenPdf_Click"
-                ToolTip="留底是原樣存的（原本有密碼就還是加密），要重看就要重打密碼"/>
+                ToolTip="{Binding [Ledger_OpenPdfHint], Source={StaticResource Loc}}"/>
         <TextBox x:Name="LineageBox" IsReadOnly="True" FontFamily="Consolas" FontSize="12"
                  VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"
-                 ToolTip="這筆從哪份檔案、哪一頁、原文哪一行來 —— 核對解析對不對全靠它"/>
+                 ToolTip="{Binding [Ledger_LineageHint], Source={StaticResource Loc}}"/>
       </DockPanel>
     </Grid>
 
@@ -172,10 +186,10 @@
       </Grid.ColumnDefinitions>
 
       <DockPanel Grid.Column="0">
-        <TextBlock DockPanel.Dock="Top" Text="淨值明細" FontWeight="Bold" Margin="0,0,0,4"/>
+        <TextBlock DockPanel.Dock="Top" Text="{Binding [Home_NetWorth], Source={StaticResource Loc}}" FontWeight="Bold" Margin="0,0,0,4"/>
         <DataGrid x:Name="HomeNetWorthGrid" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
                   HeadersVisibility="Column" GridLinesVisibility="Horizontal" FontSize="12"
-                  MouseLeftButtonUp="HomeNetWorth_Click" ToolTip="點一列就開那個帳戶的分頁">
+                  MouseLeftButtonUp="HomeNetWorth_Click" ToolTip="{Binding [Home_NetWorthHint], Source={StaticResource Loc}}">
           <DataGrid.GroupStyle>
             <GroupStyle>
               <GroupStyle.HeaderTemplate>
@@ -186,12 +200,12 @@
             </GroupStyle>
           </DataGrid.GroupStyle>
           <DataGrid.Columns>
-            <DataGridTextColumn Header="帳戶" Binding="{Binding Name}" Width="2*"/>
-            <DataGridTextColumn Header="類型" Binding="{Binding TypeLabel}" Width="60"/>
-            <DataGridTextColumn Header="幣別" Binding="{Binding Currency}" Width="46"/>
-            <DataGridTextColumn Header="餘額" Binding="{Binding BalanceText}" Width="100"/>
-            <DataGridTextColumn x:Name="ConvertedCol" Header="折算後" Binding="{Binding ConvertedText}" Width="110"/>
-            <DataGridTextColumn Header="計入淨值" Binding="{Binding CountedText}" Width="*"/>
+            <DataGridTextColumn Header="{Binding [Common_Account], Source={StaticResource Loc}}" Binding="{Binding Name}" Width="2*"/>
+            <DataGridTextColumn Header="{Binding [Common_Type], Source={StaticResource Loc}}" Binding="{Binding TypeLabel}" Width="60"/>
+            <DataGridTextColumn Header="{Binding [Common_Currency], Source={StaticResource Loc}}" Binding="{Binding Currency}" Width="46"/>
+            <DataGridTextColumn Header="{Binding [Common_Balance], Source={StaticResource Loc}}" Binding="{Binding BalanceText}" Width="100"/>
+            <DataGridTextColumn x:Name="ConvertedCol" Header="{Binding [Home_Converted], Source={StaticResource Loc}}" Binding="{Binding ConvertedText}" Width="110"/>
+            <DataGridTextColumn Header="{Binding [Home_CountedIn], Source={StaticResource Loc}}" Binding="{Binding CountedText}" Width="*"/>
           </DataGrid.Columns>
         </DataGrid>
       </DockPanel>
@@ -206,20 +220,20 @@
         </Grid.RowDefinitions>
 
         <DockPanel Grid.Row="0">
-          <TextBlock DockPanel.Dock="Top" Text="每月總資產" FontWeight="Bold" Margin="0,0,0,4"/>
+          <TextBlock DockPanel.Dock="Top" Text="{Binding [Home_MonthlyAssets], Source={StaticResource Loc}}" FontWeight="Bold" Margin="0,0,0,4"/>
           <sp:WpfPlot x:Name="NetWorthPlot"/>
         </DockPanel>
 
         <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch" Background="#DDD"/>
 
         <DockPanel Grid.Row="2">
-          <TextBlock DockPanel.Dock="Top" Text="未來帳單（未到期）" FontWeight="Bold" Margin="0,0,0,4"/>
+          <TextBlock DockPanel.Dock="Top" Text="{Binding [Home_Upcoming], Source={StaticResource Loc}}" FontWeight="Bold" Margin="0,0,0,4"/>
           <DataGrid x:Name="UpcomingGrid" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
                     HeadersVisibility="Column" GridLinesVisibility="Horizontal" FontSize="12">
             <DataGrid.Columns>
-              <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="86"/>
-              <DataGridTextColumn Header="項目" Binding="{Binding Label}" Width="*"/>
-              <DataGridTextColumn Header="金額" Binding="{Binding Amount, StringFormat=N0}" Width="86">
+              <DataGridTextColumn Header="{Binding [Common_Date], Source={StaticResource Loc}}" Binding="{Binding Date}" Width="86"/>
+              <DataGridTextColumn Header="{Binding [Home_Item], Source={StaticResource Loc}}" Binding="{Binding Label}" Width="*"/>
+              <DataGridTextColumn Header="{Binding [Common_Amount], Source={StaticResource Loc}}" Binding="{Binding Amount, StringFormat=N0}" Width="86">
                 <DataGridTextColumn.ElementStyle>
                   <Style TargetType="TextBlock">
                     <Setter Property="TextAlignment" Value="Right"/>
@@ -227,6 +241,17 @@
                   </Style>
                 </DataGridTextColumn.ElementStyle>
               </DataGridTextColumn>
+              <!-- 只有信用卡帳單那幾列有 BillId，其餘由 LoadingRow 藏起來 -->
+              <DataGridTemplateColumn Header="{Binding [Home_MarkPaid], Source={StaticResource Loc}}" Width="64">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <Button Content="{Binding [Home_MarkPaid], Source={StaticResource Loc}}" Padding="4,0"
+                            Click="MarkPaid_Click" Tag="{Binding}"
+                            Visibility="{Binding IsBill, Converter={StaticResource BoolToVis}}"
+                            ToolTip="{Binding [Home_MarkPaidHint], Source={StaticResource Loc}}"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
             </DataGrid.Columns>
           </DataGrid>
         </DockPanel>

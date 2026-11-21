@@ -40,7 +40,7 @@ public sealed class CathayCardParser : IStatementParser
             return s;
         }
 
-        foreach (var row in data.Rows.Where(r => r.Top < table.HeaderRow.Top).OrderBy(r => r.Page).ThenByDescending(r => r.Top))
+        foreach (var row in StatementTable.DetailRows(data, table.HeaderRow))
         {
             var date = table.Date(row, reference: reference);
             var amount = table.Amount(row);

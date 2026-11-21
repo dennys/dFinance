@@ -1,0 +1,1086 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Common_Save" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="Common_Date" xml:space="preserve">
+    <value>日期</value>
+  </data>
+  <data name="Common_Amount" xml:space="preserve">
+    <value>金额</value>
+  </data>
+  <data name="Common_Merchant" xml:space="preserve">
+    <value>商户</value>
+  </data>
+  <data name="Common_Category" xml:space="preserve">
+    <value>分类</value>
+  </data>
+  <data name="Common_Account" xml:space="preserve">
+    <value>账户</value>
+  </data>
+  <data name="Common_Currency" xml:space="preserve">
+    <value>币别</value>
+  </data>
+  <data name="Common_Type" xml:space="preserve">
+    <value>类型</value>
+  </data>
+  <data name="Common_Kind" xml:space="preserve">
+    <value>种类</value>
+  </data>
+  <data name="Common_Note" xml:space="preserve">
+    <value>备注</value>
+  </data>
+  <data name="Common_Balance" xml:space="preserve">
+    <value>余额</value>
+  </data>
+  <data name="Common_Total" xml:space="preserve">
+    <value>合计</value>
+  </data>
+  <data name="Common_Name" xml:space="preserve">
+    <value>名称</value>
+  </data>
+  <data name="Common_Code" xml:space="preserve">
+    <value>代码</value>
+  </data>
+  <data name="Common_Status" xml:space="preserve">
+    <value>状态</value>
+  </data>
+  <data name="Common_Restore" xml:space="preserve">
+    <value>还原</value>
+  </data>
+  <data name="Common_Archive" xml:space="preserve">
+    <value>归档</value>
+  </data>
+  <data name="Common_Scale" xml:space="preserve">
+    <value>小数位</value>
+  </data>
+  <data name="Common_Source" xml:space="preserve">
+    <value>来源</value>
+  </data>
+  <data name="Common_None" xml:space="preserve">
+    <value>（无）</value>
+  </data>
+  <data name="Common_All" xml:space="preserve">
+    <value>全部</value>
+  </data>
+  <data name="Common_Custom" xml:space="preserve">
+    <value>自定义</value>
+  </data>
+  <data name="Common_ThisMonth" xml:space="preserve">
+    <value>本月</value>
+  </data>
+  <data name="Common_LastMonth" xml:space="preserve">
+    <value>上月</value>
+  </data>
+  <data name="Common_ThisYear" xml:space="preserve">
+    <value>今年</value>
+  </data>
+  <data name="Common_BankSlip" xml:space="preserve">
+    <value>存款单</value>
+  </data>
+  <data name="Menu_File" xml:space="preserve">
+    <value>文件(_F)</value>
+  </data>
+  <data name="Menu_NewDb" xml:space="preserve">
+    <value>新建数据库…</value>
+  </data>
+  <data name="Menu_OpenDb" xml:space="preserve">
+    <value>打开数据库…</value>
+  </data>
+  <data name="Menu_SaveDbAs" xml:space="preserve">
+    <value>数据库另存为…</value>
+  </data>
+  <data name="Menu_Recent" xml:space="preserve">
+    <value>最近打开</value>
+  </data>
+  <data name="Menu_ClearRecent" xml:space="preserve">
+    <value>清除最近打开</value>
+  </data>
+  <data name="Menu_Exit" xml:space="preserve">
+    <value>退出</value>
+  </data>
+  <data name="Menu_Reports" xml:space="preserve">
+    <value>报表(_R)</value>
+  </data>
+  <data name="Menu_CategoryReport" xml:space="preserve">
+    <value>分类账</value>
+  </data>
+  <data name="Menu_Tools" xml:space="preserve">
+    <value>工具(_T)</value>
+  </data>
+  <data name="Menu_CategoryManager" xml:space="preserve">
+    <value>分类管理…</value>
+  </data>
+  <data name="Menu_Currency" xml:space="preserve">
+    <value>币别…</value>
+  </data>
+  <data name="Menu_Language" xml:space="preserve">
+    <value>语言…</value>
+  </data>
+  <data name="Menu_Help" xml:space="preserve">
+    <value>帮助(_H)</value>
+  </data>
+  <data name="Menu_About" xml:space="preserve">
+    <value>关于 dFinance</value>
+  </data>
+  <data name="Tab_Home" xml:space="preserve">
+    <value>首页</value>
+  </data>
+  <data name="Tab_Import" xml:space="preserve">
+    <value>导入 PDF</value>
+  </data>
+  <data name="Tab_CloseHint" xml:space="preserve">
+    <value>关闭此标签页</value>
+  </data>
+  <data name="Tab_CloseHintKey" xml:space="preserve">
+    <value>关闭此标签页（Ctrl+W）</value>
+  </data>
+  <data name="Db_BackupFailed" xml:space="preserve">
+    <value>备份失败（{0}），账本照常打开。</value>
+  </data>
+  <data name="Db_BackupTitle" xml:space="preserve">
+    <value>备份</value>
+  </data>
+  <data name="Db_NotDFinance" xml:space="preserve">
+    <value>此文件不是 dFinance 数据库。</value>
+  </data>
+  <data name="Db_OpenTitle" xml:space="preserve">
+    <value>打开数据库</value>
+  </data>
+  <data name="Db_PathLine" xml:space="preserve">
+    <value>数据库：{0}    留底 PDF：{1}</value>
+  </data>
+  <data name="Db_OpenFailedHead" xml:space="preserve">
+    <value>数据库打不开：\n</value>
+  </data>
+  <data name="Db_OpenFailedImport" xml:space="preserve">
+    <value>数据库打不开，导入按钮暂时不能用。</value>
+  </data>
+  <data name="Db_OpenFailedLog" xml:space="preserve">
+    <value>开库失败：</value>
+  </data>
+  <data name="Db_OpenFailed" xml:space="preserve">
+    <value>打不开：{0}</value>
+  </data>
+  <data name="Db_BaseCurrencyMissing" xml:space="preserve">
+    <value>读不到基准货币</value>
+  </data>
+  <data name="Db_SameAsCurrent" xml:space="preserve">
+    <value>这是当前打开的数据库，无需新建。</value>
+  </data>
+  <data name="Db_NewTitle" xml:space="preserve">
+    <value>新建数据库</value>
+  </data>
+  <data name="Db_Filter" xml:space="preserve">
+    <value>dFinance 数据库|*.db</value>
+  </data>
+  <data name="Db_FilterAll" xml:space="preserve">
+    <value>dFinance 数据库|*.db|所有文件|*.*</value>
+  </data>
+  <data name="About_Line" xml:space="preserve">
+    <value>数据库：{0}
+文件夹：{1}
+
+本机记账，PDF 留底，资料不联网。</value>
+  </data>
+  <data name="Db_SaveAsTitle" xml:space="preserve">
+    <value>数据库另存为</value>
+  </data>
+  <data name="Db_NoneOpen" xml:space="preserve">
+    <value>（未打开）</value>
+  </data>
+  <data name="Import_Pick" xml:space="preserve">
+    <value>浏览…</value>
+  </data>
+  <data name="Import_Password" xml:space="preserve">
+    <value>密码</value>
+  </data>
+  <data name="Import_PasswordHint" xml:space="preserve">
+    <value>必须手工输入（UI 不读 .env）。多个密码用逗号分隔，会一组一组试。</value>
+  </data>
+  <data name="Import_Parse" xml:space="preserve">
+    <value>解析</value>
+  </data>
+  <data name="Import_Parsing" xml:space="preserve">
+    <value>识别中…</value>
+  </data>
+  <data name="Import_ToDb" xml:space="preserve">
+    <value>导入数据库</value>
+  </data>
+  <data name="Import_ToDbHint" xml:space="preserve">
+    <value>把这份 PDF 留底并写入数据库（同一份文件重复导入会自动挡掉）</value>
+  </data>
+  <data name="Import_Folder" xml:space="preserve">
+    <value>批量导入文件夹…</value>
+  </data>
+  <data name="Import_LogHint" xml:space="preserve">
+    <value>导入结果：每份文件的新增/更新/跳过与警告</value>
+  </data>
+  <data name="Import_RawHint" xml:space="preserve">
+    <value>PdfPig 抽取的原始文字层，用来核对解析结果</value>
+  </data>
+  <data name="Import_Col_SpendDate" xml:space="preserve">
+    <value>消费日</value>
+  </data>
+  <data name="Import_Col_PostingDate" xml:space="preserve">
+    <value>入账日</value>
+  </data>
+  <data name="Import_Col_Card" xml:space="preserve">
+    <value>卡</value>
+  </data>
+  <data name="Import_Col_Kind" xml:space="preserve">
+    <value>类别</value>
+  </data>
+  <data name="Import_Col_Page" xml:space="preserve">
+    <value>页</value>
+  </data>
+  <data name="Import_Filter" xml:space="preserve">
+    <value>PDF 账单|*.pdf</value>
+  </data>
+  <data name="Import_NoFile" xml:space="preserve">
+    <value>请先选择一个存在的 PDF 文件。</value>
+  </data>
+  <data name="Import_FolderTitle" xml:space="preserve">
+    <value>选择一个放账单 PDF 的文件夹</value>
+  </data>
+  <data name="Import_FolderEmpty" xml:space="preserve">
+    <value>{0} 里找不到 PDF。</value>
+  </data>
+  <data name="Import_FileFailed" xml:space="preserve">
+    <value>{0}：失败 — {1}</value>
+  </data>
+  <data name="Import_BadPassword" xml:space="preserve">
+    <value>密码错误或此 PDF 打不开：{0}</value>
+  </data>
+  <data name="Import_SummaryHead" xml:space="preserve">
+    <value>发卡行：{0}    账单期：{1} ~ {2}
+缴款截止日：{3}    本期应缴：{4}    最低应缴：{5}    账号：{6}</value>
+  </data>
+  <data name="Import_CheckOk" xml:space="preserve">
+    <value>明细 {0} 笔，合计 {1} — 与本期应缴相符</value>
+  </data>
+  <data name="Import_CheckDiff" xml:space="preserve">
+    <value>明细 {0} 笔，合计 {1} — 与本期应缴 {2} 差 {3}，可能漏解析</value>
+  </data>
+  <data name="Ledger_AddEntry" xml:space="preserve">
+    <value>＋ 记一笔</value>
+  </data>
+  <data name="Ledger_AddEntryHint" xml:space="preserve">
+    <value>现金/钱包一定没有 PDF，用这个补一笔</value>
+  </data>
+  <data name="Ledger_OpenAccount" xml:space="preserve">
+    <value>打开账户标签页</value>
+  </data>
+  <data name="Ledger_OpenAccountHint" xml:space="preserve">
+    <value>把这行的账户开成独立标签页，方便两边对比</value>
+  </data>
+  <data name="Ledger_SearchHint" xml:space="preserve">
+    <value>商家关键字，按 Enter 搜索</value>
+  </data>
+  <data name="Ledger_Reset" xml:space="preserve">
+    <value>重置</value>
+  </data>
+  <data name="Ledger_AmountReadonly" xml:space="preserve">
+    <value>金额只读：调账请用「＋ 记一笔」的调整　　</value>
+  </data>
+  <data name="Ledger_Settle" xml:space="preserve">
+    <value>核销</value>
+  </data>
+  <data name="Ledger_Ignore" xml:space="preserve">
+    <value>忽略</value>
+  </data>
+  <data name="Ledger_Duplicate" xml:space="preserve">
+    <value>重复</value>
+  </data>
+  <data name="Ledger_DuplicateHint" xml:space="preserve">
+    <value>标成重复后报表就不算它（数据留着，不是删掉）</value>
+  </data>
+  <data name="Ledger_Delete" xml:space="preserve">
+    <value>删除</value>
+  </data>
+  <data name="Ledger_DeleteHint" xml:space="preserve">
+    <value>软删除（deleted_at），用上面的状态筛选「已删除」可找回</value>
+  </data>
+  <data name="Ledger_AddCategory" xml:space="preserve">
+    <value>＋ 分类</value>
+  </data>
+  <data name="Ledger_Accounts" xml:space="preserve">
+    <value>账户…</value>
+  </data>
+  <data name="Ledger_AccountsHint" xml:space="preserve">
+    <value>新增/编辑账户、期初余额、信用额度与自动扣缴、余额盘点（现金/钱包没有 PDF，只能从这里建）</value>
+  </data>
+  <data name="Ledger_Suggest" xml:space="preserve">
+    <value>建议分类…</value>
+  </data>
+  <data name="Ledger_SuggestHint" xml:space="preserve">
+    <value>按商家关键字建议未分类的行，勾选后套用（只动未分类的行）</value>
+  </data>
+  <data name="Ledger_OrphanHint" xml:space="preserve">
+    <value>新版 parser 不再出现的行（可能只是漏解析，所以不准删）</value>
+  </data>
+  <data name="Ledger_DupGroupHint" xml:space="preserve">
+    <value>跨文件同额同日的信用卡行：只标记，不改任何数据</value>
+  </data>
+  <data name="Ledger_MismatchHint" xml:space="preserve">
+    <value>存款单余额快照 vs 交易累加对不上 = parser 漏行</value>
+  </data>
+  <data name="Ledger_Col_Lineage" xml:space="preserve">
+    <value>来源血统</value>
+  </data>
+  <data name="Ledger_OpenPdf" xml:space="preserve">
+    <value>打开留底 PDF</value>
+  </data>
+  <data name="Ledger_OpenPdfHint" xml:space="preserve">
+    <value>留底按原样保存（原本有密码就还是加密），重看要重打密码</value>
+  </data>
+  <data name="Ledger_LineageHint" xml:space="preserve">
+    <value>这笔来自哪份文件、哪一页、原文哪一行 —— 核对解析全靠它</value>
+  </data>
+  <data name="Home_NetWorth" xml:space="preserve">
+    <value>净资产明细</value>
+  </data>
+  <data name="Home_NetWorthHint" xml:space="preserve">
+    <value>点一行就打开该账户的标签页</value>
+  </data>
+  <data name="Home_Converted" xml:space="preserve">
+    <value>折算后</value>
+  </data>
+  <data name="Home_CountedIn" xml:space="preserve">
+    <value>计入净资产</value>
+  </data>
+  <data name="Home_MonthlyAssets" xml:space="preserve">
+    <value>每月总资产</value>
+  </data>
+  <data name="Home_Upcoming" xml:space="preserve">
+    <value>未来账单（未到期）</value>
+  </data>
+  <data name="Home_Item" xml:space="preserve">
+    <value>项目</value>
+  </data>
+  <data name="Home_DbUnavailable" xml:space="preserve">
+    <value>数据库打不开，账本暂时不能用。</value>
+  </data>
+  <data name="Ledger_AllAccounts" xml:space="preserve">
+    <value>全部账户</value>
+  </data>
+  <data name="Ledger_ArchivedSuffix" xml:space="preserve">
+    <value>（已归档）</value>
+  </data>
+  <data name="Ledger_AllCategories" xml:space="preserve">
+    <value>全部分类</value>
+  </data>
+  <data name="Ledger_Uncategorized" xml:space="preserve">
+    <value>未分类</value>
+  </data>
+  <data name="Ledger_Status_Ledger" xml:space="preserve">
+    <value>账本</value>
+  </data>
+  <data name="Ledger_Status_Imported" xml:space="preserve">
+    <value>待补分类</value>
+  </data>
+  <data name="Ledger_Status_Orphan" xml:space="preserve">
+    <value>孤儿行</value>
+  </data>
+  <data name="Ledger_Status_DupGroup" xml:space="preserve">
+    <value>疑似重复</value>
+  </data>
+  <data name="Ledger_Status_Duplicate" xml:space="preserve">
+    <value>已标重复</value>
+  </data>
+  <data name="Ledger_Status_Ignored" xml:space="preserve">
+    <value>已忽略</value>
+  </data>
+  <data name="Ledger_Status_Deleted" xml:space="preserve">
+    <value>已删除</value>
+  </data>
+  <data name="Ledger_Status_All" xml:space="preserve">
+    <value>全部（含未发生）</value>
+  </data>
+  <data name="Ledger_Rows" xml:space="preserve">
+    <value>{0} 行</value>
+  </data>
+  <data name="Ledger_Truncated" xml:space="preserve">
+    <value>（已截断，请缩小范围）</value>
+  </data>
+  <data name="Ledger_AccountHeader" xml:space="preserve">
+    <value>{0}（{1} {2}）余额 {3}</value>
+  </data>
+  <data name="Ledger_AccountUnconverted" xml:space="preserve">
+    <value>　— 未折算（查不到 {0} → {1} 的汇率）</value>
+  </data>
+  <data name="Home_PlotTitle" xml:space="preserve">
+    <value>每月总资产（{0}）</value>
+  </data>
+  <data name="Ledger_Rollup" xml:space="preserve">
+    <value>{0}（含子类）</value>
+  </data>
+  <data name="Report_LastMonths" xml:space="preserve">
+    <value>近 {0} 个月</value>
+  </data>
+  <data name="Report_AllMonths" xml:space="preserve">
+    <value>全部月份</value>
+  </data>
+  <data name="Report_ForeignSkipped" xml:space="preserve">
+    <value>另有 {0} 笔非基准币（{1}）未计入：没有折算就不进总额</value>
+  </data>
+  <data name="Ledger_Col_CategoryPath" xml:space="preserve">
+    <value>分类路径</value>
+  </data>
+  <data name="Ledger_Kpi_Income" xml:space="preserve">
+    <value>本月收入</value>
+  </data>
+  <data name="Ledger_Kpi_Expense" xml:space="preserve">
+    <value>本月支出</value>
+  </data>
+  <data name="Ledger_Kpi_Net" xml:space="preserve">
+    <value>净额</value>
+  </data>
+  <data name="Ledger_Kpi_Uncategorized" xml:space="preserve">
+    <value>待分类</value>
+  </data>
+  <data name="Ledger_Kpi_NetWorth" xml:space="preserve">
+    <value>净资产</value>
+  </data>
+  <data name="Ledger_Kpi_CardUnpaid" xml:space="preserve">
+    <value>卡未缴</value>
+  </data>
+  <data name="Ledger_Kpi_Unconverted" xml:space="preserve">
+    <value>未折算</value>
+  </data>
+  <data name="Ledger_Count" xml:space="preserve">
+    <value>{0} 笔</value>
+  </data>
+  <data name="Ledger_AssetsLiabilities" xml:space="preserve">
+    <value>资产 {0}　负债 {1}</value>
+  </data>
+  <data name="Ledger_AccountCount" xml:space="preserve">
+    <value>{0} 个账户</value>
+  </data>
+  <data name="Ledger_UnconvertedNote" xml:space="preserve">
+    <value>非新台币、没有汇率来源，故意不计入净资产</value>
+  </data>
+  <data name="Ledger_OrphanButton" xml:space="preserve">
+    <value>孤儿行 {0} 笔</value>
+  </data>
+  <data name="Ledger_DupButton" xml:space="preserve">
+    <value>疑似重复 {0} 对</value>
+  </data>
+  <data name="Ledger_MismatchButton" xml:space="preserve">
+    <value>余额不符 {0} 个账户</value>
+  </data>
+  <data name="Ledger_MismatchButtonSuffix" xml:space="preserve">
+    <value>：{0}</value>
+  </data>
+  <data name="Ledger_MismatchTip" xml:space="preserve">
+    <value>余额快照（存款单解析出的，或人工盘点的）对不上交易累加</value>
+  </data>
+  <data name="Ledger_MismatchAllOk" xml:space="preserve">
+    <value>都对得上。</value>
+  </data>
+  <data name="Ledger_MismatchLine" xml:space="preserve">
+    <value>{0}：{1} {2} 比交易累加多 {3}</value>
+  </data>
+  <data name="Ledger_MismatchFooter" xml:space="preserve">
+    <value>
+对不上通常是漏了交易或期初填错；可在「账户…」里重新盘点或改期初余额。</value>
+  </data>
+  <data name="Ledger_MismatchTitle" xml:space="preserve">
+    <value>余额快照 vs 交易累加</value>
+  </data>
+  <data name="Ledger_Lineage_Merchant" xml:space="preserve">
+    <value>商家      {0}</value>
+  </data>
+  <data name="Ledger_Lineage_Amount" xml:space="preserve">
+    <value>金额      {0} {1}</value>
+  </data>
+  <data name="Ledger_Lineage_Orig" xml:space="preserve">
+    <value>（原币 {0}）</value>
+  </data>
+  <data name="Ledger_Lineage_Account" xml:space="preserve">
+    <value>账户      {0}（{1}）</value>
+  </data>
+  <data name="Ledger_Lineage_Kind" xml:space="preserve">
+    <value>种类      {0}　状态 {1}</value>
+  </data>
+  <data name="Ledger_Lineage_Orphan" xml:space="preserve">
+    <value>　孤儿</value>
+  </data>
+  <data name="Ledger_Lineage_Edited" xml:space="preserve">
+    <value>　人工改过</value>
+  </data>
+  <data name="Ledger_Lineage_Source" xml:space="preserve">
+    <value>来源      {0}</value>
+  </data>
+  <data name="Ledger_Lineage_Manual" xml:space="preserve">
+    <value>（手动输入）</value>
+  </data>
+  <data name="Ledger_Lineage_Page" xml:space="preserve">
+    <value> 第 {0} 页</value>
+  </data>
+  <data name="Ledger_Lineage_Issuer" xml:space="preserve">
+    <value>发卡行    {0}</value>
+  </data>
+  <data name="Ledger_Lineage_Archived" xml:space="preserve">
+    <value>留底      {0}</value>
+  </data>
+  <data name="Ledger_Lineage_Raw" xml:space="preserve">
+    <value>原文
+{0}</value>
+  </data>
+  <data name="Ledger_BadCategoryTitle" xml:space="preserve">
+    <value>分类不能这样标</value>
+  </data>
+  <data name="Ledger_BadDateMsg" xml:space="preserve">
+    <value>消费日要用 yyyy/MM/dd（例 2026-11-03），清空就是留空等以后补。</value>
+  </data>
+  <data name="Ledger_BadDateTitle" xml:space="preserve">
+    <value>日期格式不对</value>
+  </data>
+  <data name="Ledger_NoPdf" xml:space="preserve">
+    <value>这笔没有留底 PDF（手动输入的，或留底路径缺失）。</value>
+  </data>
+  <data name="Ledger_PdfMissing" xml:space="preserve">
+    <value>留底文件不见了：</value>
+  </data>
+  <data name="Ledger_Sep" xml:space="preserve">
+    <value>　｜　</value>
+  </data>
+  <data name="Ledger_DiffShort" xml:space="preserve">
+    <value>差 {0}</value>
+  </data>
+  <data name="Entry_Title" xml:space="preserve">
+    <value>记一笔</value>
+  </data>
+  <data name="Entry_ToAccount" xml:space="preserve">
+    <value>转入账户</value>
+  </data>
+  <data name="Entry_Kind_Expense" xml:space="preserve">
+    <value>支出</value>
+  </data>
+  <data name="Entry_Kind_Income" xml:space="preserve">
+    <value>收入</value>
+  </data>
+  <data name="Entry_Kind_Refund" xml:space="preserve">
+    <value>退款</value>
+  </data>
+  <data name="Entry_Kind_Adjustment" xml:space="preserve">
+    <value>调整</value>
+  </data>
+  <data name="Entry_Kind_Transfer" xml:space="preserve">
+    <value>转账</value>
+  </data>
+  <data name="Entry_KindHint" xml:space="preserve">
+    <value>正数就好：退款选「退款」、修正账务选「调整」</value>
+  </data>
+  <data name="Entry_BadDate" xml:space="preserve">
+    <value>日期要用 yyyy/MM/dd。</value>
+  </data>
+  <data name="Entry_BadAmount" xml:space="preserve">
+    <value>金额要是一个数字。</value>
+  </data>
+  <data name="Category_Add" xml:space="preserve">
+    <value>新增分类</value>
+  </data>
+  <data name="Category_NeedName" xml:space="preserve">
+    <value>要取个名字。</value>
+  </data>
+  <data name="Category_Title" xml:space="preserve">
+    <value>分类管理</value>
+  </data>
+  <data name="Category_Direction" xml:space="preserve">
+    <value>方向</value>
+  </data>
+  <data name="Category_Hierarchy" xml:space="preserve">
+    <value>层级</value>
+  </data>
+  <data name="Category_NameEditable" xml:space="preserve">
+    <value>名称（可改）</value>
+  </data>
+  <data name="Category_Uses" xml:space="preserve">
+    <value>笔数</value>
+  </data>
+  <data name="Category_Add_Btn" xml:space="preserve">
+    <value>新增</value>
+  </data>
+  <data name="Category_NewLabel" xml:space="preserve">
+    <value>新分类：</value>
+  </data>
+  <data name="Category_ParentLabel" xml:space="preserve">
+    <value> 父分类：</value>
+  </data>
+  <data name="Category_NameLabel" xml:space="preserve">
+    <value> 名称：</value>
+  </data>
+  <data name="Category_TopLevel" xml:space="preserve">
+    <value>（顶层）</value>
+  </data>
+  <data name="Category_NeedNameMsg" xml:space="preserve">
+    <value>要先输入分类名称。</value>
+  </data>
+  <data name="Suggest_NoCategory" xml:space="preserve">
+    <value>（不分）</value>
+  </data>
+  <data name="Suggest_Title" xml:space="preserve">
+    <value>建议分类</value>
+  </data>
+  <data name="Suggest_TitleRange" xml:space="preserve">
+    <value>建议分类（{0} ～ {1}）</value>
+  </data>
+  <data name="Suggest_Earliest" xml:space="preserve">
+    <value>最早</value>
+  </data>
+  <data name="Suggest_Latest" xml:space="preserve">
+    <value>最近</value>
+  </data>
+  <data name="Suggest_Apply" xml:space="preserve">
+    <value>套用</value>
+  </data>
+  <data name="Suggest_Count" xml:space="preserve">
+    <value>笔数</value>
+  </data>
+  <data name="Suggest_Hint" xml:space="preserve">
+    <value>共 {0} 笔未分类、{1} 个商家（同一商家的笔数会合并成一行）。勾选要套用的商家；可点「分类」栏改成其他分类。取消勾选或选「（不分）」就不套用。</value>
+  </data>
+  <data name="Account_Title" xml:space="preserve">
+    <value>账户管理</value>
+  </data>
+  <data name="Account_Add" xml:space="preserve">
+    <value>＋ 新增账户</value>
+  </data>
+  <data name="Account_RateHintCCY" xml:space="preserve">
+    <value>1 个外币 = 多少{0}。留空 = 故意不折算（那个账户就不进净资产）</value>
+  </data>
+  <data name="Account_IssuerHint" xml:space="preserve">
+    <value>联邦商银 / 台湾电力公司 / JKO Pay…</value>
+  </data>
+  <data name="Account_MaskHint" xml:space="preserve">
+    <value>账号或卡号末几位</value>
+  </data>
+  <data name="Account_OpeningHint" xml:space="preserve">
+    <value>开始记账那天有多少钱；卡的期初通常是 0，欠钱靠交易累成负数</value>
+  </data>
+  <data name="Account_Count" xml:space="preserve">
+    <value>余额盘点…</value>
+  </data>
+  <data name="Account_Col_Issuer" xml:space="preserve">
+    <value>发行机构</value>
+  </data>
+  <data name="Account_Col_Mask" xml:space="preserve">
+    <value>末几位</value>
+  </data>
+  <data name="Account_Col_OpeningBalance" xml:space="preserve">
+    <value>期初余额</value>
+  </data>
+  <data name="Account_Col_OpeningDate" xml:space="preserve">
+    <value>期初日期</value>
+  </data>
+  <data name="Account_Col_CreditLimit" xml:space="preserve">
+    <value>信用额度</value>
+  </data>
+  <data name="Account_Col_AutoPay" xml:space="preserve">
+    <value>自动扣缴</value>
+  </data>
+  <data name="Account_Col_Rate" xml:space="preserve">
+    <value>汇率</value>
+  </data>
+  <data name="Account_RateLabel" xml:space="preserve">
+    <value>汇率（1 {0} = ? {1}）</value>
+  </data>
+  <data name="Account_NewHint" xml:space="preserve">
+    <value>新账户：填好按「保存」。现金/钱包没有 PDF，只能从这里建。</value>
+  </data>
+  <data name="Account_DerivedBalance" xml:space="preserve">
+    <value>系统推导余额 {0} {1}</value>
+  </data>
+  <data name="Account_LastCount" xml:space="preserve">
+    <value>　｜　最近盘点 {0}（{1}）</value>
+  </data>
+  <data name="Account_NeverCounted" xml:space="preserve">
+    <value>　｜　还没盘点过</value>
+  </data>
+  <data name="Account_ArchivedNote" xml:space="preserve">
+    <value>　｜　已归档，不计入净资产</value>
+  </data>
+  <data name="Account_BadOpening" xml:space="preserve">
+    <value>期初余额要是一个数字。</value>
+  </data>
+  <data name="Account_BadLimit" xml:space="preserve">
+    <value>信用额度要是一个数字。</value>
+  </data>
+  <data name="Account_BadRate" xml:space="preserve">
+    <value>汇率要是一个大于 0 的数字（例 32.9）。</value>
+  </data>
+  <data name="Account_CountTitle" xml:space="preserve">
+    <value>余额盘点 — {0}</value>
+  </data>
+  <data name="Account_CountDerived" xml:space="preserve">
+    <value>系统从交易算出来的是 {0} {1}。</value>
+  </data>
+  <data name="Account_CountHint" xml:space="preserve">
+    <value>对不上通常不是算错，是漏了交易或期初填错。</value>
+  </data>
+  <data name="Account_Counted" xml:space="preserve">
+    <value>我实际有</value>
+  </data>
+  <data name="Account_CountDate" xml:space="preserve">
+    <value>盘点日期</value>
+  </data>
+  <data name="Account_BadCount" xml:space="preserve">
+    <value>余额要是一个数字。</value>
+  </data>
+  <data name="Account_BadCountDate" xml:space="preserve">
+    <value>日期要用 yyyy/MM/dd。</value>
+  </data>
+  <data name="Account_CountDiff" xml:space="preserve">
+    <value>盘点 {0}，交易累加 {1}，差 {2}。
+
+</value>
+  </data>
+  <data name="Account_CountAsk" xml:space="preserve">
+    <value>要记一笔调整把差额补齐吗？（选「否」就只留快照，主页底部会把它列成余额不符）</value>
+  </data>
+  <data name="Account_CountCaption" xml:space="preserve">
+    <value>余额盘点</value>
+  </data>
+  <data name="Account_AdjustKind" xml:space="preserve">
+    <value>盘点调整</value>
+  </data>
+  <data name="Ccy_Title" xml:space="preserve">
+    <value>币别与汇率</value>
+  </data>
+  <data name="Ccy_Base" xml:space="preserve">
+    <value>基准货币</value>
+  </data>
+  <data name="Ccy_BaseHint" xml:space="preserve">
+    <value>净资产、每月总资产都用这种币表达</value>
+  </data>
+  <data name="Ccy_CodeHint" xml:space="preserve">
+    <value>例 USD</value>
+  </data>
+  <data name="Ccy_RateHint" xml:space="preserve">
+    <value>1 个上面那个币 = ? 个基准货币</value>
+  </data>
+  <data name="Ccy_ProxyHint" xml:space="preserve">
+    <value>例 http://10.191.190.5:3128；空白 = 直连（公司网直连会连不出去）</value>
+  </data>
+  <data name="Ccy_PairHint" xml:space="preserve">
+    <value>汇率是「1 个外币 = ? 基准货币」，存的是币对，所以换基准币不会弄脏既有汇率。</value>
+  </data>
+  <data name="Ccy_Dictionary" xml:space="preserve">
+    <value>币别字典</value>
+  </data>
+  <data name="Ccy_Rates" xml:space="preserve">
+    <value>汇率</value>
+  </data>
+  <data name="Ccy_BaseChanged" xml:space="preserve">
+    <value>基准货币改成 {0}；没汇率的账户会暂时不计入净资产（不瞎算 1:1）。</value>
+  </data>
+  <data name="Ccy_ReportCcy" xml:space="preserve">
+    <value>报表用币别</value>
+  </data>
+  <data name="Ccy_BaseNote" xml:space="preserve">
+    <value>　基准货币只是报表口径，汇率存的是币对，所以改它不会弄脏既有数字</value>
+  </data>
+  <data name="Ccy_Aliases" xml:space="preserve">
+    <value>别名（导入用的原文）</value>
+  </data>
+  <data name="Ccy_AliasHint" xml:space="preserve">
+    <value>导入时单子上写的原文，用 | 分隔</value>
+  </data>
+  <data name="Ccy_SaveCurrency" xml:space="preserve">
+    <value>保存币别</value>
+  </data>
+  <data name="Ccy_Saved" xml:space="preserve">
+    <value>币别 {0} 保存好了。</value>
+  </data>
+  <data name="Ccy_Label_Name" xml:space="preserve">
+    <value> 名称</value>
+  </data>
+  <data name="Ccy_Label_Scale" xml:space="preserve">
+    <value> 小数位</value>
+  </data>
+  <data name="Ccy_Label_Alias" xml:space="preserve">
+    <value> 别名</value>
+  </data>
+  <data name="Ccy_Col_From" xml:space="preserve">
+    <value>外币</value>
+  </data>
+  <data name="Ccy_Col_To" xml:space="preserve">
+    <value>→ 基准货币</value>
+  </data>
+  <data name="Ccy_Col_RateDate" xml:space="preserve">
+    <value>报价日期</value>
+  </data>
+  <data name="Ccy_Manual" xml:space="preserve">
+    <value>人工填</value>
+  </data>
+  <data name="Ccy_ClearRateHint" xml:space="preserve">
+    <value>留空并选一行后按它 = 故意不折算（那个账户就不进净资产）</value>
+  </data>
+  <data name="Ccy_BadRate" xml:space="preserve">
+    <value>汇率要是一个大于 0 的数字（例 32.9），或留空当做不折算。</value>
+  </data>
+  <data name="Ccy_RateSaved" xml:space="preserve">
+    <value>{0} → {1} 记好了。</value>
+  </data>
+  <data name="Ccy_Fetch" xml:space="preserve">
+    <value>抓汇率（账户用得到的币对）</value>
+  </data>
+  <data name="Ccy_Fetching" xml:space="preserve">
+    <value>抓汇率中…</value>
+  </data>
+  <data name="Ccy_FetchOk" xml:space="preserve">
+    <value>更新了 {0} 个币对。</value>
+  </data>
+  <data name="Ccy_FetchPartial" xml:space="preserve">
+    <value>更新 {0} 个；</value>
+  </data>
+  <data name="Ccy_Test" xml:space="preserve">
+    <value>测试连接</value>
+  </data>
+  <data name="Ccy_TestHint" xml:space="preserve">
+    <value>打一个币对看回什么（200/429/404/连不出去）</value>
+  </data>
+  <data name="Ccy_Testing" xml:space="preserve">
+    <value>测试中…</value>
+  </data>
+  <data name="Ccy_Split" xml:space="preserve">
+    <value>把币别不符的行拆到对的账户</value>
+  </data>
+  <data name="Ccy_SplitHint" xml:space="preserve">
+    <value>旧数据：美元行直接倒进新台币账户时用（那些金额会按新台币进净资产）</value>
+  </data>
+  <data name="Ccy_SplitNone" xml:space="preserve">
+    <value>没有币别跟账户不一样的行。</value>
+  </data>
+  <data name="Ccy_SplitDone" xml:space="preserve">
+    <value>搬了 {0} 笔到各自币别的账户（对不上就从备份还原 data\backups）。</value>
+  </data>
+  <data name="Store_Status_Settled" xml:space="preserve">
+    <value>核销</value>
+  </data>
+  <data name="Store_Status_Pending" xml:space="preserve">
+    <value>待补</value>
+  </data>
+  <data name="Store_Status_NotYet" xml:space="preserve">
+    <value>未发生</value>
+  </data>
+  <data name="Store_Status_Ignored" xml:space="preserve">
+    <value>忽略</value>
+  </data>
+  <data name="Store_Status_Duplicate" xml:space="preserve">
+    <value>重复</value>
+  </data>
+  <data name="Store_BalanceForeign" xml:space="preserve">
+    <value>　⚠ 含 {0} 笔币别不符的行（已按账户币别算）</value>
+  </data>
+  <data name="Store_Unconverted" xml:space="preserve">
+    <value>未折算（{0} → {1} 没有汇率）</value>
+  </data>
+  <data name="Store_Group_Bank" xml:space="preserve">
+    <value>银行</value>
+  </data>
+  <data name="Store_Group_Card" xml:space="preserve">
+    <value>信用卡</value>
+  </data>
+  <data name="Store_Group_Other" xml:space="preserve">
+    <value>其它</value>
+  </data>
+  <data name="Store_Type_Cash" xml:space="preserve">
+    <value>现金</value>
+  </data>
+  <data name="Store_Type_Bank" xml:space="preserve">
+    <value>银行</value>
+  </data>
+  <data name="Store_Type_Wallet" xml:space="preserve">
+    <value>钱包</value>
+  </data>
+  <data name="Store_Type_Card" xml:space="preserve">
+    <value>信用卡</value>
+  </data>
+  <data name="Store_Type_Deposit" xml:space="preserve">
+    <value>定存</value>
+  </data>
+  <data name="Store_Type_Investment" xml:space="preserve">
+    <value>投资</value>
+  </data>
+  <data name="Store_Type_Loan" xml:space="preserve">
+    <value>贷款</value>
+  </data>
+  <data name="Store_Type_Asset" xml:space="preserve">
+    <value>资产</value>
+  </data>
+  <data name="Store_ArchivedSuffix" xml:space="preserve">
+    <value>　（已归档）</value>
+  </data>
+  <data name="Store_BadCurrencyCode" xml:space="preserve">
+    <value>代码要用三个英文大写字母（例 USD）。</value>
+  </data>
+  <data name="Store_BadScale" xml:space="preserve">
+    <value>显示小数位只能 0–4。</value>
+  </data>
+  <data name="Store_Stale" xml:space="preserve">
+    <value>⚠ 超过 {0} 天没更新</value>
+  </data>
+  <data name="Store_BadParent" xml:space="preserve">
+    <value>父分类必须是同方向的既有分类。</value>
+  </data>
+  <data name="Store_NeedCategoryName" xml:space="preserve">
+    <value>分类要取名字。</value>
+  </data>
+  <data name="Store_CategoryNotFound" xml:space="preserve">
+    <value>找不到这个分类。</value>
+  </data>
+  <data name="Store_DuplicateCategory" xml:space="preserve">
+    <value>已经有叫「{0}」的{1}分类了。</value>
+  </data>
+  <data name="Store_NeedAccountName" xml:space="preserve">
+    <value>账户要取名字。</value>
+  </data>
+  <data name="Store_UnknownType" xml:space="preserve">
+    <value>不认识的账户类型：{0}</value>
+  </data>
+  <data name="Store_NeedCurrency" xml:space="preserve">
+    <value>要选币别。</value>
+  </data>
+  <data name="Store_BadOpeningDate" xml:space="preserve">
+    <value>期初日期要用 yyyy/MM/dd。</value>
+  </data>
+  <data name="Store_BadAutoPay" xml:space="preserve">
+    <value>自动扣缴账户不存在（也不能是自己）。</value>
+  </data>
+  <data name="Store_DuplicateAccount" xml:space="preserve">
+    <value>已经有叫「{0}」的账户了（归档中的也算）。</value>
+  </data>
+  <data name="Store_NoAccountSelected" xml:space="preserve">
+    <value>还没选账户，无法保存（要新建按「新增」）。</value>
+  </data>
+  <data name="Store_BadCountDate" xml:space="preserve">
+    <value>盘点日期要用 yyyy/MM/dd。</value>
+  </data>
+  <data name="Store_Unnamed" xml:space="preserve">
+    <value>(未命名)</value>
+  </data>
+  <data name="Store_NotLeafCategory" xml:space="preserve">
+    <value>分类只能标到最底层：请选它的子分类（要拆子分类到「工具 → 分类…」）。</value>
+  </data>
+  <data name="Store_UnknownStatus" xml:space="preserve">
+    <value>不认识的状态：{0}</value>
+  </data>
+  <data name="Store_UnknownKind" xml:space="preserve">
+    <value>不认识的种类：{0}</value>
+  </data>
+  <data name="Store_AmountPositive" xml:space="preserve">
+    <value>金额要比 0 大（退款用 refund，调整用 adjustment）</value>
+  </data>
+  <data name="Store_AmountNonZero" xml:space="preserve">
+    <value>金额不准是 0</value>
+  </data>
+  <data name="Store_TransferTarget" xml:space="preserve">
+    <value>转账要选「转入账户」，而且不能跟转出账户相同</value>
+  </data>
+  <data name="Store_TransferNoCategory" xml:space="preserve">
+    <value>转账不准有分类</value>
+  </data>
+  <data name="Store_NotConvertedShort" xml:space="preserve">
+    <value>未折算</value>
+  </data>
+  <data name="Rate_NoConnect" xml:space="preserve">
+    <value>连不出去：{0}（proxy 要不要填？）</value>
+  </data>
+  <data name="Rate_NotJson" xml:space="preserve">
+    <value>响应不是 JSON：{0}</value>
+  </data>
+  <data name="Rate_NotFoundDetail" xml:space="preserve">
+    <value>找不到 {0}→{1}（{2}）</value>
+  </data>
+  <data name="Rate_NoQuote" xml:space="preserve">
+    <value>找不到 {0}→{1} 的报价</value>
+  </data>
+  <data name="Rate_NoLive" xml:space="preserve">
+    <value>{0}→{1} 没有即时价（市场没开或符号不对）</value>
+  </data>
+  <data name="Rate_WrongCcy" xml:space="preserve">
+    <value>{0}→{1} 回的是 {2} 的价，对不上，不敢写进去</value>
+  </data>
+  <data name="Imp_Skipped" xml:space="preserve">
+    <value>{0}：跳过 — {1}</value>
+  </data>
+  <data name="Imp_Line" xml:space="preserve">
+    <value>{0}：{1} {2} 新增 {3} 笔、更新 {4} 笔</value>
+  </data>
+  <data name="Imp_SkippedZero" xml:space="preserve">
+    <value>（跳过 {0} 笔 0 元）</value>
+  </data>
+  <data name="Imp_AutoCreated" xml:space="preserve">
+    <value>，自动建账户 {0} 个</value>
+  </data>
+    <data name="Home_CardBillLabel" xml:space="preserve">
+    <value>信用卡账单</value>
+  </data>
+  <data name="Imp_SeenSeparator" xml:space="preserve">
+    <value> 自 </value>
+  </data>
+<data name="Imp_DuplicateFile" xml:space="preserve">
+    <value>同一份文件已导入过（{0}）</value>
+  </data>
+  <data name="Imp_NoDate" xml:space="preserve">
+    <value>有一笔拿不到消费日（{0} {1}），先留空等人补。</value>
+  </data>
+  <data name="Imp_NegativeRows" xml:space="preserve">
+    <value>有负额行先当 refund；其中可能是缴款行，要等 parser 拆出「缴款/消费」后改记 transfer。</value>
+  </data>
+  <data name="Imp_Superseded" xml:space="preserve">
+    <value>取代 {0} 份旧的同账期导入</value>
+  </data>
+  <data name="Imp_NoPassword" xml:space="preserve">
+    <value>(无密码)</value>
+  </data>
+  <data name="Imp_BadPassword" xml:space="preserve">
+    <value>密码不对或这份 PDF 打不开（试过 {0} 组：{1}）</value>
+  </data>
+  <data name="Imp_UnknownIssuer" xml:space="preserve">
+    <value>(未识别发卡方)</value>
+  </data>
+  <data name="Imp_AutoCreatedAccount" xml:space="preserve">
+    <value>自动建立账户，请确认是不是既有账户。</value>
+  </data>
+  <data name="Imp_NoBankAccount" xml:space="preserve">
+    <value>还没有任何银行账户，缴费单先记到新的现金账户（之后可在设置改默认付款账户）。</value>
+  </data>
+  <data name="Imp_CurrencyUnmatched" xml:space="preserve">
+    <value>币别「{0}」对不到代码，先按基准币 {1} 记；请在「工具→币别…」补别名，或自己改这一行。</value>
+  </data>
+  <data name="Imp_CurrencyCreated" xml:space="preserve">
+    <value>第一次看到币别 {0}，先以 2 位小数建立，显示位数之后可在「币别…」改。</value>
+  </data>
+  <data name="Imp_NoStatementEnd" xml:space="preserve">
+    <value>拿不到账期结束日，这份信用卡账单不建账单记录。</value>
+  </data>
+  <data name="Store_CurrencyLocked" xml:space="preserve">
+    <value>该账户已有 {0} 笔交易，不能修改币种 —— 旧交易会被当成另一种货币再乘一次汇率，净值会整个错。要换币种请新建账户，再把旧的归档。</value>
+  </data>
+  <data name="Store_TypeLocked" xml:space="preserve">
+    <value>该账户已有 {0} 笔交易，不能修改类型 —— 类型决定它在净值、疑似重复与自动扣缴里怎么算。请新建账户，再把旧的归档。</value>
+  </data>
+  <data name="Home_MarkPaid" xml:space="preserve">
+    <value>已缴</value>
+  </data>
+  <data name="Home_MarkPaidHint" xml:space="preserve">
+    <value>这张账单已缴清（默认全额）：按下后不再计入“卡未缴”与“未来账单”</value>
+  </data>
+  <data name="Imp_Identifying" xml:space="preserve">
+    <value>辨识中：{0}</value>
+  </data>
+</root>

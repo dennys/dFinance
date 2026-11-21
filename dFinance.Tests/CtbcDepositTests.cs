@@ -14,8 +14,8 @@ public class CtbcDepositTests
     [Fact]
     public void 期間與帳號讀得到()
     {
-        if (!Samples.OcrReady) return;
-        var s = Samples.Parse(Statement); if (s is null) return;
+        Samples.RequireOcr();
+        var s = Samples.Parse(Statement);
 
         Assert.Equal("中國信託商業銀行", s.Issuer);
         Assert.Equal("CtbcDepositParser", s.Parser);
@@ -27,8 +27,8 @@ public class CtbcDepositTests
     [Fact]
     public void 存入與支出分得對_幣別是台幣()
     {
-        if (!Samples.OcrReady) return;
-        var s = Samples.Parse(Statement); if (s is null) return;
+        Samples.RequireOcr();
+        var s = Samples.Parse(Statement);
 
         Assert.Equal(3, s.Transactions.Count);
         Assert.Equal(new[] { 500m, 500m, -1000m }, s.Transactions.Select(t => t.Amount).ToArray());
@@ -40,8 +40,8 @@ public class CtbcDepositTests
     [Fact]
     public void 上期結餘加本期交易要等於單子上的期末餘額()
     {
-        if (!Samples.OcrReady) return;
-        var s = Samples.Parse(Statement); if (s is null) return;
+        Samples.RequireOcr();
+        var s = Samples.Parse(Statement);
 
         // 上期結餘 0 + 500 + 500 - 1,000 = 0 = 單子上的餘額；對不上就會出現這條警告。
         Assert.DoesNotContain(s.Warnings, w => w.Contains("期末餘額"));

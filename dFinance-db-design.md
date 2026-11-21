@@ -16,12 +16,15 @@
 |---|---|---|
 | DBMS | SQLite（`Microsoft.Data.Sqlite` 10.0.15，內含原生引擎 3.53.3） | 單機單人、零安裝、可用 `BackupDatabase` 備份 |
 | 錢 | **全部 `INTEGER`，結尾一律 `_minor`，帳本單位 = 1/100 元** | SQLite 只有 INTEGER/REAL/TEXT/BLOB。REAL 會飄；TEXT 存小數時 SQL 端 `SUM()` 仍會轉 REAL、而且 `WHERE amount > x` 變成字典序比較。只有整數同時滿足「SQL 聚合精確」與「金額可篩可排」 |
-| 投資數量/單價 | 另用 `_minor` scale = 10^8 | 股數要八位小數，跟帳本的 1/100 不能共用 |
+| 投資數量/單價 | 另用 `_minor` scale = 10^8（**尚未實作**：投資三表還在 TODO，`Money.cs` 裡先不擺沒人用的換算，做的時候再補） | 股數要八位小數，跟帳本的 1/100 不能共用 |
 | 換算位置 | 只能出現在 `dFinance.Data/Money.cs` | parser 持續用 `decimal`，進出 DB 才轉換，避免 ×100 散落各處 |
 | 貨幣小數位 | `currency.scale` **只影響顯示**（讀它的是 `Money.Format`），儲存統一 1/100 | 否則跨幣 `SUM(amount_minor)` 會因各幣位數不同而錯；美金也不會被顯示成整數 |
 | 基準幣 | 存 `settings.base_currency`（預設 TWD）；匯率存在幣對上、不依賴它 | 換基準幣只是換報表口徑，不會弄髒既有匯率，也不用改表 |
 | 一個帳戶一種幣別 | 匯入時帳戶鍵值 = `(issuer, mask, type, currency)` | 否則 1,250,000 日圓會照台幣進淨值（舊資料有「拆到對的帳戶」按鈕可搬） |
-| 國際化 | **延後**：UI 繁中寫死、日期要收民國年、`IssuerNames` 是台灣銀行清單 | 這期只求「錢與幣別層通用」；非台灣銀行本來就沒 parser，文件層靠手動記帳 |
+| 國際化 | **UI 文字已走 resx**（預設繁中 + en-US / zh-CN / ja-JP，執行期可切，見 `LOCALIZATION.md`）；
+  語系存 `settings.ui_language`（跟資料庫走，不用 AppData）。但**日期仍存 `yyyy-MM-dd`、不收民國年**（民國年只在
+  parser 內部換算），`IssuerNames` 是台灣銀行清單（那是資料不是文案） | 換語系不用重開程式，也不用為每個語言開一份 ResourceDictionary；
+  但錢與日期格式不跟著語系走（`Money.Format` 固定 invariant，`CurrentCulture` 不碰），否則逗號小數點的語系會把金額搞錯 |
 | 日期 | `TEXT`，格式 `yyyy-MM-dd` | 可字串排序、可用 `date()` 系列函式。C# 端用 `DateOnly`，provider 本來就存這個格式 |
 | 日期缺失 | **留 NULL，不准塞 `0001-01-01`** | 並把該列 `status` 留 `imported` 等人補。舊程式碼用 `DateOnly` 預設值，進 DB 就會憑空多一筆 |
 | 布林 | `INTEGER` + `CHECK (x IN (0,1))` | SQLite 沒有 BOOLEAN |

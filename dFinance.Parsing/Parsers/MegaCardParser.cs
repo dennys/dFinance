@@ -40,7 +40,15 @@ public sealed class MegaCardParser : IStatementParser
             return;
         }
 
-        WordBox Lbl(string text) => header.Words.First(w => w.Text == text);
+        // 表頭少一個欄位名就整份丢例外（.First()）會害整個檔案一筆都進不去；改成記警告、這份不拆明細。
+        string[] need = ["消費日", "入帳起息日", "地區", "兌換日", "台幣金額"];
+        var missing = header.MissingLabels(need);
+        if (missing.Length > 0)
+        {
+            s.Warnings.Add($"消費明細表頭少了欄位（缺 {missing}），這份不拆明細。");
+            return;
+        }
+        WordBox Lbl(string text) => header.Label(text)!;                       // 上面查過了
         var dateCol = Lbl("消費日");
         var postCol = Lbl("入帳起息日");
         double merchantLeft = postCol.Right, merchantRight = Lbl("地區").Left;
@@ -48,7 +56,7 @@ public sealed class MegaCardParser : IStatementParser
         var amountCol = Lbl("台幣金額");
 
         string card = "";
-        foreach (var row in data.Rows.Where(r => r.Top < header.Top).OrderBy(r => r.Page).ThenByDescending(r => r.Top))
+        foreach (var row in StatementTable.DetailRows(data, header))
         {
             var joined = Row.Join(row.Words);
             var tight = joined.Replace(" ", "");

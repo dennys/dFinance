@@ -43,15 +43,20 @@ public sealed class CtbcCardParser : IStatementParser
                                                && r.Words.Any(w => w.Text.Contains("台幣金額")));
         if (header is null) { s.Warnings.Add("找不到消費明細表頭（消費日/台幣金額）—— OCR 沒跑到或版面不同。"); return; }
 
-        var dateCol = header.Words.First(w => w.Text.Contains("消費日"));
-        var postCol = header.Words.First(w => w.Text.Contains("入帳"));
-        var amountCol = header.Words.First(w => w.Text.Contains("台幣金額"));
-        var cardCol = header.Words.FirstOrDefault(w => w.Text.Contains("卡號"));
+        // 表頭關鍵字是 OCR 讀的，比對要寬（.First() 找不到就丢例外 → 整份匯不進去）。
+        var dateCol = header.LabelLike("消費日");
+        var postCol = header.LabelLike("入帳");
+        var amountCol = header.LabelLike("台幣金額");
+        if (dateCol is null || postCol is null || amountCol is null)
+        {
+            s.Warnings.Add($"消費明細表頭少了欄位（缺 {header.MissingLabelsLike("消費日", "入帳", "台幣金額")}）—— OCR 沒跑到或版面不同。");
+            return;
+        }
+        var cardCol = header.LabelLike("卡號");
         double merchantLeft = postCol.Right, merchantRight = amountCol.Left;
 
         var seen = new HashSet<(DateOnly, decimal)>();       // 同一筆常被文字層列和 OCR 列各算一次
-        foreach (var row in data.Rows.Where(r => r.Page == header.Page && r.Top < header.Top)
-                                     .OrderByDescending(r => r.Top))
+        foreach (var row in StatementTable.DetailRows(data, header))
         {
             var text = row.Words.Where(w => !w.FromOcr).ToList();
             var ocr = row.Words.Where(w => w.FromOcr).ToList();

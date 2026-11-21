@@ -41,14 +41,19 @@ public sealed class FubonCardParser : IStatementParser
             return;
         }
 
-        WordBox Lbl(string text) => header.Words.First(w => w.Text == text);
-        var dateCol = Lbl("消費日期");
-        var postCol = Lbl("入帳日期");
-        var currCol = Lbl("外幣折算日/幣別");
-        var amountCol = Lbl("台幣金額");
+        var dateCol = header.Label("消費日期");
+        var postCol = header.Label("入帳日期");
+        var currCol = header.Label("外幣折算日/幣別");
+        var amountCol = header.Label("台幣金額");
+        if (dateCol is null || postCol is null || currCol is null || amountCol is null)
+        {
+            // 銀行改一個欄位名就丢例外（.First()）會讓整份檔案一筆都進不去；照其他 parser 的做法：記警告、這份不拆明細。
+            s.Warnings.Add($"消費明細表頭少了欄位（缺 {header.MissingLabels("消費日期", "入帳日期", "外幣折算日/幣別", "台幣金額")}），這份不拆明細。");
+            return;
+        }
 
         string card = "";
-        foreach (var row in data.Rows.Where(r => r.Top < header.Top).OrderBy(r => r.Page).ThenByDescending(r => r.Top))
+        foreach (var row in StatementTable.DetailRows(data, header))
         {
             var joined = Row.Join(row.Words);
             if (SkipWords.Any(joined.Contains)) continue;

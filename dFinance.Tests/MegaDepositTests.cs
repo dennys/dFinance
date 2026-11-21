@@ -15,7 +15,7 @@ public class MegaDepositTests
     [Fact]
     public void 交易列解析出日期_金額_符號與摘要()
     {
-        var s = Samples.Parse(Main); if (s is null) return;
+        var s = Samples.Parse(Main);
 
         Assert.Equal("兆豐國際商業銀行", s.Issuer);
         Assert.Equal("MegaDepositParser", s.Parser);
@@ -33,7 +33,7 @@ public class MegaDepositTests
     [Fact]
     public void 一份單子有多個帳號時逐列帶帳號()
     {
-        var s = Samples.Parse(Main); if (s is null) return;
+        var s = Samples.Parse(Main);
 
         // 交易最多的那個帳號當整份單子的帳號（帳戶總覽裡另外兩個帳號本月無交易）
         Assert.Equal("02010660350", s.AccountMask);
@@ -48,7 +48,7 @@ public class MegaDepositTests
     [Fact]
     public void 交易累加對得上單子印的餘額()
     {
-        var s = Samples.Parse(Main); if (s is null) return;
+        var s = Samples.Parse(Main);
 
         // 02010660350：115/09 月底餘額 16,254 → 10/30 最後一列餘額 10,924（餘額欄還沒建模，先用它驗解析有沒有漏列）
         Assert.Equal(10924m, 16254m + s.Transactions.Where(t => t.Account == "02010660350").Sum(t => t.Amount));
@@ -57,7 +57,7 @@ public class MegaDepositTests
     [Fact]
     public void 說明列與餘額列不當成交易()
     {
-        var s = Samples.Parse(Main); if (s is null) return;
+        var s = Samples.Parse(Main);
 
         Assert.DoesNotContain(s.Transactions, t => t.Merchant.Contains("月底餘額") || t.Merchant.Contains("無交易明細"));
         Assert.Contains(s.Warnings, w => w.Contains("餘額欄"));
@@ -66,7 +66,7 @@ public class MegaDepositTests
     [Fact]
     public void 外幣帳戶列帶對幣別且不混入台幣對照額()
     {
-        var s = Samples.Parse(Foreign); if (s is null) return;
+        var s = Samples.Parse(Foreign);
 
         Assert.Equal(4, s.Transactions.Count(t => t.Currency == "美金"));
         Assert.Equal(3, s.Transactions.Count(t => t.Currency == "日圓"));

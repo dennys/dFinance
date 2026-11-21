@@ -7,7 +7,6 @@ public sealed class FederalCardParser : IStatementParser
 {
     private static readonly Regex RocDate = new(@"^(\d{3})/(\d{1,2})/(\d{1,2})$", RegexOptions.Compiled);
     private static readonly Regex MmDd = new(@"^(\d{1,2})/(\d{1,2})$", RegexOptions.Compiled);
-    private static readonly Regex Money = new(@"^-?(\d{1,3}(,\d{3})*|\d+)(\.\d+)?$", RegexOptions.Compiled);
     private static readonly Regex Masked = new(@"/([0-9X]{6,}X)", RegexOptions.Compiled);
 
     // shortcut: 聯邦帳單的欄位標籤（本期應繳金額…）是圖片，沒有文字層，所以欄位只能靠 X/Y 位置對位。
@@ -104,9 +103,10 @@ public sealed class FederalCardParser : IStatementParser
         }
     }
 
-    private static bool IsMoney(WordBox w) => Money.IsMatch(w.Text);
+    // 金額/日期規則一律走 PdfText（之前這裡自己寫一份只收 ASCII 減號，負額列會靜靜漏掉）。
+    private static bool IsMoney(WordBox w) => PdfText.IsMoney(w.Text);
 
-    private static decimal ToDecimal(string text) => decimal.Parse(text.Replace(",", ""));
+    private static decimal ToDecimal(string text) => PdfText.ToDecimal(text) ?? 0m;
 
     private static DateOnly? ToDate(string roc)
     {

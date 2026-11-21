@@ -29,6 +29,9 @@ dotnet test                # 83 個測試
 6. **幣別與匯率**（功能表「工具 → 幣別…」）：選基準幣（淨值與每月總資產都用它表達）、維護幣別字典
    （顯示小數位與匯入用的別名「美金|美元」）、看匯率表（幣對/報價日期/來源/過期 ⚠）、
    **人工填**或按「抓匯率」從 Yahoo 抓（要連網，公司網先填 proxy），另有「測試連線」跟「把幣別不符的列拆到對的帳戶」。
+7. **語言**（功能表「工具 → 語言…」）：繁體中文 / English / 简体中文 / 日本語，**選了立刻換，不用重開程式**。
+   文字在 `dFinance.Data/Localization/Strings*.resx`（四語齊全、有測試在擋），選好的語言存進
+   `settings.ui_language`（跟資料庫走，不寫 AppData）。開發者要看的細節：[LOCALIZATION.md](LOCALIZATION.md)。
 
 資料落在 `data\`（`dfinance.db` + `documents\` 留底 + `backups\` 自動留 5 份）。
 位置解析順序：環境變數 `DFINANCE_DATA` → repo 根 `data\` → exe 旁邊 `data\`（發佈後就是自帶資料）。已 gitignore。
@@ -139,7 +142,10 @@ UI 不讀 `.env`：UI 一定要你親手打密碼。
 
 ## 已知限制
 
-- 沒做 OCR 與 LLM，⛔ 那三份無解。
+- 介面有四種語言，但**譯稿是程式寫的，沒給母語人士校過**（尤其 en/ja 的講法）。缺譯不會報錯 ——
+  會悄悄退回繁體中文，只能靠 `dotnet test` 的 `LocalizationTests` 與 `--uismoke` 抓。
+  語言只換文字：金額與日期格式不跟著語系走（`Money.Format` 固定不變 culture）。
+- OCR 只做圖片式帳單（見「OCR」那一節）；不做 LLM。⛔ 渣打那兩份不做（文字層是亂碼）。
 - 卡片帳單的「本期應繳」與消費合計常差在繳款/退款列 —— 這是對的，parser 會警告而不是偷改數字。
 - 存款單的餘額欄、帳戶概要、股票/基金資產都還沒建模（見 TODO）。
 - **繳款列還沒拆成 `transfer`**（parser 只有 `charge`/`credit`）：繳款只落在卡那一側、銀行端沒扣，
@@ -188,4 +194,6 @@ powershell -ExecutionPolicy Bypass -File devcheck/smoke.ps1 -Configuration Relea
 powershell -ExecutionPolicy Bypass -File devcheck/uicheck.ps1 -ProcessId <pid> -PdfPath <pdf> -Password <密碼>
 ```
 
-下一步與缺的檔案記在 [TODO.md](TODO.md)。
+下一步與缺的檔案記在 [TODO.md](TODO.md)；走過什麼記在 [CHANGELOG.md](CHANGELOG.md)；
+改到介面文字請先讀 [LOCALIZATION.md](LOCALIZATION.md)（不准用 `{x:Static}` 取字串、
+code 裡硬編中文切語言不會更新）。
