@@ -685,6 +685,8 @@ public sealed class LedgerStore
         }
 
         // 只算到 as_of 當天（含）；日期不明的当成早就在帳上，不然會從快照裡漏算。
+        // shortcut: 每個快照跑一次查詢（N = 有快照的帳戶數），帳戶數上到幾百才會感覺；
+        //           要改就把 as_of 当欄一起塞回一條 GROUP BY 的 SQL。
         var through = $"(CASE WHEN txn_date IS NOT NULL THEN txn_date ELSE ifnull(posting_date,'{Undated}') END) <= $asof";
         foreach (var (id, name, balance, source, asOf) in snapshots)
             if (Db.Scalar(_db, $"SELECT bal FROM ({DerivedCore(through)}) WHERE id=$id;",
