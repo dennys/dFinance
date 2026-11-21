@@ -68,6 +68,13 @@ dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"
 - **重匯時 `edited_at` 有值的列只准更新 `source_raw`/`source_page`**，分類/商家/金額/狀態一個都不動
   （要單欄位重覆蓋得先做欄位級編輯追蹤）。這次沒對到的舊列標 `orphaned_at`，**不准刪**。
 - **同帳期取代與孤兒標記只對信用卡做**（靠 `credit_card_bill` 的 `UNIQUE(card_id, period_end)`）；存款單/繳費單不做取代。
+- **同一筆金錢移動在兩份單子上只准一列**：卡帳的繳款列（落成 `transfer`）與扣款帳戶自己單上的那一筆
+  （「兆豐卡 兆豐銀行」那种）是同一件事，兩份都匯就是那個帳戶被扣兩次（`StatementImporter.PaymentTwin`）。
+  判準要硬：同帳戶、同金額、同幣別、日期差 ≤ 3 天，而且單上文字提得到那張卡；**抓不準照樣插兩筆**讓餘額校驗去報
+  （悄悄少一筆比多一筆嚴重）。改過的列（`edited_at` 有值）不准被自動升成轉帳。
+- **餘額校驗比的是「同一份單子的期初 → 期末」區間差**（`LedgerStore.BalanceMismatches`、`account_balance.document_id` = 0010）：
+  跨單子的兩個快照中間可能根本沒單子，拿去比是假性紅；沒填過期初（`opening_date`/`opening_balance_minor`）的帳戶，
+  第一個單上餘額不硬比（假設期初 0 就是誤報）。人工盤點（`source='manual'`）本来就是说「这天就是这么多」，一律照比。
 - **卡帳對帳用的是「扣掉繳款（轉帳）後的消費合計 ＝ 本期應繳」**（`StatementParser.WarnIfDueMismatch`）：
   對不上就是漏列，要警告，不准為了湊數字改解析結果。現金回饋不是繳款（它直接抵應繳，要留在消費合計裡）。
 - **解析是座標＋關鍵字式，改版會靜靜漏列**：解析到 0 筆一定要進 `Warnings`，不准把警告拿掉讓測試變綠。
@@ -123,6 +130,7 @@ dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"
 - Yahoo 匯率：**不帶 User-Agent 直接 429**；這台機器沒直連路徑，不填 proxy（`settings.rate_proxy_url`）就會
   `The SSL connection could not be established`。驗證走 `devcheck - - --rates http://127.0.0.1:13128`
   （先 `ssh -fNL 13128:10.191.190.5:3128 v5@dgx1`），不要假設跑得起來。
+- `--uismoke` 要先有分類資料（`devcheck - - --autocat`）：未標分類的庫會照「排序後報表空了」fail，那是設計不是壞了。
 - `--uismoke` 已經把「幣別…」視窗也建一次（不 Show、不打網路），改那個視窗壞了會被抓到。
 - `--uismoke` 也會建「建議分類」視窗並跑一次分類報表的展開/排序（`SmokeOpenSuggestDialog`、`SmokeCategoryReport`），壞了會被抓到。
 - **分類帳報表**＝分類樹（列）× 月（欄）：樹、小計、排序、展開的規則都在 `dFinance.Data/PivotTree`（純函式，`PivotTreeTests` 鎖住），
