@@ -74,10 +74,12 @@ entry      帶 source_document_id / source_page / source_raw / source_line_hash 
 - **跳檔案只做「疑似重複」標記**（`LedgerStore.DuplicateGroupKey`：同日＋同額＋同幣別、而且出現在 >1 份檔案，
   只算 `a.type='credit_card'`）：主頁狀態篩選的 `dupgroup` ＋底部警示列按鈕，兩筆都留在帳本裡由人決定。
   判錯最多多一則警告，擋下來是少一筆真交易 —— 這就是兩側一個硬擋、一個只標的理由。
-  **已知代價**（要重複掃單的人要知道）：同一份單據的**同樣 bytes** 再匯一次會被 `document.sha256` 擋掉
-  （「同一份檔案已匯入過」）；但重掃/另存成新檔案 = 不同 sha256，卡帳有跳檔案哈希所以对得到舊列、
-  存款單與繳費單對不到 → **整份存成兩份而且沒有任何警告**（概況與淨值直接雙倍）。
-  要堵這個洞要先有可靠身份（上面的戶號進 `AccountMask`），或用餘額校驗把它照出來（見 TODO b）。
+  **已知代價**（同一張單子第二次取得時要想清楚）：**同樣 bytes** 再匯一次會被 `document.sha256` 擋掉
+  （「同一份檔案已匯入過」）；但這些電子單子是**伺服器即席產生**的 PDF（自來水 e-bill 的 Producer 是
+  `EVO HTML to PDF Converter`、檔名自帶 UUID；台電 e-Bill 是 `PReS Connect` 產單系統），
+  重新下載/補發/e-mail 重寄就可能給出不同 bytes → 不同 sha256，第一關過關。
+  卡帳有跳檔案哈希所以对得到舊列；存款單與繳費單對不到 → **整份存成兩份而且沒有任何警告**（概況與淨值直接雙倍）。
+  要堵這個洞要先有可靠身份（戶號進 `AccountMask`，`BaseHash` 才分得出來）或用餘額校驗把它照出來（見 TODO b）。
 - **重匯規則（同一份帳單的修正版）**：逐列用哈希對旧列 →
   `edited_at IS NULL` → 覆蓋解析欄位；`edited_at` 有值 → **只更新 `source_raw`/`source_page`，分類/商家/狀態/備註一個都不動**；
   這次沒對到的旧列 → 標 `orphaned_at`，**不准刪**（可能只是新版漏解析），UI 要能列出來。

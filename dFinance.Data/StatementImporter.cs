@@ -452,7 +452,8 @@ public sealed class StatementImporter
     /// 存款單與繳費單只在同一份檔案內比 —— 它們沒有可靠身份（戶號/繳費編號現在只在 raw_text 裡），
     /// 跳檔案比會把「同一天同額的兩張不同戶號繳費單」合成一筆：第二筆根本不會被插入，比較嚴重。
     /// 跳檔案的「疑似重複」已由 <see cref="LedgerStore"/> 的 DuplicateGroupKey 只做標記（也只算信用卡）。
-    /// 已知代價：同一份存款/繳費單重掃成新檔案（sha256 不同）會整份存兩份、無警告（細部見 dFinance-db-design.md）。
+    /// 已知代價：同一份存款/繳費單第二次取得（網銀重新下載/補發 —— 這些單子是伺服器即席產生的 PDF，bytes 可能不同）
+    /// 會整份存兩份、無警告（細部見 dFinance-db-design.md）。
     /// </summary>
     long? FindExisting(string hash, long accountId, long docId, StatementKind kind)
     {
