@@ -1163,7 +1163,7 @@
     <value>{0} 期因为没有汇率，未计入合计</value>
   </data>
   <data name="Bill_Unmapped" xml:space="preserve">
-    <value>{0} 行卡账挂不上任何账期</value>
+    <value>{0} 行卡账未计入任何账期（挂不上单或币别不符）</value>
   </data>
   <data name="Bill_ClickTip" xml:space="preserve">
     <value>点一行 = 打开该卡的账本（该期范围）；点“缴销”那格 = 标记已缴/未缴</value>
@@ -1179,5 +1179,11 @@
   </data>
   <data name="Bill_WarnDiff" xml:space="preserve">
     <value>差额</value>
+  </data>
+  <data name="Bill_ForeignPeriod" xml:space="preserve">
+    <value>（币别不符）</value>
+  </data>
+  <data name="Bill_WarnForeign" xml:space="preserve">
+    <value>币别不符</value>
   </data>
 </root>

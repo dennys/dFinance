@@ -1163,7 +1163,7 @@
     <value>{0} 明細は為替レートがないため合計に含めません</value>
   </data>
   <data name="Bill_Unmapped" xml:space="preserve">
-    <value>{0} 件のカード取引がどの明細にも紐付きません</value>
+    <value>{0} 件のカード取引はどの明細にも計上されていません（未紐付けまたは通貨不一致）</value>
   </data>
   <data name="Bill_ClickTip" xml:space="preserve">
     <value>行をクリック = そのカードの帳簿（該当期間）を開く。「納付」欄をクリック = 支払済/未払を切り替えます</value>
@@ -1179,5 +1179,11 @@
   </data>
   <data name="Bill_WarnDiff" xml:space="preserve">
     <value>差額</value>
+  </data>
+  <data name="Bill_ForeignPeriod" xml:space="preserve">
+    <value>（通貨不一致）</value>
+  </data>
+  <data name="Bill_WarnForeign" xml:space="preserve">
+    <value>通貨不一致</value>
   </data>
 </root>

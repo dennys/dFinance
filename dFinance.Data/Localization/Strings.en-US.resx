@@ -1163,7 +1163,7 @@ Mismatches are usually a missing transaction or a wrong opening balance; recount
     <value>{0} statements left out of the total (no exchange rate)</value>
   </data>
   <data name="Bill_Unmapped" xml:space="preserve">
-    <value>{0} card entries are not linked to any statement</value>
+    <value>{0} card entries are not counted in any statement (unlinked or currency mismatch)</value>
   </data>
   <data name="Bill_ClickTip" xml:space="preserve">
     <value>Click a row = open that card's ledger for the period; click the Paid cell = mark paid / unpaid</value>
@@ -1179,5 +1179,11 @@ Mismatches are usually a missing transaction or a wrong opening balance; recount
   </data>
   <data name="Bill_WarnDiff" xml:space="preserve">
     <value>difference</value>
+  </data>
+  <data name="Bill_ForeignPeriod" xml:space="preserve">
+    <value>(currency mismatch)</value>
+  </data>
+  <data name="Bill_WarnForeign" xml:space="preserve">
+    <value>currency mismatch</value>
   </data>
 </root>

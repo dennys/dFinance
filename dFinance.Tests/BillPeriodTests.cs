@@ -243,6 +243,42 @@ public sealed class BillPeriodTests : IDisposable
     }
 
     [Fact]
+    public void 同期有別種幣別的列_應繳不准算兩次_差額也不准跨幣別相減()
+    {
+        var card = Account("富邦卡");
+        var k = Card(card);
+        var bill = Bill(k, "2026-10-31", totalDueMinor: 100_000);      // 單上應繳 1,000 元
+        Entry("expense", card, 60_000, bill);                          // 台幣 600
+        Entry("expense", card, 30_000, bill, currency: "USD");         // 外幣列挂在台幣卡上（舊庫那種）
+
+        var r = _store.BillPeriods();
+        Assert.Equal(100_000, r.TotalDueMinor);                        // 一份帳單的應繳只算一次
+        Assert.Equal(60_000, r.TotalSpendMinor);                       // 幣別不符的不算进這期（不同幣別不准直接加）
+        var row = Assert.Single(r.Rows.Where(x => x.BillId != 0));
+        Assert.Equal(-40_000, row.DiffMinor);                          // 600 − 1000：同幣別才准相減
+        var foreign = Assert.Single(r.Rows.Where(x => x.Foreign));
+        Assert.Equal(30_000, foreign.SpendMinor);
+        Assert.Equal("USD", foreign.Currency);
+        Assert.Equal(1, r.UnmappedEntries);                            // 要看得见：這筆沒算进任何帳期
+    }
+
+    [Fact]
+    public void 拆帳戶把外幣列搬走之後_也不會回頭把該期應繳算兩次()
+    {
+        var card = Account("富邦卡");
+        var k = Card(card);
+        var bill = Bill(k, "2026-10-31", totalDueMinor: 100_000);
+        Entry("expense", card, 60_000, bill);
+        Entry("expense", card, 30_000, bill, currency: "USD");
+        Assert.Equal(1, _store.SplitForeignCurrencyEntries());         // 工具→幣別… 那顆按鈕（bill_id 留著）
+
+        var r = _store.BillPeriods();
+        Assert.Equal(100_000, r.TotalDueMinor);
+        Assert.Equal(60_000, r.TotalSpendMinor);
+        Assert.Contains(r.Rows, x => x.Foreign && x.Currency == "USD");
+    }
+
+    [Fact]
     public void 存款單與繳費單不進這張表()
     {
         var bank = Account("活存", "bank");

@@ -769,14 +769,16 @@ public sealed class LedgerStore
     // ---------------------------------------------------------------- 依帳期彙總（信用卡）
 
     /// <summary>
-    /// 一張列 = 一份信用卡帳單 × 那期裡的一個幣別（混幣別的期拆成兩列：把日圓與美金加在同一列
-    /// 就是憑空多出一種錢）。金額一律<b>照單上的幣別</b>，因為這張表是用來跟紙本帳單對帳的；
+    /// 一張列 = 一份信用卡帳單。只有跟卡帳戶**同幣別**的列才算進那一期：
+    /// 把日圓與台幣加在同一列就是憑空多出一種錢，而且應繳會被算兩次（同一份單出現兩列，每列都扣一次應繳）。
+    /// 幣別不符的列另外走下面那支查詢，以「（幣別不符）」列呈現。
+    /// 金額一律<b>照單上的幣別</b>，因为这张表是用来跟纸本帳單对帐的；
     /// 只有合計列折成基準幣（<see cref="BillPeriodReport.BaseCurrency"/>）。
     /// </summary>
     public sealed record BillPeriod(long BillId, long AccountId, string AccountName, string Currency, int Scale,
                                     string? PeriodStart, string PeriodEnd, string? DueDate,
                                     int Entries, long SpendMinor, long? TotalDueMinor, long? DiffMinor,
-                                    long TransferMinor, string? PaidAt, bool Converted)
+                                    long TransferMinor, string? PaidAt, bool Converted, bool Foreign = false)
     {
         public bool Paid => PaidAt is not null;
         /// <summary>挂不上任何帳單的卡帳列（卡號拿不到時 <c>bill_id</c> 会是 NULL）：不静靜吃掉。</summary>
@@ -785,17 +787,19 @@ public sealed class LedgerStore
         public bool Mismatch => DiffMinor is { } d && d != 0;
         /// <summary>這個幣別完全沒匯率 → 這一期的金額不進合計列，列上要標 ⚠。</summary>
         public bool NeedsRate => !Converted;
-        public string PeriodText => Unmapped ? Loc.T("Bill_NoPeriod")
-                                           : string.IsNullOrEmpty(PeriodStart) ? PeriodEnd : $"{PeriodStart} ~ {PeriodEnd}";
+        public string PeriodText => Foreign ? Loc.T("Bill_ForeignPeriod")
+                             : Unmapped ? Loc.T("Bill_NoPeriod")
+                             : string.IsNullOrEmpty(PeriodStart) ? PeriodEnd : $"{PeriodStart} ~ {PeriodEnd}";
         public string SpendText => Money.Format(SpendMinor, Scale);
         public string TransferText => TransferMinor == 0 ? "" : Money.Format(TransferMinor, Scale);
         public string DueText => TotalDueMinor is { } v ? Money.Format(v, Scale) : "";
         /// <summary>0 顯示 «—»（對上了，不是少一筆）；NULL 留白（單上沒印應繳，沒得比）。</summary>
         public string DiffText => DiffMinor is not { } v ? "" : v == 0 ? "—" : Money.Format(v, Scale);
         public string PaidText => PaidAt is null ? "" : PaidAt[..10];
-        /// <summary>⚠ 那一欄（只靠顏色看不夠）。三種不一樣的「不對」要分得開：
-        /// 對不上（漏解析的候選）、缺匯率（比不了）、挂不上帳期（沒單可對）。</summary>
-        public string MarkText => Unmapped ? "⚠ " + Loc.T("Bill_WarnUnmapped")
+        /// <summary>⚠ 那一欄（只靠顏色看不夠）。四種不一樣的「不對」要分得開：
+        /// 對不上（漏解析的候選）、缺匯率（比不了）、挂不上帳期（沒單可對）、幣別不符（不屬於那一期）。</summary>
+        public string MarkText => Foreign ? "⚠ " + Loc.T("Bill_WarnForeign")
+                             : Unmapped ? "⚠ " + Loc.T("Bill_WarnUnmapped")
                              : NeedsRate ? "⚠ " + Loc.T("Bill_WarnRate")
                              : Mismatch ? "⚠ " + Loc.T("Bill_WarnDiff") : "";
     }
@@ -849,7 +853,7 @@ public sealed class LedgerStore
                                   SUM(CASE WHEN e.kind = 'transfer'  THEN e.amount_minor ELSE 0 END) AS transfers,
                                   COUNT(CASE WHEN e.kind <> 'transfer' THEN 1 END) AS n
                            FROM entry e WHERE {Live} AND e.bill_id IS NOT NULL
-                           GROUP BY e.bill_id, e.currency) g ON g.bill_id = b.id
+                           GROUP BY e.bill_id, e.currency) g ON g.bill_id = b.id AND upper(g.currency) = upper(a.currency)
                 WHERE a.is_archived = 0 AND ($n = 0 OR b.rn <= $n)
                 ORDER BY b.period_end DESC, a.name, ifnull(g.currency, a.currency);
                 """;
@@ -877,7 +881,8 @@ public sealed class LedgerStore
             }
         }
 
-        // 挂不上帳單的卡帳列（卡號被遮、或尚未歸檔的舊列）：footer 要報數，按下去才會把這幾期攤開。
+        // 没算進任何帳期的卡帳列：挂不到單（卡號被遮）、或币別跟帳單帳戶不符（舊庫混进去的、
+        // 或「拆帳戶」把列搬走了但 bill_id 留著 —— 那種准算回原期會讓應繳重計）。footer 要報數。
         var unmapped = new List<BillPeriod>();
         int unmappedEntries = 0;
         using (var cmd = _db.CreateCommand())
@@ -886,10 +891,16 @@ public sealed class LedgerStore
                 SELECT e.account_id, a.name, e.currency,
                        SUM(CASE WHEN e.kind <> 'transfer' THEN e.amount_minor ELSE 0 END) AS spend,
                        SUM(CASE WHEN e.kind = 'transfer'  THEN e.amount_minor ELSE 0 END) AS transfers,
-                       COUNT(CASE WHEN e.kind <> 'transfer' THEN 1 END) AS n
-                FROM entry e JOIN account a ON a.id = e.account_id
-                WHERE {Live} AND e.bill_id IS NULL AND a.type = 'credit_card' AND a.is_archived = 0
-                GROUP BY e.account_id, e.currency
+                       COUNT(CASE WHEN e.kind <> 'transfer' THEN 1 END) AS n,
+                       CASE WHEN e.bill_id IS NULL OR ba.currency IS NULL THEN 1 ELSE 0 END AS loose
+                FROM entry e
+                JOIN account a ON a.id = e.account_id
+                LEFT JOIN credit_card_bill b ON b.id = e.bill_id
+                LEFT JOIN card k ON k.id = b.card_id
+                LEFT JOIN account ba ON ba.id = k.account_id
+                WHERE {Live} AND a.type = 'credit_card' AND a.is_archived = 0
+                  AND (e.bill_id IS NULL OR ba.currency IS NULL OR upper(e.currency) <> upper(ba.currency))
+                GROUP BY e.account_id, e.currency, loose
                 ORDER BY a.name, e.currency;
                 """;
             using var r = cmd.ExecuteReader();
@@ -898,7 +909,8 @@ public sealed class LedgerStore
                 var ccy = Db.NormalizeCurrencyCode(Str(r, 2)!);
                 var row = new BillPeriod(0, r.GetInt64(0), r.GetString(1), ccy, ScaleOf(ccy),
                                          null, "", null, (int)Lang(r, 5), Lang(r, 3), null, null, Lang(r, 4), null,
-                                         ccy.Equals(baseCcy, StringComparison.Ordinal) || rates.ContainsKey(ccy));
+                                         ccy.Equals(baseCcy, StringComparison.Ordinal) || rates.ContainsKey(ccy),
+                                         Foreign: Lang(r, 6) == 0);
                 unmapped.Add(row);
                 unmappedEntries += row.Entries;
                 if (onlyMismatched) continue;
