@@ -1078,6 +1078,9 @@ Mismatches are usually a missing transaction or a wrong opening balance; recount
   <data name="Imp_PaymentNoPayer" xml:space="preserve">
     <value>{0} payment row(s) found, but the paying account is unknown (set the card's autopay account or the default payment account); booked as refund for now.</value>
   </data>
+  <data name="Imp_PaymentTwin" xml:space="preserve">
+    <value>This payment ({0}, {1}) was already recorded from another statement — the same money movement is booked once, so importing both statements does not deduct it twice.</value>
+  </data>
   <data name="Imp_Superseded" xml:space="preserve">
     <value>Replaced {0} older imports of the same statement period</value>
   </data>

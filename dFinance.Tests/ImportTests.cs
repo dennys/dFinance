@@ -278,6 +278,107 @@ public sealed class ImportTests : IDisposable
         Assert.Contains(r.Warnings!, w => w.Contains("扣款"));
     }
 
+    /// <summary>同一筆卡帳繳款會在兩份單子上各出現一次：卡帳那側（「已繳款金額-本行帳戶扣款」）
+    /// 與扣款帳戶自己的存款單那側（「兆豐卡 兆豐銀行」那种）。兩份都匯就是同一個錢移動扣兩次 ——
+    /// 實資料的兆豐 4,534 元就是這樣被餘額校驗抓到的，所以四个方向都钉一次。</summary>
+    static ParsedStatement MegaCard(DateOnly end, params (DateOnly Date, decimal Amount, string Merchant)[] rows) => new()
+    {
+        Issuer = "兆豐國際商業銀行", Parser = "MegaCardParser", AccountMask = "9306",
+        StatementStartDate = end.AddMonths(-1), StatementEndDate = end, DueDate = end.AddDays(15),
+        TotalDue = rows.Where(r => r.Amount > 0).Sum(r => r.Amount),
+        Transactions = rows.Select(r => new ParsedTransaction
+        {
+            Date = r.Date, Merchant = r.Merchant, Amount = r.Amount, Currency = "TWD", Page = 1,
+            RawLine = $"{r.Date:yyyy/MM/dd} {r.Merchant} {r.Amount}",
+        }).ToList(),
+    };
+
+    static ParsedStatement MegaDeposit(params (DateOnly Date, decimal Amount, string Merchant)[] rows) => new()
+    {
+        Issuer = "兆豐國際商業銀行", Parser = "MegaDepositParser", AccountMask = "02010660350",
+        Transactions = rows.Select(r => new ParsedTransaction
+        {
+            Date = r.Date, Merchant = r.Merchant, Amount = r.Amount, Currency = "TWD", Page = 1,
+            RawLine = $"{r.Date:yyyy/MM/dd} {r.Merchant} {r.Amount}",
+        }).ToList(),
+    };
+
+    /// <summary>扣款帳戶：預設付款帳戶設好，繳款才會落成轉帳（卡帳上沒印卡號那种）。</summary>
+    long Bank()
+    {
+        var bank = Db.InsertId(_db, """
+            INSERT INTO account(name, type, currency, issuer, mask, created_at)
+            VALUES('兆豐活存', 'bank', 'TWD', '兆豐國際商業銀行', '02010660350', '2026-11-01');
+            """);
+        Db.Exec(_db, "INSERT OR REPLACE INTO settings(key, value) VALUES('default_payment_account_id', $v);", ("$v", bank.ToString()));
+        return bank;
+    }
+
+    ParsedStatement PaidCardStatement()
+    {
+        var st = MegaCard(new DateOnly(2026, 10, 31),
+                          (new DateOnly(2026, 10, 5), 1500m, "全聯"),
+                          (new DateOnly(2026, 10, 28), -4534m, "已繳款金額-本行帳戶扣款"));
+        st.Transactions[^1].IsPayment = true;                                  // 正常由 parser 標，這裡直接遵 ParsedStatement 就自己標
+        return st;
+    }
+
+    object? Payment(string column = "kind")
+        => Db.Scalar(_db, $"SELECT {column} FROM entry WHERE amount_minor = 453400 AND deleted_at IS NULL;", Array.Empty<(string, object?)>());
+
+    [Fact]
+    public void 卡帳先進來之後存款單的同一筆繳款不會扣兩次()
+    {
+        Bank();
+        new StatementImporter(_db, _docsDir).Import(PaidCardStatement(), "mega_card.pdf");     // 實際檔案順序：卡帳在前
+
+        var r = new StatementImporter(_db, _docsDir)
+            .Import(MegaDeposit((new DateOnly(2026, 10, 28), -4534m, "兆豐卡 兆豐銀行")), "mega_dep.pdf");
+
+        Assert.Equal(1, Count("AND amount_minor=453400"));                     // 不是轉帳＋支出兩筆
+        Assert.Equal("transfer", Payment());
+        Assert.Contains(r.Warnings!, w => w.Contains("同一個錢移動"));              // 跳掉一筆要看得见，不能静靜的
+    }
+
+    [Fact]
+    public void 存款單先進來之後卡帳的繳款列把它升成轉帳而不是多插一筆()
+    {
+        var bank = Bank();
+        new StatementImporter(_db, _docsDir)
+            .Import(MegaDeposit((new DateOnly(2026, 10, 28), -4534m, "兆豐卡 兆豐銀行")), "mega_dep.pdf");
+
+        new StatementImporter(_db, _docsDir).Import(PaidCardStatement(), "mega_card.pdf");
+
+        Assert.Equal(1, Count("AND amount_minor=453400"));
+        Assert.Equal("transfer", Payment());
+        Assert.Equal(bank, Convert.ToInt64(Payment("account_id")!));                    // 存款帳戶扣的
+        Assert.Equal("credit_card", Db.Scalar(_db, "SELECT type FROM account WHERE id=$id;", ("$id", Convert.ToInt64(Payment("to_account_id")!))));
+        Assert.NotNull(Payment("bill_id"));                                            // 卡帳那側的帳期也掛上了，卡才不會报未繳
+    }
+
+    [Fact]
+    public void 同額同日是別的支出_不准被繳款併掉()
+    {
+        // 實資料同一個帳戶同日有幾筆同額的現金提取；抓不準就留兩筆讓餘額校驗去報，不能悄悄少一筆。
+        Bank();
+        new StatementImporter(_db, _docsDir).Import(PaidCardStatement(), "mega_card.pdf");
+        new StatementImporter(_db, _docsDir).Import(MegaDeposit((new DateOnly(2026, 10, 28), -4534m, "現金 FEE0 提款")), "mega_dep.pdf");
+
+        Assert.Equal(2, Count("AND amount_minor=453400"));
+    }
+
+    [Fact]
+    public void 兩份單子重匯_同一筆繳款不會变成兩筆()
+    {
+        Bank();
+        for (var i = 0; i < 2; i++)                                            // 换檔名重匯（sha 不同，走的是跳檔案去重那條路）
+        {
+            new StatementImporter(_db, _docsDir).Import(PaidCardStatement(), $"card{i}.pdf");
+            new StatementImporter(_db, _docsDir).Import(MegaDeposit((new DateOnly(2026, 10, 28), -4534m, "兆豐卡 兆豐銀行")), $"dep{i}.pdf");
+        }
+        Assert.Equal(1, Count("AND amount_minor=453400 AND kind='transfer'"));
+    }
+
     [Fact]
     public void 同帳期重匯舊列會標孤兒而不是被刪掉()
     {

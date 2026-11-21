@@ -1078,6 +1078,9 @@
   <data name="Imp_PaymentNoPayer" xml:space="preserve">
     <value>明细含 {0} 笔缴款，但不知道从哪个帐户扣款（到“帐户…”设自动扣缴帐户，或设预设付款帐户），先当 refund 记入。</value>
   </data>
+  <data name="Imp_PaymentTwin" xml:space="preserve">
+    <value>这一笔缴款（{0}，{1}）在另一份单据上已经记过：同一个钱移动只记一笔，两份单据都汇也不会扣两次。</value>
+  </data>
   <data name="Imp_Superseded" xml:space="preserve">
     <value>取代 {0} 份旧的同账期导入</value>
   </data>

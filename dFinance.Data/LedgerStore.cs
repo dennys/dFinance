@@ -725,44 +725,76 @@ public sealed class LedgerStore
 
     /// <summary>
     /// 餘額快照 vs 交易累加對不上的帳戶（parser 漏列的自動校驗，比「解析到 0 筆才警告」強）。
-    /// 快照有兩種來源：存款單解析出來的（statement）與人工盤點（manual）—— 每個帳戶只看最近那一次，
-    /// 同一天有雨者時以盤點為準（人當場數的比單子新）。
-    /// 比的是「as_of 那天（含）以前的交易累加」：單子上印的是那天結算的數（兆豐 10 月的單印 115/09 月底餘額），
-    /// 把之後的交易也算進來會讓期初快照天天誤報。
+    /// 快照有兩種來源：存款單解析出來的（statement）與人工盤點（manual）—— 同一天有兩者時以盤點為準（人當場數的比單子新）。
+    ///
+    /// 比法分三種（拿全部快照去跟「期初 ＋ 全部交易」比會天天誤報：匯入時自動建的帳戶根本不知道開戶以來的歷史）：
+    /// 1. **同一帳戶相鄰兩個快照 → 比區間差**：這段區間的交易累加 ＝ 兩個餘額的差。這是唯一不需假設期初的比法，
+    ///    也是抓漏解析的主力（區間內少讀一筆就紅）；兆豐那份就是靠它（單上印 115/09 月底餘額 + 115/10 帳戶總覽）。
+    /// 2. **第一個快照**：只有在帳戶有明確起點時才比（人填過期初，或本来就是人工盤點在說「这天就是这么多」）。
+    ///    沒起點的（單子印的餘額、帳戶是匯入自動建的）跳過 —— 假設期初 0 只會造成誤報。
+    /// 3. 跳幣別的快照（快照幣別 ≠ 帳戶幣別）不進校驗。
+    ///
+    /// 區間要同一份單子才比（`account_balance.document_id`，0010）：跨單子的兩個快照中間可能根本沒單子
+    /// （兆豐 4 月的單印 03/04 月底、10 月的單印 09 月底與 10/31，中間 5–8 月沒人匯過），那種區間报紅是假的。
+    /// 沒有 document_id 的（人工盤點、或 0010 之前的舊快照）只能跟同為 NULL 的配對。
+    ///
+    /// 只算到 as_of 當天（含）：單子上印的是那天結算的數，把之後的交易也算進來會讓期初快照天天誤報。
+    /// 回報的 `AsOf` 對區間比法會是「2026-04-30 → 2026-09-30」這種窗口（要讓人知道去翻哪一期單子）。
     /// <c>Scale</c> = 那個帳戶的顯示小數位：差額要跟餘額同一個單位講（美金帳戶的 0.71 不能被顯示成 1）。
     /// </summary>
     public List<(string Account, long DiffMinor, string Source, string AsOf, int Scale)> BalanceMismatches()
     {
         var list = new List<(string, long, string, string, int)>();
-        var snapshots = new List<(long Id, string Name, long Balance, string Source, string AsOf, int Scale)>();
+        var snapshots = new List<(long Id, string Name, long Balance, string Source, string AsOf, int Scale, bool Anchored, long Doc)>();
         using (var cmd = _db.CreateCommand())
         {
             cmd.CommandText = $"""
-                SELECT ab.account_id, v.name, ab.balance_minor, ab.source, ab.as_of, v.scale
+                SELECT ab.account_id, v.name, ab.balance_minor, ab.source, ab.as_of, v.scale,
+                       (v.opening_date IS NOT NULL OR v.opening_balance_minor <> 0) AS anchored, ab.grp
                 FROM (
-                    SELECT account_id, as_of, currency, balance_minor, source FROM (
-                        SELECT account_id, as_of, currency, balance_minor, source,
-                               ROW_NUMBER() OVER (PARTITION BY account_id
-                                                  ORDER BY as_of DESC, (source = 'manual') DESC) rn
+                    SELECT account_id, as_of, currency, balance_minor, source, ifnull(document_id, 0) AS grp FROM (
+                        SELECT account_id, as_of, currency, balance_minor, source, document_id,
+                               ROW_NUMBER() OVER (PARTITION BY account_id, as_of
+                                                  ORDER BY (source = 'manual') DESC) rn
                         FROM account_balance) WHERE rn = 1
                 ) ab
-                JOIN ({DerivedBalances}) v ON v.id = ab.account_id
-                WHERE ab.currency = v.currency;
+                JOIN ({DerivedCore("1=1")}) v ON v.id = ab.account_id AND v.is_archived = 0
+                WHERE ab.currency = v.currency
+                ORDER BY ab.account_id, ab.grp, ab.as_of;
                 """;
             using var r = cmd.ExecuteReader();
             while (r.Read())
                 snapshots.Add((r.GetInt64(0), r.GetString(1), r.GetInt64(2), r.GetString(3), r.GetString(4),
-                               r.IsDBNull(5) ? 2 : r.GetInt32(5)));
+                               r.IsDBNull(5) ? 2 : r.GetInt32(5), r.GetInt32(6) != 0, r.GetInt64(7)));
         }
 
         // 只算到 as_of 當天（含）；日期不明的当成早就在帳上，不然會從快照裡漏算。
-        // shortcut: 每個快照跑一次查詢（N = 有快照的帳戶數），帳戶數上到幾百才會感覺；
+        // shortcut: 每個快照跑一次查詢（N = 有快照的帳戶數 × 快照數），帳戶數上到幾百才會感覺；
         //           要改就把 as_of 当欄一起塞回一條 GROUP BY 的 SQL。
         var through = $"(CASE WHEN txn_date IS NOT NULL THEN txn_date ELSE ifnull(posting_date,'{Undated}') END) <= $asof";
-        foreach (var (id, name, balance, source, asOf, scale) in snapshots)
-            if (Db.Scalar(_db, $"SELECT bal FROM ({DerivedCore(through)}) WHERE id=$id;",
-                          ("$asof", asOf), ("$id", id)) is long derived && derived != balance)
-                list.Add((name, balance - derived, source, asOf, scale));
+        long DerivedThrough(long id, string asOf)
+            => Db.Scalar(_db, $"SELECT bal FROM ({DerivedCore(through)}) WHERE id=$id;", ("$asof", asOf), ("$id", id)) is long v ? v : 0;
+
+        for (var i = 0; i < snapshots.Count; i++)
+        {
+            var (id, name, balance, source, asOf, scale, anchored, doc) = snapshots[i];
+            var first = i == 0 || snapshots[i - 1].Id != id || snapshots[i - 1].Doc != doc;
+            long diff;
+            string window;
+            if (first)
+            {
+                if (!anchored && source != "manual") continue;                 // 沒有起點，比了只會误報
+                diff = balance - DerivedThrough(id, asOf);
+                window = asOf;
+            }
+            else
+            {
+                var prev = snapshots[i - 1];
+                diff = (balance - prev.Balance) - (DerivedThrough(id, asOf) - DerivedThrough(id, prev.AsOf));
+                window = $"{prev.AsOf} → {asOf}";
+            }
+            if (diff != 0) list.Add((name, diff, source, window, scale));
+        }
         return list;
     }
 

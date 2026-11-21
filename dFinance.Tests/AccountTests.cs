@@ -136,19 +136,55 @@ public sealed class AccountTests : IDisposable
     [Fact]
     public void 餘額校驗只比快照那天以前的交易()
     {
-        // 兆豐那份的狀態：10 月的單子上印的是 09/10 月底結算餘額，不是現在的餘額。
-        // 拿全部交易去比，那張期初快照會天天報對不上（舊版就這樣），所以要比 as_of 當天（含）以前的累加。
+        // 兆豐那份的形狀：10 月的單子同時印了 09/10 月底結算餘額（期初）與 10/31 的帳戶總覽（期末），
+        // 兩個快照比的是「區間差」，所以結算日之後的交易不准算進這段區間（算了就會報多一筆）。
         var id = _store.CreateAccount(Edit(name: "活存", type: "bank"));
-        Manual(id, "expense", 1_000, "2026-10-05");                    // 快照之前：要算
-        Manual(id, "expense", 5_000, "2026-11-20");                    // 快照之後：不准算
+        Manual(id, "expense", 1_000, "2026-10-05");                    // 區間內：要算
+        Manual(id, "expense", 5_000, "2026-11-20");                    // 期末快照之後：不准算
 
-        Db.Exec(_db, "INSERT INTO account_balance(account_id, as_of, currency, balance_minor, source) VALUES($a, '2026-10-31', 'TWD', -1_000, 'statement');",
-                ("$a", id));
-        Assert.Empty(_store.BalanceMismatches());                       // 11/20 那筆不能算進來（算了會报 −6,000）
+        Db.Exec(_db, """
+            INSERT INTO account_balance(account_id, as_of, currency, balance_minor, source) VALUES
+                ($a, '2026-09-30', 'TWD', 0, 'statement'),
+                ($a, '2026-10-31', 'TWD', -1_000, 'statement');
+            """, ("$a", id));
+        Assert.Empty(_store.BalanceMismatches());                       // 區間差 -1,000，對得上（11/20 那筆不准算進來）
 
-        Db.Exec(_db, "UPDATE account_balance SET balance_minor = 2_000;");
+        Db.Exec(_db, "UPDATE account_balance SET balance_minor = balance_minor + 3_000 WHERE as_of = '2026-10-31';");
         var bad = Assert.Single(_store.BalanceMismatches());
-        Assert.Equal(3_000, bad.DiffMinor);                             // 2,000 −(−1,000)，不是 8,000
+        Assert.Equal(3_000, bad.DiffMinor);                             // 單上的區間差 +2,000 vs 帳上 -1,000
+        Assert.Equal("2026-09-30 → 2026-10-31", bad.AsOf);              // 要講得出去翻哪一期單子
+    }
+
+    [Fact]
+    public void 沒填過期初的帳戶_單上只有一個期末餘額就不拿去比()
+    {
+        // 匯入自動建的帳戶不知道開戶以來的歷史。拿單上印的期末餘額去跟「期初 0 + 交易累加」比會天天誤報
+        // （舊口徑就是這樣：王道那種差 1 元的假性紅是這麼來的）。
+        var id = _store.CreateAccount(Edit(name: "活存", type: "bank"));
+        Manual(id, "expense", 1_000, "2026-10-05");
+        Db.Exec(_db, "INSERT INTO account_balance(account_id, as_of, currency, balance_minor, source) VALUES($a, '2026-10-31', 'TWD', 500_000, 'statement');",
+                ("$a", id));
+        Assert.Empty(_store.BalanceMismatches());                       // 不比 ≠ 對得上：沒有起點就老實跳過
+
+        // 同一帳戶只要多一個更早的快照，區間內少讀一筆就會被抓出來（這才是抓漏解析的主力）。
+        Db.Exec(_db, "INSERT INTO account_balance(account_id, as_of, currency, balance_minor, source) VALUES($a, '2026-09-30', 'TWD', 0, 'statement');",
+                ("$a", id));
+        var bad = Assert.Single(_store.BalanceMismatches());
+        Assert.Equal(501_000, bad.DiffMinor);                            // 單上說這段進帳 501,000，帳上只有 -1,000
+        Assert.Equal("2026-09-30 → 2026-10-31", bad.AsOf);
+    }
+
+    [Fact]
+    public void 人填過期初之後_第一個單上餘額就開始比()
+    {
+        // 起點是人在「帳戶…」填的期初（或人工盤點），填了就有得比 —— 第一個快照也要比。
+        var id = _store.CreateAccount(Edit(name: "活存", type: "bank", opening: 10_000, date: "2026-01-01"));
+        Manual(id, "expense", 3_000, "2026-11-01");
+        Db.Exec(_db, "INSERT INTO account_balance(account_id, as_of, currency, balance_minor, source) VALUES($a, '2026-11-30', 'TWD', 6_000, 'statement');",
+                ("$a", id));
+        var bad = Assert.Single(_store.BalanceMismatches());             // 10,000 - 3,000 = 7,000，單上說 6,000
+        Assert.Equal(-1_000, bad.DiffMinor);
+        Assert.Equal("2026-11-30", bad.AsOf);
     }
 
     [Fact]

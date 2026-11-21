@@ -188,6 +188,28 @@ public sealed class StatementImporter
                 continue;
             }
 
+            // 同一筆卡帳繳款會在兩份單子上各出現一次：卡帳那側（「已繳款金額-本行帳戶扣款」，我們落成轉帳）
+            // 與扣款帳戶自己的存款單那側（「兆豐卡 兆豐銀行」那种支出）。兩份都匯就會把同一個錢移動扣兩次 ——
+            // 那個帳戶的餘額與淨值一起錯（餘額校驗就是這樣抓到它的）。
+            // 认得出來就不插新的：先到的那一列留下來当這笔移動的身份，存款單那筆先到時就地升成轉帳
+            // （雨側才都對）。认不出來照樣插 —— 宁願餘額校驗报紅，也不要悄悄少一筆。
+            var twin = PaymentTwin(isTransfer, account, toAccount, minor, currency, t.Date == default ? null : t.Date, t.Merchant);
+            if (twin is not null && !touched.Contains(twin.Value) && !Edited(twin.Value))
+            {
+                if (isTransfer)                                    // 存款單那筆先到：把它升成轉帳，卡側才不會多一筆
+                    Db.Exec(_db, """
+                        UPDATE entry SET kind='transfer', to_account_id=$to, card_id=$card, bill_id=$bill,
+                                         category_id=NULL, updated_at=$at, orphaned_at=NULL
+                        WHERE id=$id;
+                        """,
+                        ("$to", (object?)toAccount ?? DBNull.Value), ("$card", (object?)cardId ?? DBNull.Value),
+                        ("$bill", (object?)billId ?? DBNull.Value), ("$at", now), ("$id", twin.Value));
+                warnings.Add(Loc.F("Imp_PaymentTwin", t.Merchant ?? "", txnDate ?? ""));
+                touched.Add(twin.Value);
+                updated++;
+                continue;
+            }
+
             var newId = Db.InsertId(_db, """
                 INSERT INTO entry(kind, account_id, to_account_id, card_id, bill_id, currency, amount_minor, txn_date, posting_date,
                                   merchant, status, source, source_document_id, source_page, source_line_hash,
@@ -225,13 +247,14 @@ public sealed class StatementImporter
             var account = AccountFor(s, b.Account, currency, accountId, kind, lineAccounts, warnings, ref autoCreated);
             if (account == 0) continue;
             Db.Exec(_db, """
-                INSERT INTO account_balance(account_id, as_of, currency, balance_minor, source)
-                VALUES($a, $asof, $cur, $amt, 'statement')
+                INSERT INTO account_balance(account_id, as_of, currency, balance_minor, source, document_id)
+                VALUES($a, $asof, $cur, $amt, 'statement', $doc)
                 ON CONFLICT(account_id, as_of, currency) DO UPDATE
-                    SET balance_minor = excluded.balance_minor
+                    SET balance_minor = excluded.balance_minor, document_id = excluded.document_id
                   WHERE account_balance.source = 'statement';
                 """,
-                ("$a", account), ("$asof", Iso(b.AsOf)), ("$cur", currency), ("$amt", Money.ToMinor(b.Amount)));
+                ("$a", account), ("$asof", Iso(b.AsOf)), ("$cur", currency), ("$amt", Money.ToMinor(b.Amount)),
+                ("$doc", docId));
         }
 
         var superseded = SupersedePrior(s, accountId, docId, touched, kind);
@@ -368,6 +391,91 @@ public sealed class StatementImporter
     /// 兩個都拿不出來就回 null —— 宁願把繳款留成 refund（性質錯，但不會動到別的帳戶），
     /// 也不要憑空猜一個帳戶扣它（猜錯就是悄悄讓那個帳戶的餘額少一筆）。
     /// </summary>
+    /// <summary>
+    /// 繳款列的另一半：同一筆繳款在另一份單子上已經進來的話回那筆的 id，否則 null。
+    /// 条件要硬：同一個扣款帳戶、同金額、同幣別、日期差 ≤ 3 天，而且兩邊的文字要提得到同一張卡
+    /// （存款單會寫「兆豐卡 兆豐銀行」那种）。同額同日但不是那張卡的支出（實資料就有四筆同額的現金提取）不准被併掉。
+    /// </summary>
+    long? PaymentTwin(bool incomingIsTransfer, long accountId, long? cardAccountId, long minor, string currency,
+                      DateOnly? txnDate, string? merchant)
+    {
+        if (txnDate is not DateOnly date) return null;             // 沒日期比不得：宁願留兩筆讓校驗去報
+        var candidates = new List<(long Id, string Kind, long? To)>();
+        using (var cmd = _db.CreateCommand())
+        {
+            if (incomingIsTransfer)                                 // 卡帳這筆要進來：找存款單那側的支出（或已经併過的轉帳）
+                cmd.CommandText = """
+                    SELECT e.id, e.kind, e.to_account_id FROM entry e
+                    WHERE e.deleted_at IS NULL AND e.source = 'import' AND e.account_id = $a AND e.amount_minor = $amt
+                      AND upper(e.currency) = upper($cur)
+                      AND ( (e.kind IN ('expense','refund') AND e.to_account_id IS NULL)
+                         OR (e.kind = 'transfer' AND e.to_account_id = $card) )
+                      AND abs(julianday(e.txn_date) - julianday($d)) <= $tol
+                    ORDER BY abs(julianday(e.txn_date) - julianday($d)), e.id;
+                    """;
+            else                                                    // 存款單這筆要進來：找卡帳那側已经落地的轉帳
+                cmd.CommandText = """
+                    SELECT e.id, e.kind, e.to_account_id FROM entry e
+                    JOIN account c ON c.id = e.to_account_id
+                    WHERE e.deleted_at IS NULL AND e.source = 'import' AND e.kind = 'transfer'
+                      AND e.account_id = $a AND e.amount_minor = $amt AND upper(e.currency) = upper($cur)
+                      AND c.type = 'credit_card'
+                      AND abs(julianday(e.txn_date) - julianday($d)) <= $tol
+                    ORDER BY abs(julianday(e.txn_date) - julianday($d)), e.id;
+                    """;
+            foreach (var (n, v) in new (string, object)[] { ("$a", accountId), ("$amt", minor), ("$cur", currency),
+                                                           ("$d", Iso(date)), ("$tol", PaymentTwinDays) })
+                cmd.Parameters.AddWithValue(n, v);
+            if (incomingIsTransfer) cmd.Parameters.AddWithValue("$card", cardAccountId!.Value);
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) candidates.Add((r.GetInt64(0), r.GetString(1), r.IsDBNull(2) ? null : r.GetInt64(2)));
+        }
+        if (candidates.Count == 0) return null;
+
+        // 存款單那側的文字要提得到這張卡（「兆豐卡」对「兆豐國際商業銀行 9306」）：那是判准不准的要害。
+        var card = incomingIsTransfer ? cardAccountId : candidates[0].To;
+        string name = "", issuer = "", mask = "";
+        using (var cmd = _db.CreateCommand())
+        {
+            cmd.CommandText = "SELECT name, issuer, mask FROM account WHERE id=$id;";
+            cmd.Parameters.AddWithValue("$id", card!.Value);
+            using var r = cmd.ExecuteReader();
+            if (r.Read())
+            {
+                name = r.GetString(0);
+                issuer = r.IsDBNull(1) ? "" : r.GetString(1);
+                mask = r.IsDBNull(2) ? "" : r.GetString(2);
+            }
+        }
+
+        foreach (var (id, kind, to) in candidates)
+        {
+            if (kind == "transfer" && incomingIsTransfer) return id;      // 卡帳那側已经落成轉帳：身份是結構性的，不用比文字
+            var side = incomingIsTransfer
+                ? Db.Scalar(_db, "SELECT merchant FROM entry WHERE id=$id;", ("$id", id)) as string   // 要比的是存款單那側的文字
+                : merchant;                                                                            // 要比的是這笔進來的文字
+            if (MentionsCard(side, name, issuer, mask)) return id;
+        }
+        return null;
+    }
+
+    /// <summary>存款單那側的文字提得到這張卡嗎：卡號/帳號最可靠，再來是發卡行全名與其前兩字（「兆豐」）。</summary>
+    static bool MentionsCard(string? text, string name, string issuer, string mask)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        if (!string.IsNullOrWhiteSpace(mask) && mask.Length >= 3 && text.Contains(mask, StringComparison.OrdinalIgnoreCase)) return true;
+        foreach (var key in new[] { issuer, name })
+        {
+            var k = (key ?? "").Trim();
+            if (k.Length >= 2 && (text.Contains(k, StringComparison.OrdinalIgnoreCase)
+                               || text.Contains(k[..2], StringComparison.OrdinalIgnoreCase))) return true;
+        }
+        return false;
+    }
+
+    /// <summary>繳款在兩份單子上的日期差：ACH 入帳日跟卡帳上的繳款日常差個一兩天。</summary>
+    const int PaymentTwinDays = 3;
+
     long? PayerOf(long? cardId)
     {
         if (cardId is not null &&

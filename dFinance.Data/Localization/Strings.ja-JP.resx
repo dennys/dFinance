@@ -1078,6 +1078,9 @@
   <data name="Imp_PaymentNoPayer" xml:space="preserve">
     <value>明細に納付が {0} 件ありますが、引落口座が不明です（「口座…」で自動引落口座または既定の支払口座を設定）。当面 refund として計上。</value>
   </data>
+  <data name="Imp_PaymentTwin" xml:space="preserve">
+    <value>この納付（{0}、{1}）は別の明細で既に計上済みです。同一の資金移動は 1 件だけ計上するので、両方の明細を取り込んでも二重に引落しません。</value>
+  </data>
   <data name="Imp_Superseded" xml:space="preserve">
     <value>同一帳期の旧インポート {0} 件を置き換えました</value>
   </data>
