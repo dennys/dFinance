@@ -5,6 +5,36 @@
 
 ## 未發布
 
+### 修復（「疑似重複」把分期款当成重複）
+- `LedgerStore.DuplicateGroupKey` 的 key 从 `(txn_date, amount_minor, currency)` 改成
+  `(account_id, txn_date, amount_minor, currency, posting_date)`（`DuplicateGroupWhere` 的關聯條件跟著改，
+  入帳日用 `IS` 比讓 NULL 也算相等）：
+  - 少了 `posting_date` 就永远会把**分期**报成重複 —— 卡帳上每一期的交易日都是原来的購買日（只有入帳日在走），
+    同額同日跨兩份單子跟真重複长得一樣。本機實测 7 組全是誤報（永豐 12 期分期的第 10/11 期、
+    兆豐房屋稅 6 期的第 5/6 期），改完变 0 組。
+  - 少了 `account_id` 会把兩張不相干的卡合成一組，而人在帳戶分頁筛「疑似重複」只看得到其中一列。
+  - 真重複的形狀照旧抓得到（同額同日**且同入帳日**跨兩份單子），`LedgerStoreTests` 兩條新案例一边锁误报、
+    一边锁真的还能报。
+- 已知还缺的：标記「不是重複」的機制（`status` 五种全都會把錢从 `LedgerStore.Live` 拿掉，没法只用来消警示）。
+  现阶段误报清了就不会再长回来；真要加得先开一欄（計划 `entry.dup_cleared_at`，见 CHANGELOG 讨论）。
+
+### 修復／修改（這一輪的使用者單：5 條）
+- **分類帳的 `+` 永遠不變 `−`**：`PivotNode.IsExpanded` 只在重建可見列時被 `PivotTree.Visible()` 重算，
+  而展開/收合為了速度只動差額（不重建），那一列本身根本没人重讀 → 格子裡的字停在舊狀態。
+  現在 `PivotNode` 實作 `INotifyPropertyChanged`（`IsExpanded` 換值就報 `Label`），`TogglePivotBranch` 也自己把
+  `node.IsExpanded` 改掉（它只把子列丢給 `Visible()`）。
+  `PivotTreeTests` 锁住通知，`--uismoke` 直接讀視覺樹裡真的畫出來的那一格（展開要是 −、收合要是 +）。
+- **期間／金額百分比／日期快捷幾個下拉顯示的是 record 原文**（「RangePick { Span = 12, Label = 近 12 個月, Ytd = False }」）：
+  ComboBox 沒設 `DisplayMemberPath="Label"`。補上（報表期間、金額/百分比、每月總資產期間、日期快捷、依帳期期間），
+  `--uismoke` 也斷言這幾個下拉有設 —— 不然只會靜靜地退回程式字。
+- **底部「疑似重複 N 對」看不懂在講什麼**：改「疑似重複 N 組」，tooltip 講清楚判準與後果
+  （同一天、同金額、同幣別、出現在兩份以上的單子；只標記，兩筆都還在帳本裡，要標哪筆人決定）。
+- **幣別與匯率：換了基準幣，下面「1 ? = ? TWD」的 TWD 不動**：那個標籤只在開視窗時抓一次。
+  現在存成欄位、`Reload()` 重抓（匯率表本來就跟着基準幣走，只有這格漏了）。
+- **「帳戶…」按鈕從帳戶分頁的動作列抽到主功能表**（跟「記一筆」同一層）：首页把動作列收起來了，
+  而現金/錢包只能從那裡建帳戶。`LedgerTab.Accounts_Click` 拿掉，改走 `MainWindow.AccountsManager_Click`，
+  回来跟「幣別…」一樣 `RefreshIfStale()` 首页與各帳戶分頁。
+
 ### 修復（打開「工具→幣別…」就會自己把基準幣改掉）
 - `CurrencyDialog.Reload()` 裡對 `_base` 的 `ItemsSource`/`SelectedItem` 指派也會觸發 `SelectionChanged`，
   而那個選單是「選一選就套用」—— 結果人只是開來看看，基準幣就被改成列表里第一個幣別（實測 GBP），

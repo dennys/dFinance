@@ -40,7 +40,8 @@
               Click="OpenAccount_Click" ToolTip="{Binding [Ledger_OpenAccountHint], Source={StaticResource Loc}}"/>
       <StackPanel Orientation="Horizontal">
         <TextBlock Text="{Binding [Common_Date], Source={StaticResource Loc}}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-        <ComboBox x:Name="PresetBox" Width="72" VerticalAlignment="Center" SelectionChanged="Preset_Changed"/>
+        <ComboBox x:Name="PresetBox" Width="72" VerticalAlignment="Center" SelectionChanged="Preset_Changed"
+                  DisplayMemberPath="Label"/>
         <DatePicker x:Name="FromBox" Width="112" Margin="6,0,0,0" VerticalAlignment="Center" SelectedDateChanged="Range_Changed"/>
         <TextBlock Text="~" Margin="4,0" VerticalAlignment="Center"/>
         <DatePicker x:Name="ToBox" Width="112" VerticalAlignment="Center" SelectedDateChanged="Range_Changed"/>
@@ -74,8 +75,6 @@
                 ToolTip="{Binding [Ledger_DeleteHint], Source={StaticResource Loc}}"/>
         <Button Content="{Binding [Common_Restore], Source={StaticResource Loc}}" Width="52" Margin="4,0,0,0" Click="Restore_Click"/>
         <Button Content="{Binding [Ledger_AddCategory], Source={StaticResource Loc}}" Width="60" Margin="10,0,0,0" Click="AddCategory_Click"/>
-        <Button Content="{Binding [Ledger_Accounts], Source={StaticResource Loc}}" Width="60" Margin="10,0,0,0" Click="Accounts_Click"
-                ToolTip="{Binding [Ledger_AccountsHint], Source={StaticResource Loc}}"/>
         <Button Content="{Binding [Ledger_Suggest], Source={StaticResource Loc}}" Width="80" Margin="10,0,0,0" Click="Suggest_Click"
                 ToolTip="{Binding [Ledger_SuggestHint], Source={StaticResource Loc}}"/>
       </StackPanel>
@@ -98,9 +97,12 @@
           <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <DockPanel Grid.Row="0" Margin="4,0">
-          <ComboBox x:Name="ReportRangeBox" Width="110" DockPanel.Dock="Left" SelectionChanged="ReportRange_SelectionChanged"/>
+          <!-- 這三個下拉的 ItemsSource 是 record（Span/Percent/Label）：沒 DisplayMemberPath 就會把人看的 Label 變成
+               「RangePick { Span = 12, Label = 近 12 個月, Ytd = False }」那種程式字。 -->
+          <ComboBox x:Name="ReportRangeBox" Width="110" DockPanel.Dock="Left" SelectionChanged="ReportRange_SelectionChanged"
+                    DisplayMemberPath="Label"/>
           <ComboBox x:Name="ReportModeBox" Width="92" DockPanel.Dock="Left" Margin="8,0,0,0"
-                    SelectionChanged="ReportMode_SelectionChanged"
+                    SelectionChanged="ReportMode_SelectionChanged" DisplayMemberPath="Label"
                     ToolTip="{Binding [Report_ModeTip], Source={StaticResource Loc}}"/>
           <!-- 這行是報表工具列：期間、金額/百分比、外幣警示。警示那塊不准當 DockPanel 最後一個孩子，
                不然會吃掉剩下整條寬度（看起來就是一道空的長條）。 -->
@@ -244,7 +246,7 @@
             <TextBlock Text="{Binding [Home_MonthlyAssets], Source={StaticResource Loc}}" FontWeight="Bold" VerticalAlignment="Center"/>
             <!-- 走勢要看多久：跟分類帳同一組選項、同一把尺（近 N 個月都從「這個月」往回推）。預設近 1 年。 -->
             <ComboBox x:Name="HomeRangeBox" Width="110" DockPanel.Dock="Right"
-                      SelectionChanged="HomeRange_SelectionChanged"/>
+                      SelectionChanged="HomeRange_SelectionChanged" DisplayMemberPath="Label"/>
           </DockPanel>
           <sp:WpfPlot x:Name="NetWorthPlot"/>
         </DockPanel>

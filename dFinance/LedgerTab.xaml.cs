@@ -107,15 +107,32 @@ public partial class LedgerTab : UserControl
     public int SmokeReportInteract()
     {
         ShowCategoryReport();
+        // 這四個下拉灌的是 record：沒 DisplayMemberPath 就會把人看的 Label 變成
+        // 「RangePick { Span = 12, Label = 近 12 個月, Ytd = False }」那種程式字（使用者反映過）。
+        foreach (var (box, name) in new[] { (ReportRangeBox, "報表期間"), (ReportModeBox, "金額/百分比"),
+                                            (HomeRangeBox, "每月總資產期間"), (PresetBox, "日期快捷") })
+            if (box.DisplayMemberPath != "Label")
+                throw new InvalidOperationException($"{name}下拉沒設 DisplayMemberPath：會顯示成「{box.SelectedItem}」那種程式字");
+
         var side = _pivotRoots.FirstOrDefault(n => n.HasChildren);
         if (side is null) return 0;
 
         var expandedCount = _pivotRows.Count;                       // 支/收兩塊預設是展開的
+        CategoryReportGrid.UpdateLayout();                           // 先让 DataGrid 真的生成格子，才讀得到畫出來的字
+        var openGlyph = SmokeCellSample(0);
         TogglePivotBranch(side);                                    // 人點「分類」欄那一格走的就是這一支
         var collapsedCount = _pivotRows.Count;
         if (collapsedCount >= expandedCount)
             throw new InvalidOperationException($"收合「{side.Name}」後列數沒減少（{expandedCount} → {collapsedCount}）");
         if (collapsedCount == 0) throw new InvalidOperationException("收合後報表空了");
+        // 那一格要「展開 − / 收合 +」：狀態對了但格子還是舊字，就是通知沒發（出過一次：點開永遠是 +）。
+        if (ReferenceEquals(_pivotRows[0], side))
+        {
+            if (!openGlyph.Contains('−')) throw new InvalidOperationException($"展開時分類欄那格是「{openGlyph}」，不是 −");
+            CategoryReportGrid.UpdateLayout();
+            var closedGlyph = SmokeCellSample(0);
+            if (!closedGlyph.Contains('+')) throw new InvalidOperationException($"收合「{side.Name}」後分類欄那格還是「{closedGlyph}」：+/− 沒跟著換");
+        }
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         CategoryReportGrid.UpdateLayout();                          // 強迫 DataGrid 真的生成列，才看得出是不是排版慢
@@ -132,14 +149,14 @@ public partial class LedgerTab : UserControl
         SmokeReportTiming = $"每次 {(sw.ElapsedMilliseconds - firstMs) / 10:F1}ms（首次 {firstMs}ms）/ 空排版 {sw.ElapsedMilliseconds - noopMark}ms/5 次 / {expandedCount} 列 × {_pivotMonths.Count + 2} 欄";
 
         // 讀一格真的畫出來的文字：綁定路徑寫錯只會靜靜變空白（出過一次包），不看視覺樹抓不到。
-        var sample = SmokeMonthCellSample();
+        var sample = SmokeCellSample(1);
         if (string.IsNullOrWhiteSpace(sample)) throw new InvalidOperationException("月欄全是空白：綁定沒綁到數字");
         SmokeReportTiming += $" / 月欄樣本 {sample}";
 
         // 切百分比模式：converter 換錯、塊拿不到都會靜靜變空白，所以也讀一格真的畫出來的文字。
         SetPivotMode(true);
         CategoryReportGrid.UpdateLayout();
-        var pct = SmokeMonthCellSample();
+        var pct = SmokeCellSample(1);
         if (!pct.Contains('%')) throw new InvalidOperationException($"切到百分比後月欄不是百分比（{pct}）");
         SmokeReportTiming += $" / 百分比 {pct}";
         SetPivotMode(false);
@@ -165,10 +182,11 @@ public partial class LedgerTab : UserControl
         return expandedCount - collapsedCount;
     }
 
-    /// <summary>從視覺樹撈第一個月欄的字串，取第一個非空的。空字串 = 那一欄根本沒綁到數字。</summary>
-    string SmokeMonthCellSample()
+    /// <summary>從視覺樹撈某一欄第一格的字串，取第一個非空的。空字串 = 那一欄根本沒綁到數字。</summary>
+    /// <param name="col">欄序（0 = 分類欄，1 = 第一個月欄）。</param>
+    string SmokeCellSample(int col)
     {
-        var monthCol = CategoryReportGrid.Columns.Count > 1 ? CategoryReportGrid.Columns[1] : null;
+        var monthCol = CategoryReportGrid.Columns.Count > col ? CategoryReportGrid.Columns[col] : null;
         var texts = new List<string>();
         void Walk(System.Windows.DependencyObject d)
         {
@@ -560,7 +578,9 @@ public partial class LedgerTab : UserControl
     {
         var at = _pivotRows.IndexOf(node);
         if (at < 0) { RebuildPivotRows(); return; }                   // 不在可見列上（被篩掉了）：退回整份重建
-        if (_pivotExpanded.Remove(node.Id))
+        var open = !_pivotExpanded.Remove(node.Id);
+        node.IsExpanded = open;                                       // 這一列本身不走 Visible()，+/− 要在這裡自己改
+        if (!open)
         {
             foreach (var d in PivotTree.Descendants(node)) _pivotRows.Remove(d);
         }
@@ -873,14 +893,6 @@ public partial class LedgerTab : UserControl
         if (dialog.ShowDialog() != true) return;
         Write(() => s.AddCategory(dialog.Name, dialog.Kind));
         RefreshNow();
-    }
-
-    /// <summary>帳戶管理：建帳戶、期初餘額、卡額度/自動扣繳、餘額盤點都在那里。</summary>
-    void Accounts_Click(object sender, RoutedEventArgs e)
-    {
-        if (_store is not { } s) return;
-        new AccountsDialog(s) { Owner = Window.GetWindow(this) }.ShowDialog();
-        RefreshNow();                                       // 帳戶增改/盤點会改淨值与下拉，回来就重查
     }
 
     void OpenPdf_Click(object sender, RoutedEventArgs e)

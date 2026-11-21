@@ -235,6 +235,36 @@ public sealed class LedgerStoreTests : IDisposable
     }
 
     [Fact]
+    public void 分期款不是重複_入帳日不同就不算同一組()
+    {
+        // 卡帳上的分期：每一期的交易日都是原来的購買日（只有入帳日在走），同額同日跨兩份單子 ——
+        // key 少了 posting_date 就會把第 10 期與第 11 期報成一組（永豐 12 期分期、兆豐房屋稅 6 期都是這樣）。
+        var card = Account("卡", "credit_card");
+        var (d1, d2) = (Doc("a.pdf"), Doc("b.pdf"));
+        var p10 = Entry("expense", card, 10_00, "2025-12-23", docId: d1, merchant: "12-10 期 : 台灣人壽");
+        var p11 = Entry("expense", card, 10_00, "2025-12-23", docId: d2, merchant: "12-11 期 : 台灣人壽");
+        Db.Exec(_db, "UPDATE entry SET posting_date='2026-09-30' WHERE id=$i;", ("$i", p10));
+        Db.Exec(_db, "UPDATE entry SET posting_date='2026-10-30' WHERE id=$i;", ("$i", p11));
+
+        Assert.Equal(0, _store.Flags().DuplicateGroups);                      // 两次入帳 = 两筆不同的錢，都该留
+
+        Db.Exec(_db, "UPDATE entry SET posting_date='2026-09-30' WHERE id=$i;", ("$i", p11));   // 连入帳日都一样 = 同一筆被記了两次
+        Assert.Equal(1, _store.Flags().DuplicateGroups);
+    }
+
+    [Fact]
+    public void 不同的卡同額同日不該被合成一組()
+    {
+        // key 沒带 account_id 的時候，這雨筆会在同一組裡，但人在其中一张卡的分頁筛「疑似重複」只看得到一列。
+        var (d1, d2) = (Doc("a.pdf"), Doc("b.pdf"));
+        var (c1, c2) = (Account("卡一", "credit_card"), Account("卡二", "credit_card"));
+        Entry("expense", c1, 300_00, "2026-11-01", docId: d1);
+        Entry("expense", c2, 300_00, "2026-11-01", docId: d2);
+
+        Assert.Equal(0, _store.Flags().DuplicateGroups);
+    }
+
+    [Fact]
     public void 孤兒列用警示列篩得出來()
     {
         var card = Account("卡", "credit_card");

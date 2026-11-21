@@ -166,6 +166,22 @@ public static class PivotTreeTests
     }
 
     [Fact]
+    public static void 展開收合時格子裡的正負號會跟著換()
+    {
+        // 展開/收合只動差額（不重建整張表），那一格不會被重讀：IsExpanded 不准發通知就永遠是「+」（出過一次）。
+        var 支出 = Build(Cell(1, "2026-01", 100))[0];
+        var notified = new List<string?>();
+        ((System.ComponentModel.INotifyPropertyChanged)支出).PropertyChanged += (_, e) => notified.Add(e.PropertyName);
+
+        Assert.StartsWith("+ ", 支出.Label);
+        支出.IsExpanded = true;
+        Assert.StartsWith("− ", 支出.Label);
+        Assert.Equal([nameof(PivotNode.Label)], notified);            // 要報的就是 Label 這一格
+        支出.IsExpanded = true;                                       // 同一值不准再發通知（不然白白重排整欄）
+        Assert.Single(notified);
+    }
+
+    [Fact]
     public static void 總計列是收減支而不是兩側金額相加()
     {
         // 由 LedgerStore 算好符號（收入正、支出負、退款負負得正），這裡只負責貼在最下面一列

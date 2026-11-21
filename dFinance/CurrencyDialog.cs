@@ -19,6 +19,8 @@ public sealed class CurrencyDialog : Window
     // 要 IsEditable：字典外的幣別也能现场填（下拉只是省得人打，不是限制）。兩側留白：貼著標籤很難看。
     readonly ComboBox _rateFrom = new() { Width = 80, IsEditable = true, Margin = new Thickness(6, 0, 6, 0), ToolTip = Loc.T("Ccy_CodeHint") };
     readonly TextBox _rateValue = new() { Width = 90, Margin = new Thickness(0, 0, 6, 0), ToolTip = Loc.T("Ccy_RateHint") };
+    /// <summary>「1 ? = ? 基準幣」中間那個基準幣代碼：跟著上面的基準幣走，不能只在開視窗時抓一次。</summary>
+    readonly TextBlock _rateEquals = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) };
     readonly TextBox _proxy = new() { Width = 230, ToolTip = Loc.T("Ccy_ProxyHint") };
     readonly TextBox _status = new() { IsReadOnly = true, BorderThickness = new Thickness(0), Background = System.Windows.Media.Brushes.Transparent, TextWrapping = TextWrapping.Wrap };
 
@@ -167,7 +169,7 @@ public sealed class CurrencyDialog : Window
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
         panel.Children.Add(new TextBlock { Text = "1", VerticalAlignment = VerticalAlignment.Center });
         panel.Children.Add(_rateFrom);
-        panel.Children.Add(new TextBlock { Text = $" = ?  {_store.BaseCurrency}", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
+        panel.Children.Add(_rateEquals);
         panel.Children.Add(_rateValue);
         panel.Children.Add(save);
         return panel;
@@ -246,6 +248,7 @@ public sealed class CurrencyDialog : Window
                            : codes.Contains(keep ?? "") ? keep : _store.BaseCurrency;
         _ccyGrid.ItemsSource = _store.CurrencyList();
         _rateGrid.ItemsSource = _store.RateRows();
+        _rateEquals.Text = $" = ?  {_store.BaseCurrency}";          // 匯率表讀的是「對基準幣」那一側，這格也要跟著換
         // 「1 ? = ? 基準幣」那一列的下拉要有東西可選（之前沒接 ItemsSource：開得來但選不了）。
         // 人已經打進去的那個代碼不准被重灌弄掉。
         var typed = _rateFrom.Text;

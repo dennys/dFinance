@@ -137,6 +137,8 @@ public partial class BillPeriodTab : UserControl
     public string SmokeSummary()
     {
         Reload();
+        if (RangeBox.DisplayMemberPath != "Label")                        // 沒設就會顯示成「SpanPick { Span = 12, Label = ... }」那種程式字
+            throw new InvalidOperationException($"期間下拉沒設 DisplayMemberPath：會顯示成「{RangeBox.SelectedItem}」那種程式字");
         var rows = BillGrid.Items.Count;
         if (rows == 0) throw new InvalidOperationException("依帳期彙總沒有任何列（這個庫有信用卡帳單，不該是空）");
         if (BillGrid.Columns.Count < 10) throw new InvalidOperationException($"欄位只剩 {BillGrid.Columns.Count} 欄：BuildColumns 沒跑完");

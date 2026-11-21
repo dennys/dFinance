@@ -330,7 +330,7 @@
     <value>現行 parser が生成しなくなった行（解析漏れの可能性があるので削除禁止）</value>
   </data>
   <data name="Ledger_DupGroupHint" xml:space="preserve">
-    <value>ファイル間で同額同日のカード行：表示のみ、データは変更しません</value>
+    <value>同じカード利用が 2 枚以上の明細に同時に出ているケース（同日・同額・同通貨・別ファイル）。表示のみでデータは変えません。両方とも帳簿に残るので、どちらを重複にするか自分で決めてください</value>
   </data>
   <data name="Ledger_MismatchHint" xml:space="preserve">
     <value>預金明細書の残高スナップショットと累計の不一致 = parser の行漏れ</value>

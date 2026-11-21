@@ -395,6 +395,16 @@ namespace dFinance
             foreach (var tab in _accountTabs.Values) (tab.Content as LedgerTab)?.RefreshIfStale();
         }
 
+        /// <summary>帳戶管理（主功能表入口）：建帳戶、期初餘額、卡額度/自動扣繳、餘額盤點。
+        /// 回来的時候淨值与帳戶下拉都可能变了，跟「幣別…」一样重查首页与各帳戶分頁。</summary>
+        void AccountsManager_Click(object sender, RoutedEventArgs e)
+        {
+            if (_db is null) return;
+            new AccountsDialog(new LedgerStore(_db)) { Owner = this }.ShowDialog();
+            (HomeTab.Content as LedgerTab)?.RefreshIfStale();
+            foreach (var tab in _accountTabs.Values) (tab.Content as LedgerTab)?.RefreshIfStale();
+        }
+
         void CategoryManager_Click(object sender, RoutedEventArgs e)
         {
             if (_db is null) return;

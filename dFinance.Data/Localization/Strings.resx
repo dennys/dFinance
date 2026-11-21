@@ -330,7 +330,7 @@
     <value>新版 parser 不再出現的列（可能只是漏解析，所以不准刪）</value>
   </data>
   <data name="Ledger_DupGroupHint" xml:space="preserve">
-    <value>跨檔案同額同日的信用卡列：只標記，不改任何資料</value>
+    <value>同一筆刷卡出現在兩份以上的單子上（同一天、同金額、同幣別、不同檔案）。只標記、不改資料：兩筆都還在帳本裡，要標哪一筆由你決定</value>
   </data>
   <data name="Ledger_MismatchHint" xml:space="preserve">
     <value>存款單餘額快照 vs 交易累加對不上 = parser 漏列</value>
@@ -499,7 +499,7 @@
     <value>孤兒列 {0} 筆</value>
   </data>
   <data name="Ledger_DupButton" xml:space="preserve">
-    <value>疑似重複 {0} 對</value>
+    <value>疑似重複 {0} 組</value>
   </data>
   <data name="Ledger_MismatchButton" xml:space="preserve">
     <value>餘額不符 {0} 個帳戶</value>

@@ -18,7 +18,8 @@
   <DockPanel>
     <Border DockPanel.Dock="Top" BorderBrush="#DDD" BorderThickness="0,0,0,1" Padding="0,4" Margin="0,0,0,4">
       <DockPanel Margin="4,0">
-        <ComboBox x:Name="RangeBox" Width="110" DockPanel.Dock="Left" SelectionChanged="Range_SelectionChanged"/>
+        <ComboBox x:Name="RangeBox" Width="110" DockPanel.Dock="Left" SelectionChanged="Range_SelectionChanged"
+                  DisplayMemberPath="Label"/>
         <CheckBox x:Name="OnlyMismatchBox" DockPanel.Dock="Left" Margin="10,0,0,0" VerticalAlignment="Center"
                   Content="{Binding [Bill_OnlyMismatch], Source={StaticResource Loc}}"
                   Checked="OnlyMismatch_Changed" Unchecked="OnlyMismatch_Changed"/>

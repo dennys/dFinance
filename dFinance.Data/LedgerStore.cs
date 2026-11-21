@@ -188,22 +188,29 @@ public sealed class LedgerStore
     }
 
     /// <summary>
-    /// 跨檔案同額同日 = 疑似重複。只做信用卡帳戶（存款單/繳費單沒有可靠身份，比了會把不同戶號的合成一筆）；
+    /// 跨檔案同額同日同入帳日 = 疑似重複。只做信用卡帳戶（存款單/繳費單沒有可靠身份，比了會把不同戶號的合成一筆）；
     /// 而且只標記不改資料 —— 兩筆都留在帳本裡，由人決定要不要標 duplicate。
+    /// <para>key 一定要帶 <c>account_id</c> 與 <c>posting_date</c>：沒帶帳戶會把兩張不相干的卡合成一組
+    /// （人在帳戶分頁篩「疑似重複」只看得到一列，另一列在別的卡）；沒带入帳日就會把分期款當成重複 ——
+    /// 卡帳上的分期每一期的交易日都是原來的購買日（只有入帳日在走），同額同日跨兩份單子，跟真重複長得一模一樣
+    /// （實測：永豐 12 期分期的第 10/11 期、兆豐房屋稅 6 期的第 5/6 期全被報成重複）。</para>
+    /// <para>入帳日用 <c>IS</c> 比（NULL 也算相等）：解析不到入帳日的列照舊互相比 ——
+    /// 這是只標記的功能，漏報只是少個提醒，誤報是叫人家去標正確的帳，後者比較貴。</para>
     /// </summary>
     const string DuplicateGroupKey = """
-        SELECT e.txn_date, e.amount_minor, e.currency
+        SELECT e.account_id, e.txn_date, e.amount_minor, e.currency, e.posting_date
         FROM entry e JOIN account a ON a.id = e.account_id
         WHERE e.deleted_at IS NULL AND e.source_document_id IS NOT NULL AND e.kind <> 'transfer'
           AND e.txn_date IS NOT NULL AND a.type = 'credit_card'
-        GROUP BY e.txn_date, e.amount_minor, e.currency
+        GROUP BY e.account_id, e.txn_date, e.amount_minor, e.currency, e.posting_date
         HAVING COUNT(DISTINCT e.source_document_id) > 1
         """;
 
     const string DuplicateGroupWhere = $"""
         e.deleted_at IS NULL AND EXISTS (
             SELECT 1 FROM ({DuplicateGroupKey}) g
-            WHERE g.txn_date = e.txn_date AND g.amount_minor = e.amount_minor AND g.currency = e.currency)
+            WHERE g.account_id = e.account_id AND g.txn_date = e.txn_date AND g.amount_minor = e.amount_minor
+              AND g.currency = e.currency AND g.posting_date IS e.posting_date)
         """;
 
     // ---------------------------------------------------------------- 概況

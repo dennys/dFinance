@@ -17,6 +17,10 @@
   <!-- 記一筆：全域入口。首頁把 Action 列收起來了（現金/錢包只有這個入口），只在帳戶分頁有按鈕不够。 -->
   <MenuItem Header="{Binding [Ledger_AddEntry], Source={StaticResource Loc}}" Click="AddEntry_Click"
             ToolTip="{Binding [Ledger_AddEntryHint], Source={StaticResource Loc}}"/>
+  <!-- 帳戶管理是全域入口（跟在「記一筆」同一層）：現金/錢包没有 PDF，只能从这里建，
+       藏在帳戶分頁的動作列裡首页就摸不到。 -->
+  <MenuItem Header="{Binding [Ledger_Accounts], Source={StaticResource Loc}}" Click="AccountsManager_Click"
+            ToolTip="{Binding [Ledger_AccountsHint], Source={StaticResource Loc}}"/>
   <MenuItem Header="{Binding [Menu_Reports], Source={StaticResource Loc}}">
     <MenuItem Header="{Binding [Menu_CategoryReport], Source={StaticResource Loc}}" Click="CategoryReport_Click"/>
     <MenuItem Header="{Binding [Menu_BillPeriods], Source={StaticResource Loc}}" Click="BillPeriods_Click"/>

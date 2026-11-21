@@ -330,7 +330,7 @@ Due date: {3}    Amount due: {4}    Minimum due: {5}    Account: {6}</value>
     <value>Rows the current parser no longer produces (may just be a parsing miss, so never delete)</value>
   </data>
   <data name="Ledger_DupGroupHint" xml:space="preserve">
-    <value>Same amount and date across card files: flagged only, nothing is changed</value>
+    <value>The same card charge shows up on 2+ statements (same date, amount and currency, different files). Flagged only, nothing is changed: both rows stay in the ledger, you decide which one to mark duplicate</value>
   </data>
   <data name="Ledger_MismatchHint" xml:space="preserve">
     <value>Deposit-slip balance snapshot vs running total mismatch = the parser missed a row</value>
@@ -499,7 +499,7 @@ Due date: {3}    Amount due: {4}    Minimum due: {5}    Account: {6}</value>
     <value>Orphan rows {0}</value>
   </data>
   <data name="Ledger_DupButton" xml:space="preserve">
-    <value>Suspected duplicates {0}</value>
+    <value>Suspected duplicates: {0} group(s)</value>
   </data>
   <data name="Ledger_MismatchButton" xml:space="preserve">
     <value>Balance mismatch {0} accounts</value>

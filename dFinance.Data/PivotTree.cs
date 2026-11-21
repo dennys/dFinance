@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Globalization;
 
 namespace dFinance.Data;
@@ -7,14 +8,28 @@ namespace dFinance.Data;
 /// <see cref="Cells"/> 給月欄綁。金額一律 long minor，小計已經在 <see cref="PivotTree.Build"/> 加好了。
 /// Id 是小於 0 的是合成列（支出／收入那兩塊、總計），不是真正的分類：<see cref="IsSummary"/> 給 UI 粗體、不給 drill down。
 /// </summary>
-public sealed class PivotNode
+public sealed class PivotNode : INotifyPropertyChanged
 {
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public required long Id { get; init; }
     public required string Name { get; init; }
     public required string Path { get; init; }
     public required string Kind { get; init; }
     public int Depth { get; set; }
-    public bool IsExpanded { get; set; }
+
+    bool _isExpanded;
+    /// <summary>展開狀態。收合/展開走差額更新（不重建整張表），所以格子裡的 +/− 要靠自己發通知才會換。</summary>
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set
+        {
+            if (_isExpanded == value) return;
+            _isExpanded = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Label)));
+        }
+    }
 
     public List<PivotNode> Children { get; } = [];
     public Dictionary<string, long> Cells { get; } = [];          // 月 → minor（已含整個子樹）
@@ -27,7 +42,7 @@ public sealed class PivotNode
     /// <summary>
     /// 分類欄的顯示字：全形空白縮排 + 展開符 + 名稱（跟 <c>CategoryRow.Indented</c> 同一套做法，不用 converter）。
     /// 用「− / +」不用實心三角：實心三角在 13pt 的格子裡比分類名還抢眼（使用者反映過）。
-    /// shortcut: 這個字只在重建可見列時會被重讀，所以展開/收合/排序都重建整份清單（幾百列而已，比做 INPC 划算）。
+    /// 展開/收合只動差額，這一格不會被重讀，所以 <see cref="IsExpanded"/> 改變時要發 <see cref="PropertyChanged"/>。
     /// </summary>
     public string Label => new string('　', Depth * 2) + (HasChildren ? (IsExpanded ? "− " : "+ ") : "　 ") + Name;
 }

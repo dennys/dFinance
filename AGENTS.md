@@ -64,7 +64,10 @@ dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"
 - **去重的比對範圍由「有沒有可靠身份」決定**（`StatementImporter.FindExisting` 的 `crossFile`）：
   卡號/帳號/繳費戶號進得了哈希才准跳檔案比；身份為空就只在同一份檔案內比。
   跳檔案判到重複是**不插入**（不是標記），判錯就是悄悄少一筆；「疑似重複」（`LedgerStore.DuplicateGroupKey`）才是只做標記，
-  而且只算信用卡。繳費單的戶號由 `UtilityBillParser.Identity` 抽（只能抽**跨期不變**的：通知單號/單據號碼/列印日期不准用）。
+  而且只算信用卡。**key 是 `(account_id, txn_date, amount_minor, currency, posting_date)`**：少了 `account_id` 会把兩張不相干的卡
+  合成一組（人在帳戶分頁筛「疑似重複」只看得到一列）；少了 `posting_date` 会把**分期款**报成重複 ——
+  卡帳的分期每一期交易日都是原購買日（只有入帳日在走），跟真重複长得一模一樣（實測過：12 期分期的第 10/11 期、
+  房屋稅 6 期的第 5/6 期）。入帳日用 `IS` 比（NULL 也算相等）：这是只標記的功能，漏報只是少個提醒，誤報才會叫人去動对的帳。繳費單的戶號由 `UtilityBillParser.Identity` 抽（只能抽**跨期不變**的：通知單號/單據號碼/列印日期不准用）。
 - **重匯時 `edited_at` 有值的列只准更新 `source_raw`/`source_page`**，分類/商家/金額/狀態一個都不動
   （要單欄位重覆蓋得先做欄位級編輯追蹤）。這次沒對到的舊列標 `orphaned_at`，**不准刪**。
 - **同帳期取代與孤兒標記只對信用卡做**（靠 `credit_card_bill` 的 `UNIQUE(card_id, period_end)`）；存款單/繳費單不做取代。
@@ -104,6 +107,14 @@ dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"
   拿掉就回頭用「那筆 4,534 的」這種講法。
 - **期間只有一組選項、一支 `LedgerTab.RangeStart`**：每月總資產圖與分類帳共用（近 N 個月一律從這個月往回推，
   0 = 全部，YTD 就是同一個算法算到 1 月）。兩處各寫一套就會變兩把尺。
+- **「帳戶…」在主功能表**（跟「記一筆」同一層，`MainWindow.AccountsManager_Click`），不在帳戶分頁的動作列：
+  首页把動作列收起來了，而現金/錢包沒有 PDF、只能從這裡建帳戶。回來要跟「幣別…」一樣
+  `RefreshIfStale()` 首页與各帳戶分頁。
+- **下拉的 ItemsSource 是 record 時一定要 `DisplayMemberPath="Label"`**：忘了就會把人看的 Label 變成
+  「RangePick { Span = 12, Label = 近 12 個月, Ytd = False }」那種程式字（報表期間/金額百分比/圖的期間/
+  日期快捷/依帳期期間都走這一條，`--uismoke` 有查）。
+- **幣別對話框裡「1 ? = ? 基準幣」那格要跟著上面的基準幣重抓**（`_rateEquals` 在 `Reload()` 裡改）：
+  只在開視窗時抓一次的話，换了基準幣下面會一直顯示舊代碼。
 - 換資料庫走 `MainWindow.OpenDatabasePath`：新庫開成功才關舊連線；開檔前用唯讀連線確認是 dFinance 的庫。
 - **工具 → 幣別…**（`CurrencyDialog`，純 code-behind 視窗）：基準幣、幣別字典（scale/別名）、匯率表、
   人工填/抓匯率/測試連線/proxy、把幣別不符的列拆到對的帳戶。只有人按按鈕才會連網。
@@ -140,6 +151,8 @@ dFinance\bin\Debug\net8.0-windows\dFinance.exe --uismoke "$env:TEMP\uismoke.txt"
 - `--uismoke` 要先有分類資料（`devcheck - - --autocat`）：未標分類的庫會照「排序後報表空了」fail，那是設計不是壞了。
 - `--uismoke` 已經把「幣別…」視窗也建一次（不 Show、不打網路），改那個視窗壞了會被抓到。
 - `--uismoke` 也會建「建議分類」視窗並跑一次分類報表的展開/排序（`SmokeOpenSuggestDialog`、`SmokeCategoryReport`），壞了會被抓到。
+- 分類報表的展開/收合**只動差額**（不重建整張表），所以 `PivotNode.IsExpanded` 一定要發 `PropertyChanged(Label)`，
+  不然那一格會靜靜的一直是 `+`；`--uismoke` 讀的就是真的畫出來的那一格（展開 `−`、收合 `+`）與幾個下拉的 `DisplayMemberPath`。
 - **分類帳報表**＝分類樹（列）× 月（欄）：樹、小計、排序、展開的規則都在 `dFinance.Data/PivotTree`（純函式，`PivotTreeTests` 鎖住），
   `LedgerTab` 只負責欄位、點擊展開、drill down；資料口徑只有一個：`LedgerStore.CategoryPivot`。欄位排序是 UI 自己排的
   （`e.Handled = true`），因為內建排序不會讓父列帶著子列走。

@@ -330,7 +330,7 @@
     <value>新版 parser 不再出现的行（可能只是漏解析，所以不准删）</value>
   </data>
   <data name="Ledger_DupGroupHint" xml:space="preserve">
-    <value>跨文件同额同日的信用卡行：只标记，不改任何数据</value>
+    <value>同一笔刷卡出现在两份以上的账单上（同一天、同金额、同币种、不同文件）。只标记、不改数据：两笔都留在账本里，要标哪一笔由你决定</value>
   </data>
   <data name="Ledger_MismatchHint" xml:space="preserve">
     <value>存款单余额快照 vs 交易累加对不上 = parser 漏行</value>
@@ -499,7 +499,7 @@
     <value>孤儿行 {0} 笔</value>
   </data>
   <data name="Ledger_DupButton" xml:space="preserve">
-    <value>疑似重复 {0} 对</value>
+    <value>疑似重复 {0} 组</value>
   </data>
   <data name="Ledger_MismatchButton" xml:space="preserve">
     <value>余额不符 {0} 个账户</value>
