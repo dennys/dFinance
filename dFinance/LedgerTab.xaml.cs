@@ -36,13 +36,15 @@ public partial class LedgerTab : UserControl
     readonly HashSet<long> _pivotExpanded = [];
     string _pivotSortKey = PivotTree.TotalKey;
     bool _pivotDesc = true;                       // 第一次點某欄都是由大到小：先看花費最多的那項
-    int _pivotSpan = 12;                          // 報表月欄：近 N 個月，0 = 全部
+    int _pivotSpan = DefaultSpan;                 // 報表月欄：近 N 個月，0 = 全部
+    int _homeSpan = DefaultSpan;                  // 每月總資產圖的期間（預設近 1 年）
+    int _homePointCount;                           // 最近一次画進圖的點數（給 --uismoke 用）
     bool _pivotPercent;                           // 顯示模式：false = 金額、true = 佔同側塊的百分比
 
     record AccountPick(long? Id, string Label);
     record CategoryPick(long? Id, string Label, bool Uncategorized);
     record StatusPick(string Mode, string Label);
-    record RangePick(int Span, string Label);
+    record RangePick(int Span, string Label, bool Ytd = false);
     record ModePick(bool Percent, string Label);
     record DatePreset(string Mode, string Label);          // 顯示文字會跟著語系變，判斷一律看 Mode
 
@@ -61,6 +63,7 @@ public partial class LedgerTab : UserControl
         _homeMode = accountId is null && !ledgerMode;
         BuildFilterOptions();
         BuildReportRange();
+        BuildHomeRange();
         BuildReportMode();
 
         if (_accountId is not null)
@@ -375,7 +378,8 @@ public partial class LedgerTab : UserControl
 
         var plot = NetWorthPlot.Plot;
         plot.Clear();
-        var points = s.MonthlyNetWorth();
+        var points = WindowMonths(s.MonthlyNetWorth(), _homeSpan);
+        _homePointCount = points.Count;
         var line = plot.Add.Scatter(
             points.Select(p => p.Month.ToDateTime(TimeOnly.MinValue).ToOADate()).ToArray(),
             points.Select(p => (double)p.NetMinor / Money.LedgerScale).ToArray());
@@ -408,8 +412,7 @@ public partial class LedgerTab : UserControl
         _reportVersion = LedgerStore.DataVersion;
 
         // 「近 N 個月」= 從這個月往前推 N-1 個月的 1 號起，不封頂：未來的帳單月也要看得到。
-        var from = _pivotSpan <= 0 ? null
-            : new DateOnly(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(1 - _pivotSpan).ToString("yyyy-MM-dd");
+        var from = _pivotSpan <= 0 ? (string?)null : RangeStart(_pivotSpan).ToString("yyyy-MM-dd");
         var pivot = s.CategoryPivot(from, null, _accountId);
         _pivotMonths = PivotTree.Months(pivot.Cells);
         _pivotRoots = PivotTree.Build(pivot.Categories, pivot.Cells, Loc.T("Ledger_Uncategorized"),
@@ -421,6 +424,7 @@ public partial class LedgerTab : UserControl
             ? Loc.F("Report_ForeignSkipped", pivot.SkippedForeignEntries, pivot.BaseCurrency) : "";
         if (pivot.ConvertedForeignEntries > 0)          // 折過的要講：不然人會以為美金那幾筆是原幣金額
             ReportNote.Text += (ReportNote.Text.Length > 0 ? "；" : "") + Loc.F("Report_ForeignConverted", pivot.ConvertedForeignEntries, pivot.BaseCurrency);
+        ReportNote.Visibility = ReportNote.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
 
         BuildPivotColumns(s);
         RebuildPivotRows();
@@ -433,7 +437,7 @@ public partial class LedgerTab : UserControl
         CategoryReportGrid.Columns.Clear();
         CategoryReportGrid.Columns.Add(new DataGridTextColumn
         {
-            Header = Loc.T("Common_Category"),                  // 這欄是樹（縮排 + ▶/▼），不是「餐飲／外食」那種路徑字串
+            Header = Loc.T("Common_Category"),                  // 這欄是樹（縮排 + −/+），不是「餐飲／外食」那種路徑字串
             Binding = new Binding(nameof(PivotNode.Label)),
             SortMemberPath = PivotTree.NameKey,                 // 這一欄同时也是「展開/收合」的身分標記
             Width = new DataGridLength(3, DataGridLengthUnitType.Star),
@@ -476,21 +480,76 @@ public partial class LedgerTab : UserControl
 
     void BuildReportRange()
     {
-        ReportRangeBox.ItemsSource = new[]
-        {
-            new RangePick(6, Loc.F("Report_LastMonths", 6)),
-            new RangePick(12, Loc.F("Report_LastMonths", 12)),
-            new RangePick(24, Loc.F("Report_LastMonths", 24)),
-            new RangePick(0, Loc.T("Report_AllMonths")),
-        };
-        ReportRangeBox.SelectedIndex = 1;                       // 預設近 12 個月
+        ReportRangeBox.ItemsSource = RangeOptions();
+        ReportRangeBox.SelectedIndex = DefaultRangeIndex;
+    }
+
+    void BuildHomeRange()
+    {
+        HomeRangeBox.ItemsSource = RangeOptions();
+        HomeRangeBox.SelectedIndex = DefaultRangeIndex;
+    }
+
+    /// <summary>期間選單：圖與分類帳共用同一組（兩處不一樣會讓人以為是兩套口徑）。
+    /// 「近 N 個月」一律從這個月往回推；YTD 就是同一個算法算到 1 月。</summary>
+    RangePick[] RangeOptions() =>
+    [
+        new(1, Loc.F("Report_LastMonths", 1)),
+        new(3, Loc.F("Report_LastMonths", 3)),
+        new(6, Loc.F("Report_LastMonths", 6)),
+        new(0, Loc.T("Report_Ytd"), Ytd: true),
+        new(DefaultSpan, Loc.F("Report_LastMonths", DefaultSpan)),
+        new(36, Loc.F("Report_LastMonths", 36)),
+        new(0, Loc.T("Report_AllMonths")),
+    ];
+
+    int DefaultRangeIndex => Array.FindIndex(RangeOptions(), p => !p.Ytd && p.Span == DefaultSpan);
+
+    /// <summary>記帳軟體的常見預設：近 1 年。</summary>
+    const int DefaultSpan = 12;
+
+    static int SpanOf(RangePick pick) => pick.Ytd ? DateOnly.FromDateTime(DateTime.Today).Month : pick.Span;
+
+    /// <summary>近 N 個月的起點（这个月的 1 號往回推 N-1 個月），不封頂：未來的帳單月也要看得到。
+    /// 圖與分類帳都用這一支，不然兩塊會變成兩把尺。</summary>
+    static DateOnly RangeStart(int span) => new DateOnly(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(1 - span);
+
+    /// <summary>照期間筛每月點。負的照樣進圖（ScottPlot 自己会把軸拉到負的區間，這裡不封頂 0）。</summary>
+    static List<LedgerStore.MonthPoint> WindowMonths(List<LedgerStore.MonthPoint> points, int span)
+        => span <= 0 ? points : points.Where(p => p.Month >= RangeStart(span)).ToList();
+
+    /// <summary>給 <c>--uismoke</c>：这一轮画進圖的點數（换期間要真的少幾期才算有在筛）。</summary>
+    internal int SmokeChartPoints() => _homePointCount;
+
+    /// <summary>給 <c>--uismoke</c>：每月總資產的期間下拉要預設近 1 年，而且换期間真的在筛
+    /// （回報「預設/全部/近 1 個月」三個點數，让人看得见差）。</summary>
+    internal string SmokeChartRange()
+    {
+        if (HomeRangeBox.SelectedItem is not RangePick pick || SpanOf(pick) != DefaultSpan)
+            throw new InvalidOperationException($"每月總資產預設不是近 {DefaultSpan} 個月");
+        var def = _homePointCount;
+        HomeRangeBox.SelectedIndex = Array.FindIndex(RangeOptions(), p => p.Span == 0 && !p.Ytd);
+        var all = _homePointCount;
+        HomeRangeBox.SelectedIndex = Array.FindIndex(RangeOptions(), p => p.Span == 1);
+        var one = _homePointCount;
+        if (all < def) throw new InvalidOperationException("换成「全部月份」點數反而變少");
+        if (all > 1 && one >= all) throw new InvalidOperationException("换成「近 1 個月」沒在筛");
+        HomeRangeBox.SelectedIndex = DefaultRangeIndex;
+        return $"{def}/{all}/{one}";
     }
 
     void ReportRange_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ReportRangeBox.SelectedItem is not RangePick pick || pick.Span == _pivotSpan) return;
-        _pivotSpan = pick.Span;
+        if (ReportRangeBox.SelectedItem is not RangePick pick || SpanOf(pick) == _pivotSpan) return;
+        _pivotSpan = SpanOf(pick);
         if (_showingReport) ShowCategoryReport();               // 沒開報表就不查庫
+    }
+
+    void HomeRange_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (HomeRangeBox.SelectedItem is not RangePick pick || SpanOf(pick) == _homeSpan) return;
+        _homeSpan = SpanOf(pick);
+        if (_homeMode) Reload();                                // 只有首頁那塊有圖
     }
 
     /// <summary>

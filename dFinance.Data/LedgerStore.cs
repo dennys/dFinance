@@ -836,11 +836,12 @@ public sealed class LedgerStore
                              : Mismatch ? "⚠ " + Loc.T("Bill_WarnDiff") : "";
     }
 
-    /// <param name="UnmappedEntries">卡帳但挂不上任何帳單的列數（要講、不能静靜吃掉）。</param>
+    /// <param name="UnmappedEntries">卡帳但挂不上任何帳單的列數（要講、不能静靜吃掉）；
+    /// 同一種列的筆數在 <c>Rows</c> 裡看得到（<c>Unmapped</c>/<c>Foreign</c>），不再另计一個計數。</param>
     /// <param name="UnconvertedBills">因為完全沒匯率而沒算進合計列的期數。</param>
     public sealed record BillPeriodReport(IReadOnlyList<BillPeriod> Rows,
                                           long TotalSpendMinor, long TotalDueMinor, long TotalDiffMinor,
-                                          int UnmappedEntries, int UnmappedBills,
+                                          int UnmappedEntries,
                                           int UnconvertedBills, string BaseCurrency, int BaseScale)
     {
         public string SpendText => Money.Format(TotalSpendMinor, BaseScale);
@@ -945,13 +946,14 @@ public sealed class LedgerStore
                                          Foreign: Lang(r, 6) == 0);
                 unmapped.Add(row);
                 unmappedEntries += row.Entries;
-                if (onlyMismatched) continue;
-                rows.Add(row);                                                // 只加进列，不進合計（沒有單可對）
+                rows.Add(row);                                                // 只加进列，不進合計（沒有單可對）。
+                // 「只看對不上的」也留著：掛不到單/幣別不符本来就是要先處理的那幾列，
+                // 藏起来只留 footer 的計數會讓人在屏幕上看不到 footer 在講的東西。
                 if (!row.Converted) unconverted++;
             }
         }
         return new BillPeriodReport(rows, totalSpend, totalDue, totalDiff,
-                                    unmappedEntries, unmapped.Count, unconverted, baseCcy, baseScale);
+                                    unmappedEntries, unconverted, baseCcy, baseScale);
     }
 
     // ---------------------------------------------------------------- 下拉的資料

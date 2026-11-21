@@ -25,10 +25,11 @@ public sealed class PivotNode
     public long Cell(string month) => Cells.GetValueOrDefault(month);
 
     /// <summary>
-    /// 分類欄的顯示字：全形空白縮排 + ▶/▼ + 名稱（跟 <c>CategoryRow.Indented</c> 同一套做法，不用 converter）。
+    /// 分類欄的顯示字：全形空白縮排 + 展開符 + 名稱（跟 <c>CategoryRow.Indented</c> 同一套做法，不用 converter）。
+    /// 用「− / +」不用實心三角：實心三角在 13pt 的格子裡比分類名還抢眼（使用者反映過）。
     /// shortcut: 這個字只在重建可見列時會被重讀，所以展開/收合/排序都重建整份清單（幾百列而已，比做 INPC 划算）。
     /// </summary>
-    public string Label => new string('　', Depth * 2) + (HasChildren ? (IsExpanded ? "▼ " : "▶ ") : "　 ") + Name;
+    public string Label => new string('　', Depth * 2) + (HasChildren ? (IsExpanded ? "− " : "+ ") : "　 ") + Name;
 }
 
 /// <summary>

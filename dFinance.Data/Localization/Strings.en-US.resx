@@ -446,6 +446,9 @@ Due date: {3}    Amount due: {4}    Minimum due: {5}    Account: {6}</value>
 <data name="Report_TotalRow" xml:space="preserve">
     <value>Net (in − out)</value>
   </data>
+  <data name="Report_Ytd" xml:space="preserve">
+    <value>Year to date</value>
+  </data>
 <data name="Report_AllMonths" xml:space="preserve">
     <value>All months</value>
   </data>

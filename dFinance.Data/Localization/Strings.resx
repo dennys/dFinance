@@ -446,6 +446,9 @@
 <data name="Report_TotalRow" xml:space="preserve">
     <value>總計（收−支）</value>
   </data>
+  <data name="Report_Ytd" xml:space="preserve">
+    <value>今年至今</value>
+  </data>
 <data name="Report_AllMonths" xml:space="preserve">
     <value>全部月份</value>
   </data>

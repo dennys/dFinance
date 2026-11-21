@@ -166,6 +166,20 @@ public sealed class LedgerStoreTests : IDisposable
     }
 
     [Fact]
+    public void 只有信用卡時淨值是負的_每月走勢也要交出負的點()
+    {
+        // 只有卡、沒資產時淨值為負是常態。軸会不会画到負的是 ScottPlot 的事，
+        // 但「資料端有沒有把負的交出去」在這裡钉住 —— 上面封頂 0 就會讓那段静静消失。
+        var card = Account("卡", "credit_card");
+        Entry("expense", card, 50_000, "2026-10-05");
+
+        Assert.Equal(-50_000, _store.NetWorth().NetMinor);
+        var points = _store.MonthlyNetWorth(new DateOnly(2026, 12, 31));
+        Assert.Contains(points, p => p.NetMinor < 0);
+        Assert.Equal(-50_000, points[^1].NetMinor);
+    }
+
+    [Fact]
     public void 未來帳單含未到期的列與未繳卡費()
     {
         var bank = Account("活存", "bank");

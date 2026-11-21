@@ -102,7 +102,10 @@
           <ComboBox x:Name="ReportModeBox" Width="92" DockPanel.Dock="Left" Margin="8,0,0,0"
                     SelectionChanged="ReportMode_SelectionChanged"
                     ToolTip="{Binding [Report_ModeTip], Source={StaticResource Loc}}"/>
-          <TextBlock x:Name="ReportNote" Foreground="#B00000" VerticalAlignment="Center" Margin="10,0,0,0" TextWrapping="Wrap"/>
+          <!-- 這行是報表工具列：期間、金額/百分比、外幣警示。警示那塊不准當 DockPanel 最後一個孩子，
+               不然會吃掉剩下整條寬度（看起來就是一道空的長條）。 -->
+          <TextBlock x:Name="ReportNote" DockPanel.Dock="Left" Foreground="#B00000" VerticalAlignment="Center"
+                     Margin="10,0,0,0" Visibility="Collapsed"/>
         </DockPanel>
         <DataGrid x:Name="CategoryReportGrid" Grid.Row="1"
                   AutoGenerateColumns="False"
@@ -237,7 +240,12 @@
         </Grid.RowDefinitions>
 
         <DockPanel Grid.Row="0">
-          <TextBlock DockPanel.Dock="Top" Text="{Binding [Home_MonthlyAssets], Source={StaticResource Loc}}" FontWeight="Bold" Margin="0,0,0,4"/>
+          <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,4">
+            <TextBlock Text="{Binding [Home_MonthlyAssets], Source={StaticResource Loc}}" FontWeight="Bold" VerticalAlignment="Center"/>
+            <!-- 走勢要看多久：跟分類帳同一組選項、同一把尺（近 N 個月都從「這個月」往回推）。預設近 1 年。 -->
+            <ComboBox x:Name="HomeRangeBox" Width="110" DockPanel.Dock="Right"
+                      SelectionChanged="HomeRange_SelectionChanged"/>
+          </DockPanel>
           <sp:WpfPlot x:Name="NetWorthPlot"/>
         </DockPanel>
 

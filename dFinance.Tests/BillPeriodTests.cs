@@ -145,7 +145,6 @@ public sealed class BillPeriodTests : IDisposable
         Assert.Equal(1, report.UnmappedEntries);
         Assert.Equal(1, report.Rows.Count(x => x.Unmapped));         // 列裡看得到（不靜靜吃掉）
         Assert.Equal(1_000_00, report.TotalSpendMinor);              // 那 500 不進合計：沒有單可對
-        Assert.Equal(1, report.UnmappedBills);
     }
 
     // ---------------------------------------------------------------- 幣別
@@ -216,12 +215,16 @@ public sealed class BillPeriodTests : IDisposable
         var ku = Card(jpy);
         var foreign = Bill(ku, "2026-10-31", totalDueMinor: 10_000);
         Entry("expense", jpy, 10_000, foreign, currency: "JPY");
+        Entry("expense", twd, 300_00, billId: null);                // 掛不到單：也是要先處理的 → 不能藏起來（footer 在講的就是它）
 
-        var rows = _store.BillPeriods(onlyMismatched: true).Rows;
-        Assert.Equal(2, rows.Count);
+        var report = _store.BillPeriods(onlyMismatched: true);
+        var rows = report.Rows;
+        Assert.Equal(3, rows.Count);
         Assert.Contains(rows, r => r.Mismatch && r.DiffMinor == -500_00);
         Assert.Contains(rows, r => r.NeedsRate);
-        Assert.DoesNotContain(rows, r => r.Currency == "TWD" && r.DiffMinor == 0);   // 對得上的台幣那期被濾掉了
+        Assert.Contains(rows, r => r.Unmapped);
+        Assert.Equal(1, report.UnmappedEntries);
+        Assert.DoesNotContain(rows, r => !r.Unmapped && r.Currency == "TWD" && r.DiffMinor == 0);   // 對得上的台幣那期被濾掉了
     }
 
     [Fact]

@@ -160,8 +160,8 @@ public static class PivotTreeTests
 
         var expanded = PivotTree.Visible(blocks, new HashSet<long> { PivotTree.ExpenseSideId, 1 });
         Assert.Equal(["支出", "餐飲", "外食", "外送", "交通"], expanded.Select(n => n.Name));
-        Assert.Equal("▼ 支出", expanded[0].Label);                        // 塊本身也能展開
-        Assert.Equal(new string('　', 2) + "▼ 餐飲", expanded[1].Label);   // 分類縮排一層（外面套了塊）
+        Assert.Equal("− 支出", expanded[0].Label);                        // 塊本身也能展開
+        Assert.Equal(new string('　', 2) + "− 餐飲", expanded[1].Label);   // 分類縮排一層（外面套了塊）
         Assert.Equal(new string('　', 4) + "　 外食", expanded[2].Label);  // 子類縮排兩層
     }
 

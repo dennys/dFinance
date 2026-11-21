@@ -10,6 +10,8 @@ public sealed class CategoryManagerDialog : Window
 {
     readonly LedgerStore _store;
     readonly DataGrid _grid = new() { AutoGenerateColumns = false, CanUserAddRows = false, CanUserDeleteRows = false, HeadersVisibility = DataGridHeadersVisibility.Column };
+    /// <summary>給 <c>--uismoke</c>：視窗是純 code-behind 建的（排版/欄位壞了要靠這個抓）。</summary>
+    internal int RowCount => _grid.Items.Count;
     readonly TextBox _newName = new() { Width = 140 };
     readonly ComboBox _newKind = new() { Width = 80, SelectedIndex = 0 };
     readonly ComboBox _newParent = new() { Width = 120, DisplayMemberPath = nameof(LedgerStore.Option.Name), SelectedValuePath = nameof(LedgerStore.Option.Id) };
@@ -18,7 +20,7 @@ public sealed class CategoryManagerDialog : Window
     {
         _store = store;
         Title = Loc.T("Category_Title");
-        Width = 560; Height = 460;
+        Width = 640; Height = 470;                     // 560 宽会让下面那一列（新增／关闭）被遮一半
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
         _grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Category_Direction"), Binding = new System.Windows.Data.Binding(nameof(LedgerStore.CategoryRow.Kind)) { Converter = KindConverter.Instance }, IsReadOnly = true, Width = 60 });
@@ -30,8 +32,16 @@ public sealed class CategoryManagerDialog : Window
         });
         _grid.Columns.Add(new DataGridTextColumn
         {
-            Header = Loc.T("Category_Uses"), Binding = new System.Windows.Data.Binding(nameof(LedgerStore.CategoryRow.Uses)), IsReadOnly = true, Width = 60,
-            ElementStyle = new Style(typeof(TextBlock)) { Setters = { new Setter(TextBlock.TextAlignmentProperty, TextAlignment.Right) } },
+            Header = Loc.T("Category_Uses"), Binding = new System.Windows.Data.Binding(nameof(LedgerStore.CategoryRow.Uses)), IsReadOnly = true, Width = 70,
+            // 靠右但要留白：贴着 scrollbar 会让人以为那列被切掉了。
+            ElementStyle = new Style(typeof(TextBlock))
+            {
+                Setters =
+                {
+                    new Setter(TextBlock.TextAlignmentProperty, TextAlignment.Right),
+                    new Setter(TextBlock.MarginProperty, new Thickness(0, 0, 10, 0)),
+                },
+            },
         });
         _grid.CellEditEnding += Grid_CellEditEnding;
 
@@ -39,7 +49,7 @@ public sealed class CategoryManagerDialog : Window
         _newKind.SelectionChanged += (_, _) => ReloadParents();
         var add = new Button { Content = Loc.T("Category_Add_Btn"), Width = 70, Margin = new Thickness(8, 0, 0, 0) };
         add.Click += (_, _) => AddNew();
-        var close = new Button { Content = Loc.T("Common_Close"), Width = 70, IsCancel = true, IsDefault = true, Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Right };
+        var close = new Button { Content = Loc.T("Common_Close"), Width = 70, IsCancel = true, IsDefault = true, Margin = new Thickness(18, 0, 0, 0) };
         close.Click += (_, _) => Close();
 
         var addRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
@@ -50,11 +60,10 @@ public sealed class CategoryManagerDialog : Window
         addRow.Children.Add(new TextBlock { Text = Loc.T("Category_NameLabel"), VerticalAlignment = VerticalAlignment.Center });
         addRow.Children.Add(_newName);
         addRow.Children.Add(add);
+        addRow.Children.Add(close);          // 跟在「新增」同一列：单独占一列只是浪费高度
 
         var panel = new DockPanel { Margin = new Thickness(10) };
         DockPanel.SetDock(addRow, Dock.Bottom);
-        DockPanel.SetDock(close, Dock.Bottom);
-        panel.Children.Add(close);
         panel.Children.Add(addRow);
         panel.Children.Add(_grid);
         Content = panel;

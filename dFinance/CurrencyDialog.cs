@@ -13,11 +13,12 @@ namespace dFinance;
 public sealed class CurrencyDialog : Window
 {
     readonly LedgerStore _store;
-    readonly ComboBox _base = new() { Width = 90, ToolTip = Loc.T("Ccy_BaseHint") };
+    readonly ComboBox _base = new() { Width = 90, Margin = new Thickness(6, 0, 6, 0), ToolTip = Loc.T("Ccy_BaseHint") };
     readonly DataGrid _ccyGrid = new() { AutoGenerateColumns = false, CanUserAddRows = false, HeadersVisibility = DataGridHeadersVisibility.Column };
     readonly DataGrid _rateGrid = new() { AutoGenerateColumns = false, CanUserAddRows = false, HeadersVisibility = DataGridHeadersVisibility.Column };
-    readonly ComboBox _rateFrom = new() { Width = 80, IsEditable = true, ToolTip = Loc.T("Ccy_CodeHint") };
-    readonly TextBox _rateValue = new() { Width = 90, ToolTip = Loc.T("Ccy_RateHint") };
+    // 要 IsEditable：字典外的幣別也能现场填（下拉只是省得人打，不是限制）。兩側留白：貼著標籤很難看。
+    readonly ComboBox _rateFrom = new() { Width = 80, IsEditable = true, Margin = new Thickness(6, 0, 6, 0), ToolTip = Loc.T("Ccy_CodeHint") };
+    readonly TextBox _rateValue = new() { Width = 90, Margin = new Thickness(0, 0, 6, 0), ToolTip = Loc.T("Ccy_RateHint") };
     readonly TextBox _proxy = new() { Width = 230, ToolTip = Loc.T("Ccy_ProxyHint") };
     readonly TextBox _status = new() { IsReadOnly = true, BorderThickness = new Thickness(0), Background = System.Windows.Media.Brushes.Transparent, TextWrapping = TextWrapping.Wrap };
 
@@ -48,6 +49,9 @@ public sealed class CurrencyDialog : Window
     }
 
     static TextBlock Section(string title) => new() { Text = title, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 10, 0, 4) };
+
+    /// <summary>給 <c>--uismoke</c>：人工填匯率那个下拉有沒有幣別可選（空下拉就是開得來但用不了）。</summary>
+    public int RateCurrencyOptionCount => _rateFrom.Items.Count;
 
     /// <summary>給 <c>--uismoke</c> 用的钩子：視窗建得出來、字典讀得到嗎。</summary>
     public int CurrencyRowCount => _ccyGrid.Items.Count;
@@ -160,7 +164,7 @@ public sealed class CurrencyDialog : Window
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
         panel.Children.Add(new TextBlock { Text = "1", VerticalAlignment = VerticalAlignment.Center });
         panel.Children.Add(_rateFrom);
-        panel.Children.Add(new TextBlock { Text = $" = ?  {_store.BaseCurrency}", VerticalAlignment = VerticalAlignment.Center });
+        panel.Children.Add(new TextBlock { Text = $" = ?  {_store.BaseCurrency}", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
         panel.Children.Add(_rateValue);
         panel.Children.Add(save);
         return panel;
@@ -229,6 +233,11 @@ public sealed class CurrencyDialog : Window
                            : codes.Contains(keep ?? "") ? keep : _store.BaseCurrency;
         _ccyGrid.ItemsSource = _store.CurrencyList();
         _rateGrid.ItemsSource = _store.RateRows();
+        // 「1 ? = ? 基準幣」那一列的下拉要有東西可選（之前沒接 ItemsSource：開得來但選不了）。
+        // 人已經打進去的那個代碼不准被重灌弄掉。
+        var typed = _rateFrom.Text;
+        _rateFrom.ItemsSource = codes.Where(c => c != _store.BaseCurrency).ToList();
+        _rateFrom.Text = typed;
     }
 
     void Say(string message) => _status.Text = message;
