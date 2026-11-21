@@ -8,7 +8,7 @@
 
 ```
 dotnet build -c Release    # 0 錯誤
-dotnet test                # 258 個測試
+dotnet test                # 275 個測試
 ```
 
 已可用的三條路徑：
